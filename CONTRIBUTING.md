@@ -31,6 +31,7 @@ python3 -m http.server 8080
 npm run check:syntax
 npm test
 npm run check:static
+npm run check:ui
 git diff --check
 ```
 
