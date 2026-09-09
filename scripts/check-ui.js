@@ -173,6 +173,7 @@ const count = (text, re) => (text.match(re) ?? []).length;
   const canvases = [...html.matchAll(/<canvas[^>]*>/g)].map((m) => m[0]);
   const problems = [];
   if (!/canvas\.chart\s*\{[^}]*height/.test(css)) problems.push("CSS 缺 canvas.chart 高度");
+  if (/canvas\.style\.height/.test(readFileSync("js/charts.js", "utf8"))) problems.push("charts.js 不可用 JS inline 高度覆蓋 CSS");
   if (canvases.length === 0) problems.push("找不到 canvas");
   for (const c of canvases) if (!/aria-label="[^"]+"/.test(c)) problems.push(`canvas 缺 aria-label：${c}`);
   if (problems.length === 0) ok("canvas-baseline");

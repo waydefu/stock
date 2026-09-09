@@ -5,13 +5,15 @@ import { sma, fmtDate } from "./data.js";
 
 const COLORS = { grid: "#252a38", text: "#9497a9", candleUp: "#22b07d", candleDown: "#f6465d", fast: "#855bfb", slow: "#4da3ff", volume: "#3b4154" };
 
-function prepare(canvas, height = 300) {
+function prepare(canvas, fallbackHeight = 220) {
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(320, Math.floor(rect.width || canvas.clientWidth || 720));
+  // 高度以 CSS 為準（canvas.chart 定高），JS 不再寫 inline 高度覆蓋它；
+  // 隱藏面板量不到時用 fallback，繪製仍以傳入座標空間為準。
+  const height = Math.max(120, Math.floor(canvas.clientHeight || fallbackHeight));
   const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
   canvas.width = width * dpr;
   canvas.height = height * dpr;
-  canvas.style.height = `${height}px`;
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
@@ -37,7 +39,7 @@ function chartBounds(values, top = 18, bottom = 42, height = 300) {
 
 export function drawCandles(canvas, bars, { fast = 20, slow = 50, window = 90 } = {}) {
   if (!canvas || !bars?.length) return;
-  const { ctx, width, height } = prepare(canvas, 320);
+  const { ctx, width, height } = prepare(canvas);
   const data = bars.slice(-window);
   const closes = bars.map((b) => b.c);
   const fastValues = sma(closes, fast).slice(-window);
