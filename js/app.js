@@ -230,7 +230,7 @@ function renderBacktest() {
     ["Sharpe", formatMetric(m.sharpe), m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
-  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${STRATEGIES[strategy] ?? strategy}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K</span></div>`;
+  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K</span></div>`;
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
