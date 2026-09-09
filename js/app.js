@@ -10,7 +10,7 @@ import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
 import { escapeHtml } from "./dom.js";
 import { loadFavorites, toggleFavorite } from "./favorites.js";
-import { avgLast, fmtDay, money, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
+import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 
 const state = {
@@ -249,6 +249,24 @@ function renderTrade() {
   $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : stateRow(5, "empty", "尚無持倉", "紙上帳戶從零開始，不會自動載入券商資料。");
   $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : stateRow(6, "empty", "尚無訂單", "建立紙上訂單後，這裡會保留本機歷史。");
   updateOrderPrice();
+  updateOrderEstimate();
+}
+
+function updateOrderEstimate() {
+  const box = $("#order-estimate");
+  if (!box) return;
+  const market = $("#trade-market").value || state.market;
+  const qty = Number($("#order-qty").value);
+  const price = Number($("#order-price").value);
+  const account = broker.snapshot(market, quoteMap(market));
+  const estimate = orderEstimate({ qty, price, equity: account.equity });
+  if (!estimate) {
+    box.textContent = "輸入數量與價格後顯示試算（僅供參考，不代表風控結果）。";
+    return;
+  }
+  const lot = market === "TW" ? (qty >= 1000 ? "整股" : "零股") : "美股";
+  const overCap = estimate.equityPct > 20 ? "・超過單筆 20% 上限，預覽不會通過" : "";
+  box.textContent = `試算：名目 ${fmtPrice(estimate.notional)}・佔權益 ${estimate.equityPct.toFixed(2)}%・${lot}${overCap}（送出前仍須預覽＋二次確認）`;
 }
 
 function updateOrderPrice() {
@@ -391,8 +409,9 @@ function initEvents() {
   $("#backtest-symbol").addEventListener("change", (event) => { state.symbol = event.target.value; renderBacktest(); });
   $("#backtest-run").addEventListener("click", () => { auditEvent("BACKTEST_RUN", { symbol: state.symbol, strategy: $("#backtest-strategy").value }); renderBacktest(); });
   $("#trade-market").addEventListener("change", (event) => { setMarket(event.target.value); $("#trade-market").value = event.target.value; });
-  $("#order-symbol").addEventListener("change", updateOrderPrice);
-  $("#order-qty").addEventListener("input", () => { $("#order-submit").disabled = true; });
+  $("#order-symbol").addEventListener("change", () => { updateOrderPrice(); updateOrderEstimate(); });
+  $("#order-qty").addEventListener("input", () => { $("#order-submit").disabled = true; updateOrderEstimate(); });
+  $("#order-price").addEventListener("input", updateOrderEstimate);
   $("#order-preview").addEventListener("click", previewOrder);
   $("#order-form").addEventListener("submit", (event) => { event.preventDefault(); if (!state.pendingOrder) previewOrder(event); });
   $("#order-confirm").addEventListener("click", confirmOrder);
