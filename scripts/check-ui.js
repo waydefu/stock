@@ -28,7 +28,7 @@ const count = (text, re) => (text.match(re) ?? []).length;
 // 2. CSS 設計代幣齊全
 {
   const root = (css.match(/:root\s*\{[^}]*\}/) ?? [""])[0];
-  const required = ["--brand", "--brand-deep", "--bg", "--surface", "--ink", "--muted", "--faint",
+  const required = ["--brand", "--brand-ink", "--brand-deep", "--bg", "--surface", "--ink", "--muted", "--faint",
     "--border", "--up", "--down", "--warn", "--info",
     "--motion-fast", "--motion-base", "--ease-standard", "--radius", "--mono", "--sans"];
   const missing = required.filter((v) => !root.includes(v));
@@ -77,6 +77,45 @@ const count = (text, re) => (text.match(re) ?? []).length;
     if (r < floor) fail("contrast", `${name} 實測 ${r.toFixed(2)}:1 低於門檻 ${floor}（${use}）`);
   }
   if (!failures.some((f) => f.startsWith("[FAIL] contrast"))) ok("contrast");
+}
+
+// 4b. 功能文字用色：badge 與選中態的 color 實測必須達 4.5（只驗 text，不驗線條／logotype）
+{
+  const problems = [];
+  const resolveColor = (block) => {
+    const m = block.match(/color\s*:\s*(var\(--([\w-]+)\)|#[0-9a-fA-F]{6})/);
+    if (!m) return null;
+    if (m[2]) {
+      const hex = (css.match(new RegExp(`--${m[2]}\\s*:\\s*(#[0-9a-fA-F]{6})`)) ?? [])[1];
+      return hex ?? null;
+    }
+    return m[1];
+  };
+  const lum = (h) => {
+    const v = [0, 2, 4].map((i) => parseInt(h.slice(i + 1, i + 3), 16) / 255)
+      .map((x) => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4));
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  };
+  const ratio = (a, b) => {
+    const s = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (s[0] + 0.05) / (s[1] + 0.05);
+  };
+  const vars = Object.fromEntries([...css.matchAll(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]));
+  const targets = [
+    ["badge.brand 文字", /\.badge\.brand\s*\{[^}]*\}/, vars["surface"]],
+    ["market-switch 選中文字", /\.market-switch button\[aria-pressed="true"\]\s*\{[^}]*\}/, vars["surface-2"]],
+  ];
+  for (const [name, re, bg] of targets) {
+    const block = (css.match(re) ?? [""])[0];
+    if (!block) { problems.push(`找不到規則：${name}`); continue; }
+    const fg = resolveColor(block);
+    if (!fg) { problems.push(`${name} 解析不出 color`); continue; }
+    const r = ratio(fg, bg);
+    console.log(`  ${name}: ${fg} on ${bg} = ${r.toFixed(2)}:1（門檻 4.5）`);
+    if (r < 4.5) problems.push(`${name} 實測 ${r.toFixed(2)}:1 未達 4.5`);
+  }
+  if (problems.length === 0) ok("text-contrast-usage");
+  else fail("text-contrast-usage", problems.join("；"));
 }
 
 // 5. tabs 語義
