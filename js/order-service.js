@@ -2,6 +2,8 @@
    Preview is advisory; this function re-reads account state and risk immediately before mutation. */
 "use strict";
 
+import { ORDER_ERROR_CODE } from "./order-errors.js";
+
 export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade = true }) {
   if (!canTrade) {
     return {
@@ -14,7 +16,7 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
     return {
       filled: true,
       duplicate: true,
-      decision: { ok: true, code: "IDEMPOTENT_REPLAY", reason: "重複 clientOrderId，回傳原成交" },
+      decision: { ok: true, code: ORDER_ERROR_CODE.IDEMPOTENT_REPLAY, reason: "重複 clientOrderId，回傳原成交" },
       fill: previous,
       account: broker.snapshot(order.market, quotes),
     };

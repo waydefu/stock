@@ -29,6 +29,8 @@ js/accounting.js    AccountSnapshot、invariants、zero-fee paper FeeModel
 js/execution-model.js Immediate／future matching execution boundary
 js/order-errors.js  stable risk／validation／broker error codes
 js/dom.js           safe DOM text escaping helper
+js/favorites.js     自選清單本機持久化（不影響帳本）
+js/view.js          純顯示 helper（金額／狀態塊／標籤，無 DOM）
 js/market-rules.js  TW／US 市場規則 contract（TW partial sourced、US simplified）
 js/session-clock.js market-local timezone session key；calendar policy 明確是 simplified-weekday
 js/trading-calendar.js simplified weekday calendar；不含 exchange holidays
