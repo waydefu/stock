@@ -202,6 +202,16 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("control-naming", problems.join("；"));
 }
 
+// 9b. 自選按鈕必須是真開關而非裝飾：aria-pressed＋阻斷冒泡＋持久化管線
+{
+  const problems = [];
+  for (const token of ['data-fav="', 'aria-pressed="${active}"', "stopPropagation", "toggleFavorite(storage", "loadFavorites(storage"]) {
+    if (!app.includes(token)) problems.push(`缺自選開關要素：${token}`);
+  }
+  if (problems.length === 0) ok("fav-toggle");
+  else fail("fav-toggle", problems.join("；"));
+}
+
 // 10. 狀態元件角色（empty／error 可感知；role 是動態計算故驗字串字面）
 {
   const problems = [];
@@ -242,8 +252,8 @@ const count = (text, re) => (text.match(re) ?? []).length;
     if (spanStart - prev > 900) return false;
     return true;
   };
-  // 數值格式化包裝的輸出必為數字字串（非原始字串），不視為裸插值
-  const SAFE_NUMERIC = /^\s*(fmtPrice|fmtInt|fmtDay|money|signed|pct|volumeRatio|avgLast)\s*\(/;
+  // 數值格式化包裝的輸出必為數字字串、favButton 內部已 escape 參數；兩者皆非原始字串裸奔
+  const SAFE_NUMERIC = /^\s*(fmtPrice|fmtInt|fmtDay|money|signed|pct|volumeRatio|avgLast|favButton)\s*\(/;
   for (const [s, e] of spans) {
     if (!isSink(s)) continue;
     const body = app.slice(s, e);

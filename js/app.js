@@ -8,6 +8,7 @@ import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
 import { escapeHtml } from "./dom.js";
+import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 
 const state = {
@@ -147,8 +148,10 @@ function renderDashboard() {
   }).join("");
   $$("[data-open-symbol]").forEach((tile) => tile.addEventListener("click", () => openSymbol(tile.dataset.openSymbol)));
 
-  $("#dashboard-watchlist tbody").innerHTML = quotes.map((item) => `<tr data-open-symbol="${escapeHtml(item.code)}"><td><button class="fav" type="button" aria-label="加入自選">★</button> <b>${escapeHtml(item.code)}</b> <span class="muted">${escapeHtml(getSymbol(item.code).name)}</span></td><td class="n">${fmtPrice(item.price, ccy)}</td><td class="n ${tone(item.pct)}">${pct(item.pct)}</td><td class="n">${volumeRatio(item.code).toFixed(2)}×</td></tr>`).join("");
+  const favorites = loadFavorites(storage);
+  $("#dashboard-watchlist tbody").innerHTML = quotes.map((item) => `<tr data-open-symbol="${escapeHtml(item.code)}"><td>${favButton(item.code, favorites)} <b>${escapeHtml(item.code)}</b> <span class="muted">${escapeHtml(getSymbol(item.code).name)}</span></td><td class="n">${fmtPrice(item.price, ccy)}</td><td class="n ${tone(item.pct)}">${pct(item.pct)}</td><td class="n">${volumeRatio(item.code).toFixed(2)}×</td></tr>`).join("");
   $$("#dashboard-watchlist [data-open-symbol]").forEach((row) => row.addEventListener("click", () => openSymbol(row.dataset.openSymbol)));
+  bindFavButtons("#dashboard-watchlist", renderDashboard);
 
   const up = quotes.filter((item) => item.pct > 0).length;
   const down = quotes.filter((item) => item.pct < 0).length;
@@ -159,9 +162,25 @@ function renderDashboard() {
   renderAudit("#dashboard-audit");
 }
 
+function favButton(code, favorites) {
+  const active = favorites.includes(code);
+  return `<button class="fav" type="button" data-fav="${escapeHtml(code)}" aria-pressed="${active}" aria-label="${active ? "移除自選" : "加入自選"}">${active ? "★" : "☆"}</button>`;
+}
+
+function bindFavButtons(rootSelector, rerender) {
+  $$(`${rootSelector} [data-fav]`).forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const code = button.dataset.fav;
+    toggleFavorite(storage, code);
+    rerender();
+    document.querySelector(`${rootSelector} [data-fav="${CSS.escape(code)}"]`)?.focus();
+  }));
+}
+
 function openSymbol(code) {
-  state.symbol = code;
   const meta = getSymbol(code);
+  if (!meta) return; // fail-closed：未知代號不切換頁面
+  state.symbol = code;
   state.market = meta.market;
   $$("[data-market]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.market === state.market)));
   populateSymbolSelects();
@@ -196,9 +215,11 @@ function renderScreener() {
   const minVolume = Number($("#filter-volume").value ?? 0);
   const rows = marketSymbols().map((meta) => ({ meta, quote: quote(meta.code), volume: volumeRatio(meta.code) })).filter((row) => row.quote.pct >= minChange && row.meta.pe <= maxPe && row.volume >= minVolume);
   $("#screen-count").textContent = `${rows.length} / ${marketSymbols().length} 個標的符合`;
-  const screenerBody = rows.length ? rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${escapeHtml(meta.code)}"><td><button class="fav" type="button" aria-label="加入自選">☆</button></td><td><b>${escapeHtml(meta.code)}</b> <span class="muted">${escapeHtml(meta.name)}</span></td><td><span class="badge neutral">${escapeHtml(meta.market)}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("") : stateRow(9, "empty", "沒有符合條件的標的", "放寬日變化、本益比或量比條件後再試一次。");
+  const favs = loadFavorites(storage);
+  const screenerBody = rows.length ? rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${escapeHtml(meta.code)}"><td>${favButton(meta.code, favs)}</td><td><b>${escapeHtml(meta.code)}</b> <span class="muted">${escapeHtml(meta.name)}</span></td><td><span class="badge neutral">${escapeHtml(meta.market)}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("") : stateRow(9, "empty", "沒有符合條件的標的", "放寬日變化、本益比或量比條件後再試一次。");
   $("#screener-table tbody").innerHTML = screenerBody;
   $$("#screener-table [data-open-symbol]").forEach((row) => row.addEventListener("click", () => openSymbol(row.dataset.openSymbol)));
+  bindFavButtons("#screener-table", renderScreener);
 }
 
 function renderBacktest() {
