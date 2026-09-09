@@ -4,8 +4,8 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`985e755e38fb1a08c7d33a1b91003f9a476293d9`
-- GitHub Actions：`Quality` run `34386517262`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`b06ed636c3ee07e3c8fbcdd7d2d3c39b61569803`
+- GitHub Actions：`Quality` run `34387611816`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
@@ -25,6 +25,7 @@
 - Test hardening：1,000-intent deterministic accounting fuzz，rejected state preservation、finite equity、position invariants。
 - Performance checkpoint：backtest signal arrays precomputed；same Node 24 environment 10,000 bars `827.709ms → 10.299ms`，100,000 bars post-change `50.615ms`。
 - Accessibility core：tablist／tabpanel、arrow-key navigation、dialog focus trap／Escape／restore、table column scopes。
+- State safety UI：screener empty、backtest error、empty positions/orders/audit blocks 具備 `status`／`alert` semantics 與可行動訊息。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 

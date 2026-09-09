@@ -2,7 +2,7 @@
 
 ## Status
 
-Current checkpoint `985e755` has 54 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current checkpoint `b06ed63` has 54 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
 
 ## Phase 0 — Baseline（完成）
 
@@ -121,7 +121,7 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 仍待 P1/P2：
 
-- loading／empty／error／permission states。
+- loading／permission states。
 - KPI hierarchy、dialog focus trap／Escape／restore、tabs semantics。
 - crosshair／tooltip、完整 responsive degradation、WCAG browser audit。
 - order acknowledgement motion 與完整 state-driven UI。
