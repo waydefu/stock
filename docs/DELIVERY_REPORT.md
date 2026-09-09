@@ -17,7 +17,7 @@
 - 建立 paper broker：TWD／USD 隔離帳戶、本機持倉／現金／訂單持久化；沒有網路請求，不接真券商。
 - 建立風控：角色權限、單筆名目金額 20% 上限、日損 2% 斷路器、持倉數上限、拒絕代碼、二次確認與稽核 CSV。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
-- 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 63 個來源頁，按模組而非只按產品名稱整理。
+- 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 
 ## 驗證證據
 

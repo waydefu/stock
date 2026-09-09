@@ -57,7 +57,9 @@ npm test
 
 ## 文件
 
-- `docs/ARCHITECTURE.md` — 50 家產品架構×治理綜合矩陣與取捨
+- `docs/ARCHITECTURE.md` — 模組研究矩陣、架構邊界與取捨
 - `docs/GOVERNANCE.md` — repo 治理、角色權限、風控規則、免責邊界
 - `docs/UI_UX.md` — 設計代幣與頁面規格
+- `docs/UI_UX_BENCHMARK.md` — 全球網頁設計／股票產品 benchmark、目前評分與 P0/P1/P2 改造路線
+- `docs/DELIVERY_REPORT.md` — 交付、驗證、工時、成本與來源
 - `DISCLAIMER.md` — 最高優先：教育用途、非投資建議、自負盈虧
