@@ -12,6 +12,17 @@ export const symbolLabel = (code) => { const item = getSymbol(code); return item
 export const fmtDay = (t) => new Date(t).toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" });
 export const avgLast = (values, length) => values.slice(-length).reduce((a, b) => a + b, 0) / Math.min(length, values.length);
 
+// 下單票即時試算（純顯示用，不做風控決策；決策只走 preview→RiskEngine）。
+// 回傳 null 表示輸入不足，UI 顯示引導文字而非數字。
+export function orderEstimate({ qty, price, equity }) {
+  const q = Number(qty);
+  const p = Number(price);
+  const e = Number(equity);
+  if (!Number.isInteger(q) || q <= 0 || !Number.isFinite(p) || p <= 0 || !Number.isFinite(e) || e <= 0) return null;
+  const notional = q * p;
+  return { notional, equityPct: (notional / e) * 100 };
+}
+
 export function statePanel(kind, title, detail) {
   const safeKind = ["empty", "error", "loading", "permission", "success"].includes(kind) ? kind : "empty";
   const role = safeKind === "error" ? "alert" : "status";

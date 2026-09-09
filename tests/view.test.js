@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { avgLast, fmtDay, money, pct, signed, statePanel, stateRow, symbolLabel, tone } from "../js/view.js";
+import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "../js/view.js";
 
 test("tone maps sign to semantic classes", () => {
   assert.equal(tone(1.5), "up");
@@ -38,4 +38,12 @@ test("stateRow spans the given columns", () => {
 test("avgLast and fmtDay handle short series", () => {
   assert.equal(avgLast([1, 2, 3], 5), 2);
   assert.match(fmtDay(Date.UTC(2025, 0, 2)), /\d+\/\d+/);
+});
+
+test("orderEstimate is advisory-only math with invalid-input guard", () => {
+  assert.deepEqual(orderEstimate({ qty: 10, price: 100, equity: 1_000_000 }), { notional: 1000, equityPct: 0.1 });
+  assert.equal(orderEstimate({ qty: 0, price: 100, equity: 1_000_000 }), null);
+  assert.equal(orderEstimate({ qty: 1.5, price: 100, equity: 1_000_000 }), null);
+  assert.equal(orderEstimate({ qty: 10, price: -5, equity: 1_000_000 }), null);
+  assert.equal(orderEstimate({ qty: 10, price: 100, equity: 0 }), null);
 });
