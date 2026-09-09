@@ -26,31 +26,40 @@ function validateBars(bars) {
   }
 }
 
-function signalFor(strategy, bars, i, options) {
-  if (typeof strategy === "function") return strategy({ bars, i, closes: bars.map((b) => b.c), position: options.position });
+function prepareSignalData(strategy, bars, options) {
   const closes = bars.map((b) => b.c);
+  if (typeof strategy === "function") return { closes };
+  if (strategy === "rsiReversal") return { closes, rsiValues: rsi(closes, options.rsiLength ?? 14) };
+  if (strategy === "breakout") {
+    const highs = rollingHigh(closes, options.breakoutLength ?? 20);
+    const lows = rollingHigh(closes.map((v) => -v), options.breakoutLength ?? 20)?.map((v) => v === null ? null : -v);
+    return { closes, highs, lows };
+  }
+  return { closes, fast: sma(closes, options.fast ?? 20), slow: sma(closes, options.slow ?? 50) };
+}
+
+function signalFor(strategy, bars, i, options, prepared) {
+  if (typeof strategy === "function") return strategy({ bars, i, closes: prepared.closes, position: options.position });
   if (strategy === "rsiReversal") {
-    const length = options.rsiLength ?? 14;
-    const values = rsi(closes, length);
+    const values = prepared.rsiValues;
+    const buyLevel = options.rsiBuy ?? 30;
+    const sellLevel = options.rsiSell ?? 70;
     const current = values[i];
     const previous = values[i - 1];
     if (current === null || previous === null) return "hold";
-    if (previous <= (options.rsiBuy ?? 30) && current > (options.rsiBuy ?? 30)) return "buy";
-    if (previous >= (options.rsiSell ?? 70) && current < (options.rsiSell ?? 70)) return "sell";
+    if (previous <= buyLevel && current > buyLevel) return "buy";
+    if (previous >= sellLevel && current < sellLevel) return "sell";
     return "hold";
   }
   if (strategy === "breakout") {
-    const length = options.breakoutLength ?? 20;
-    const highs = rollingHigh(closes, length);
-    const lows = rollingHigh(closes.map((v) => -v), length)?.map((v) => v === null ? null : -v);
+    const { highs, lows } = prepared;
     if (highs[i] === null || lows[i] === null) return "hold";
-    if (closes[i] > highs[i]) return "buy";
-    if (closes[i] < lows[i]) return "sell";
+    if (prepared.closes[i] > highs[i]) return "buy";
+    if (prepared.closes[i] < lows[i]) return "sell";
     return "hold";
   }
   // Default: fast/slow SMA cross. 未有兩根完整均線時不交易。
-  const fast = sma(closes, options.fast ?? 20);
-  const slow = sma(closes, options.slow ?? 50);
+  const { fast, slow } = prepared;
   if (i < 1 || fast[i] === null || slow[i] === null || fast[i - 1] === null || slow[i - 1] === null) return "hold";
   if (fast[i - 1] <= slow[i - 1] && fast[i] > slow[i]) return "buy";
   if (fast[i - 1] >= slow[i - 1] && fast[i] < slow[i]) return "sell";
@@ -83,7 +92,8 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   let pending = null;
   const trades = [];
   const equity = [];
-  const closes = bars.map((b) => b.c);
+  const prepared = prepareSignalData(strategy, bars, options);
+  const closes = prepared.closes;
 
   const buyAt = (bar, signalIndex) => {
     if (qty > 0) return;
@@ -137,7 +147,7 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
 
     equity.push(cash + qty * bars[i].c);
     if (i < bars.length - 1) {
-      const signal = signalFor(strategy, bars, i, { ...options, position: qty > 0 ? "long" : "flat" });
+      const signal = signalFor(strategy, bars, i, { ...options, position: qty > 0 ? "long" : "flat" }, prepared);
       if (signal === "buy" || signal === "sell") pending = signal;
     }
   }
