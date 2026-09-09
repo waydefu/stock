@@ -4,8 +4,8 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`0f8f3e2f8bbf8d8f03d10449c47428417729a529`
-- GitHub Actions：`Quality` run `34385478862`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`985e755e38fb1a08c7d33a1b91003f9a476293d9`
+- GitHub Actions：`Quality` run `34386517262`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
@@ -23,6 +23,7 @@
 - MarketRules integration：shared TW/US lot validation 已接到 RiskEngine、PaperBroker 與 UI order intent；TW default odd-lot、regular lot requires explicit 1,000-share multiples。
 - Calendar／corporate-action boundary：market-local session、simplified weekday calendar 已接 deterministic data layer；SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING contract 已定義，但沒有虛構調整資料。
 - Test hardening：1,000-intent deterministic accounting fuzz，rejected state preservation、finite equity、position invariants。
+- Performance checkpoint：backtest signal arrays precomputed；same Node 24 environment 10,000 bars `827.709ms → 10.299ms`，100,000 bars post-change `50.615ms`。
 - Accessibility core：tablist／tabpanel、arrow-key navigation、dialog focus trap／Escape／restore、table column scopes。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。

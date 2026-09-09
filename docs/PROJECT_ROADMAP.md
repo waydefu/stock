@@ -2,7 +2,7 @@
 
 ## Status
 
-Current checkpoint `0f8f3e2` has 54 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current checkpoint `985e755` has 54 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
 
 ## Phase 0 — Baseline（完成）
 
@@ -136,18 +136,23 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 仍不得自動進 live trading。
 
-## Phase 8 — Performance／observability（P2）
+## Phase 8 — Performance／observability（performance baseline complete；observability remains P2）
 
-先 baseline：
+已完成 performance evidence：
 
-- JS／CSS／HTML size
-- first load
-- render／resize time
-- backtest runtime at 250／10k／100k bars
-- chart redraw
+- Same Node 24 local environment、same hold strategy、same synthetic OHLCV shape。
+- `runBacktest` precomputes signal arrays instead of remapping/recalculating indicators per bar。
+- 250 bars：4.863ms → 2.894ms。
+- 1,000 bars：16.201ms → 4.741ms。
+- 5,000 bars：225.592ms → 6.175ms。
+- 10,000 bars：827.709ms → 10.299ms。
+- 100,000 bars：post-change 50.615ms；before path intentionally not run because the old O(n²) path was not a safe benchmark target。
 
-再決定 incremental indicators、memoization、requestAnimationFrame 或 metrics；不先猜。
+仍待：
 
+- JS／CSS／HTML first-load field/lab baseline。
+- chart redraw／resize measurements。
+- structured adapter diagnostics、stale data、request latency metrics。
 ## Phase 9 — Production-readiness study（不等於 production deploy）
 
 只做 gap analysis：auth、MFA、secrets、multi-tenant、persistent audit、reconciliation、legal／data licensing、incident response。live broker、正式部署、branch protection 仍需明確決策。

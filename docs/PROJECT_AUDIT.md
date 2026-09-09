@@ -11,13 +11,13 @@
 
 ## Current checkpoint
 
-- HEAD：`0f8f3e2f8bbf8d8f03d10449c47428417729a529`
+- HEAD：`985e755e38fb1a08c7d33a1b91003f9a476293d9`
 - Branch：`main`；working tree was clean immediately after the domain checkpoint commit
 - Local verification：`check:static` 20 files、`check:syntax` exit 0、`npm test` 54 passed／0 failed、`git diff --check` exit 0
-- Remote Quality：run `34385478862`，same SHA，success
+- Remote Quality：run `34386517262`，same SHA，success
 - Baseline scores below are historical；本輪尚未重新執行 UI／engineering rubric，因此不把修復直接換算成新分數。
-- Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、shared TW/US lot validation、simplified calendar boundary used by deterministic data、corporate-action schema contract、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset、1,000-intent deterministic accounting fuzz、core tab／tabpanel／dialog keyboard semantics。
-- Remaining gates：exchange holiday/session hours/tick policy、corporate-action adjustment data、matching fills、multi-tab semantics、loading／empty／error accessibility states、full WCAG audit、performance benchmark、server-grade tamper-resistant audit。
+- Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、shared TW/US lot validation、simplified calendar boundary used by deterministic data、corporate-action schema contract、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset、1,000-intent deterministic accounting fuzz、core tab／tabpanel／dialog keyboard semantics、precomputed backtest signal arrays。
+- Remaining gates：exchange holiday/session hours/tick policy、corporate-action adjustment data、matching fills、multi-tab semantics、loading／empty／error accessibility states、full WCAG audit、server-grade tamper-resistant audit。
 
 ## Verification evidence
 
