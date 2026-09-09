@@ -17,6 +17,7 @@ const state = {
   page: "dashboard",
   chartWindow: 90,
   pendingOrder: null,
+  modalTrigger: null,
 };
 let clientOrderSequence = 0;
 
@@ -57,12 +58,32 @@ function setMarket(market) {
 
 function setPage(page) {
   state.page = page;
-  $$(".tabs button").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.page === page)));
-  $$(".page").forEach((panel) => panel.classList.toggle("active", panel.dataset.pagePanel === page));
+  $$(".tabs [role=tab]").forEach((button) => {
+    const selected = button.dataset.page === page;
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  });
+  $$(".page[role=tabpanel]").forEach((panel) => {
+    const active = panel.dataset.pagePanel === page;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+    panel.setAttribute("aria-hidden", String(!active));
+  });
   if (page === "chart") renderChart();
   if (page === "backtest") renderBacktest();
   if (page === "trade") renderTrade();
   if (page === "risk") renderRisk();
+}
+
+function handleTabKeydown(event) {
+  const tabs = $$(".tabs [role=tab]");
+  const index = tabs.indexOf(event.currentTarget);
+  if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  const next = tabs[nextIndex];
+  next.focus();
+  setPage(next.dataset.page);
 }
 
 function populateSelect(selector, items, selected) {
@@ -237,8 +258,12 @@ function previewOrder(event) {
 }
 
 function openOrderModal(order, account) {
-  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div><div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
-  $("#order-modal").classList.add("open");
+  state.modalTrigger = document.activeElement;
+  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}・${order.lot === "regular" ? "整股" : "零股"}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div><div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
+  const modal = $("#order-modal");
+  modal.hidden = false;
+  modal.classList.add("open");
+  $("#order-confirm").focus();
 }
 
 function confirmOrder() {
@@ -269,7 +294,36 @@ function confirmOrder() {
   $("#order-submit").disabled = true;
   renderAll();
 }
-function closeOrderModal() { $("#order-modal").classList.remove("open"); }
+function closeOrderModal() {
+  const modal = $("#order-modal");
+  modal.classList.remove("open");
+  modal.hidden = true;
+  if (state.modalTrigger instanceof HTMLElement) state.modalTrigger.focus();
+  state.modalTrigger = null;
+}
+
+function handleModalKeydown(event) {
+  const modal = $("#order-modal");
+  if (modal.hidden || !modal.classList.contains("open")) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    state.pendingOrder = null;
+    closeOrderModal();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [...modal.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])")];
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 function renderRisk(target = "#audit-log") {
   const status = risk.status();
@@ -301,7 +355,10 @@ function downloadAudit() {
 
 function initEvents() {
   $$("[data-market]").forEach((button) => button.addEventListener("click", () => setMarket(button.dataset.market)));
-  $$(".tabs button").forEach((button) => button.addEventListener("click", () => setPage(button.dataset.page)));
+  $$(".tabs [role=tab]").forEach((button) => {
+    button.addEventListener("click", () => setPage(button.dataset.page));
+    button.addEventListener("keydown", handleTabKeydown);
+  });
   $("#role-select").addEventListener("change", (event) => { state.role = event.target.value; auditEvent("ROLE_CHANGED", { role: state.role }); renderAll(); });
   $("#chart-symbol").addEventListener("change", (event) => { state.symbol = event.target.value; renderChart(); });
   $("#chart-window").addEventListener("change", (event) => { state.chartWindow = Number(event.target.value); renderChart(); });
@@ -319,10 +376,12 @@ function initEvents() {
   $("#kill-switch").addEventListener("click", () => { if (!permissionsFor(state.role).includes("risk:trip")) return; risk.trip("使用者手動啟動"); auditEvent("KILL_SWITCH_TRIPPED", {}); renderRisk(); });
   $("#reset-risk").addEventListener("click", () => { if (!permissionsFor(state.role).includes("risk:reset")) return; risk.reset(); auditEvent("KILL_SWITCH_RESET", {}); renderRisk(); });
   $("#export-audit").addEventListener("click", downloadAudit);
-  $("#order-modal").addEventListener("click", (event) => { if (event.target.id === "order-modal") closeOrderModal(); });
+  $("#order-modal").addEventListener("click", (event) => { if (event.target.id === "order-modal") { state.pendingOrder = null; closeOrderModal(); } });
+  $("#order-modal").addEventListener("keydown", handleModalKeydown);
   window.addEventListener("resize", () => { if (state.page === "chart") renderChart(); if (state.page === "backtest") renderBacktest(); });
 }
 
 auditEvent("SESSION_OPEN", { app: "Stock Lab" });
 initEvents();
+setPage(state.page);
 renderAll();

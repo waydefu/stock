@@ -26,17 +26,17 @@
     </div>
   </header>
 
-  <nav class="tabs" aria-label="主要功能">
-    <button type="button" data-page="dashboard" aria-selected="true">儀表板</button>
-    <button type="button" data-page="chart" aria-selected="false">看盤</button>
-    <button type="button" data-page="screener" aria-selected="false">選股</button>
-    <button type="button" data-page="backtest" aria-selected="false">回測</button>
-    <button type="button" data-page="trade" aria-selected="false">紙上交易</button>
-    <button type="button" data-page="risk" aria-selected="false">風控／稽核</button>
+  <nav class="tabs" role="tablist" aria-label="主要功能">
+    <button id="tab-dashboard" role="tab" type="button" data-page="dashboard" aria-selected="true" aria-controls="panel-dashboard" tabindex="0">儀表板</button>
+    <button id="tab-chart" role="tab" type="button" data-page="chart" aria-selected="false" aria-controls="panel-chart" tabindex="-1">看盤</button>
+    <button id="tab-screener" role="tab" type="button" data-page="screener" aria-selected="false" aria-controls="panel-screener" tabindex="-1">選股</button>
+    <button id="tab-backtest" role="tab" type="button" data-page="backtest" aria-selected="false" aria-controls="panel-backtest" tabindex="-1">回測</button>
+    <button id="tab-trade" role="tab" type="button" data-page="trade" aria-selected="false" aria-controls="panel-trade" tabindex="-1">紙上交易</button>
+    <button id="tab-risk" role="tab" type="button" data-page="risk" aria-selected="false" aria-controls="panel-risk" tabindex="-1">風控／稽核</button>
   </nav>
 
   <main>
-    <section class="page active" data-page-panel="dashboard" aria-labelledby="dashboard-title">
+    <section id="panel-dashboard" class="page active" role="tabpanel" data-page-panel="dashboard" aria-labelledby="dashboard-title">
       <div class="toolbar">
         <div>
           <h1 id="dashboard-title" class="title-page">市場脈動</h1>
@@ -53,7 +53,7 @@
       </div>
       <div class="grid c2 mt-3">
         <article class="card"><h2>市場熱圖・依市值與日變化</h2><div id="heatmap" class="heatmap" aria-label="市場熱圖"></div><div class="legend"><span><i class="swatch swatch-up"></i>上漲</span><span><i class="swatch swatch-down"></i>下跌</span><span>色深＝變化幅度，方塊大小＝模擬市值</span></div></article>
-        <article class="card"><h2>自選清單・點選查看</h2><div class="overflow-table"><table id="dashboard-watchlist"><thead><tr><th>標的</th><th class="n">價格</th><th class="n">日變化</th><th class="n">量比</th></tr></thead><tbody></tbody></table></div></article>
+        <article class="card"><h2>自選清單・點選查看</h2><div class="overflow-table"><table id="dashboard-watchlist"><thead><tr><th scope="col">標的</th><th scope="col" class="n">價格</th><th scope="col" class="n">日變化</th><th scope="col" class="n">量比</th></tr></thead><tbody></tbody></table></div></article>
       </div>
       <div class="grid c2 mt-3">
         <article class="card"><h2>市場廣度</h2><div id="breadth" class="grid c3"></div></article>
@@ -61,39 +61,39 @@
       </div>
     </section>
 
-    <section class="page" data-page-panel="chart" aria-labelledby="chart-title">
+    <section id="panel-chart" class="page" role="tabpanel" hidden data-page-panel="chart" aria-labelledby="chart-title">
       <div class="toolbar"><div><h1 id="chart-title" class="title-page">看盤</h1><span class="muted fs-12">價格、趨勢與成交量放在同一個決策視窗。</span></div><label class="push-right">標的 <select id="chart-symbol"></select></label><label>週期 <select id="chart-window"><option value="60">60 日</option><option value="90" selected>90 日</option><option value="150">150 日</option></select></label></div>
       <div class="grid c4" id="quote-head"></div>
       <article class="card mt-3"><div class="chart-wrap"><canvas id="price-chart" class="chart" aria-label="K 線圖"></canvas></div><div class="legend"><span><i class="swatch swatch-brand"></i>MA20</span><span><i class="swatch swatch-info"></i>MA50</span><span>成交價為模擬收盤價，非即時行情</span></div></article>
       <div class="grid c2 mt-3"><article class="card"><h2>技術讀數</h2><div id="technical-readings"></div></article><article class="card"><h2>研究備註</h2><p class="muted m-0">短線指標只描述歷史資料。跨市場比較時，請留意幣別、交易時段、股利與除權息處理不同；本原型沒有接真實 corporate actions。</p></article></div>
     </section>
 
-    <section class="page" data-page-panel="screener" aria-labelledby="screener-title">
+    <section id="panel-screener" class="page" role="tabpanel" hidden data-page-panel="screener" aria-labelledby="screener-title">
       <div class="toolbar"><div><h1 id="screener-title" class="title-page">選股工作台</h1><span class="muted fs-12">條件是研究入口，不是自動下單條件。</span></div></div>
       <article class="card">
         <div class="toolbar"><label>最小日變化 % <input id="filter-change" type="number" step="0.1" value="-99" class="input-w-92"></label><label>最大本益比 <input id="filter-pe" type="number" step="1" value="999" class="input-w-82"></label><label>最小量比 <input id="filter-volume" type="number" step="0.1" value="0" class="input-w-82"></label><button id="screen-run" class="btn primary">套用條件</button><button id="screen-reset" class="btn">清除</button><span id="screen-count" class="push-right muted"></span></div>
-        <div class="overflow-table"><table id="screener-table"><thead><tr><th>加入</th><th>標的</th><th>市場</th><th class="n">價格</th><th class="n">日變化</th><th class="n">量比</th><th class="n">本益比</th><th class="n">殖利率</th><th>研究標籤</th></tr></thead><tbody></tbody></table></div>
+        <div class="overflow-table"><table id="screener-table"><thead><tr><th scope="col">加入</th><th scope="col">標的</th><th scope="col">市場</th><th scope="col" class="n">價格</th><th scope="col" class="n">日變化</th><th scope="col" class="n">量比</th><th scope="col" class="n">本益比</th><th scope="col" class="n">殖利率</th><th scope="col">研究標籤</th></tr></thead><tbody></tbody></table></div>
       </article>
     </section>
 
-    <section class="page" data-page-panel="backtest" aria-labelledby="backtest-title">
+    <section id="panel-backtest" class="page" role="tabpanel" hidden data-page-panel="backtest" aria-labelledby="backtest-title">
       <div class="toolbar"><div><h1 id="backtest-title" class="title-page">策略回測</h1><span class="muted fs-12">訊號在收盤形成，下一根開盤成交；手續費與滑價不歸零。</span></div></div>
       <div class="notice">回測不是預測。樣本、滑價、流動性、交易時段與資料品質都會讓實盤結果偏離；啟動自動化前先紙上 forward test。</div>
       <article class="card"><div class="toolbar"><label>標的 <select id="backtest-symbol"></select></label><label>策略 <select id="backtest-strategy"><option value="maCross">均線交叉</option><option value="rsiReversal">RSI 反轉</option><option value="breakout">通道突破</option></select></label><label>初始資金 <input id="backtest-capital" type="number" value="1000000" min="1" step="1000" class="input-w-120"></label><label>MA 快線 <input id="backtest-fast" type="number" value="20" min="2" step="1" class="input-w-62"></label><label>MA 慢線 <input id="backtest-slow" type="number" value="50" min="3" step="1" class="input-w-62"></label><label>手續費 % <input id="backtest-commission" type="number" value="0.1425" min="0" step="0.01" class="input-w-80"></label><label>滑價 bp <input id="backtest-slippage" type="number" value="5" min="0" step="1" class="input-w-62"></label><button id="backtest-run" class="btn primary">執行回測</button></div></article>
       <div id="backtest-metrics" class="grid c4 mt-3"></div>
       <div class="grid c2 mt-3"><article class="card"><h2>權益曲線</h2><canvas id="equity-chart" class="chart" aria-label="回測權益曲線"></canvas></article><article class="card"><h2>模型假設</h2><div id="backtest-assumptions" class="muted fs-12"></div></article></div>
-      <article class="card mt-3"><h2>成交明細</h2><div class="overflow-table"><table id="backtest-trades"><thead><tr><th>進場</th><th>出場</th><th class="n">數量</th><th class="n">進場價</th><th class="n">出場價</th><th class="n">淨損益</th><th>原因</th></tr></thead><tbody></tbody></table></div></article>
+      <article class="card mt-3"><h2>成交明細</h2><div class="overflow-table"><table id="backtest-trades"><thead><tr><th scope="col">進場</th><th scope="col">出場</th><th scope="col" class="n">數量</th><th scope="col" class="n">進場價</th><th scope="col" class="n">出場價</th><th scope="col" class="n">淨損益</th><th scope="col">原因</th></tr></thead><tbody></tbody></table></div></article>
     </section>
 
-    <section class="page" data-page-panel="trade" aria-labelledby="trade-title">
+    <section id="panel-trade" class="page" role="tabpanel" hidden data-page-panel="trade" aria-labelledby="trade-title">
       <div class="toolbar"><div><h1 id="trade-title" class="title-page">紙上交易</h1><span class="muted fs-12">所有數字只存在本機紙上帳本。</span></div><label class="push-right">帳戶 <select id="trade-market"><option value="TW">TW｜TWD 1,000,000</option><option value="US">US｜USD 100,000</option></select></label></div>
       <div class="notice info">下單流程：行情 → 風控 → 二次確認 → paper broker。風控拒絕時不會偷偷改用別的數量或價格。</div>
       <div class="grid c2"><article class="card"><h2>建立紙上訂單</h2><form id="order-form"><div class="grid c2"><label>標的<select id="order-symbol"></select></label><label>方向<select id="order-side"><option value="buy">買進 Buy</option><option value="sell">賣出 Sell</option></select></label><label>數量<input id="order-qty" type="number" min="1" step="1" value="1" required></label><label>模擬價格（立即成交）<input id="order-price" type="number" min="0.01" step="0.01" required></label></div><div id="order-risk" class="notice mt-3">輸入數量後檢查風控。</div><div class="toolbar toolbar-end m-0"><button type="button" id="order-preview" class="btn primary">預覽並檢查</button><button type="submit" id="order-submit" class="btn buy" disabled>確認送出</button></div></form></article><article class="card"><h2>帳戶狀態</h2><div id="account-summary"></div></article></div>
-      <article class="card mt-3"><h2>目前持倉</h2><div class="overflow-table"><table id="positions-table"><thead><tr><th>標的</th><th class="n">數量</th><th class="n">均價</th><th class="n">現價</th><th class="n">未實現損益</th></tr></thead><tbody></tbody></table></div></article>
-      <article class="card mt-3"><h2>紙上訂單歷史</h2><div class="overflow-table"><table id="orders-table"><thead><tr><th>時間</th><th>標的</th><th>方向</th><th class="n">數量</th><th class="n">價格</th><th>狀態</th></tr></thead><tbody></tbody></table></div></article>
+      <article class="card mt-3"><h2>目前持倉</h2><div class="overflow-table"><table id="positions-table"><thead><tr><th scope="col">標的</th><th scope="col" class="n">數量</th><th scope="col" class="n">均價</th><th scope="col" class="n">現價</th><th scope="col" class="n">未實現損益</th></tr></thead><tbody></tbody></table></div></article>
+      <article class="card mt-3"><h2>紙上訂單歷史</h2><div class="overflow-table"><table id="orders-table"><thead><tr><th scope="col">時間</th><th scope="col">標的</th><th scope="col">方向</th><th scope="col" class="n">數量</th><th scope="col" class="n">價格</th><th scope="col">狀態</th></tr></thead><tbody></tbody></table></div></article>
     </section>
 
-    <section class="page" data-page-panel="risk" aria-labelledby="risk-title">
+    <section id="panel-risk" class="page" role="tabpanel" hidden data-page-panel="risk" aria-labelledby="risk-title">
       <div class="toolbar"><div><h1 id="risk-title" class="title-page">風控與稽核</h1><span class="muted fs-12">不可見的安全邊界，必須在操作前就可見。</span></div><button id="kill-switch" class="btn danger">啟動斷路器</button><button id="reset-risk" class="btn" disabled>風控官重置</button></div>
       <div class="grid c3"><article class="card"><h2>單筆名目金額上限</h2><div class="kpi">20<small>% of equity</small></div><p class="muted fs-12 mt-1">超過就拒絕，不自動縮單。</p></article><article class="card"><h2>日損斷路器</h2><div class="kpi">2<small>% of equity</small></div><p class="muted fs-12 mt-1">達標即凍結紙上訂單。</p></article><article class="card"><h2>目前狀態</h2><div id="risk-state" class="kpi">—</div><p id="risk-reason" class="muted fs-12 mt-1">—</p></article></div>
       <div class="grid c2 mt-3"><article class="card"><h2>角色權限（原型展示）</h2><div id="permission-table"></div><p class="muted fs-12">角色切換只影響本機展示；真正授權必須在服務端重新驗證。</p></article><article class="card"><h2>稽核日誌</h2><div class="toolbar"><button id="export-audit" class="btn sm">匯出 CSV</button></div><div id="audit-log" class="log"></div></article></div>
@@ -102,7 +102,7 @@
 
   <footer class="footer">Stock Lab 原型・教育／研究用途・不構成投資建議・模擬行情與紙上交易，不連真實券商</footer>
 
-  <div id="order-modal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
+  <div id="order-modal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="order-modal-title" aria-describedby="order-modal-body" hidden>
     <div class="modal"><h2 id="order-modal-title">確認紙上訂單</h2><div id="order-modal-body"></div><div class="actions"><button id="order-cancel" class="btn">取消</button><button id="order-confirm" class="btn buy">確認寫入紙上帳本</button></div></div>
   </div>
   <script type="module" src="js/app.js"></script>
