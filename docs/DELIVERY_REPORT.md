@@ -4,8 +4,8 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`7ef1a478b2d397c5061babbfa464154d4cda7521`（本 audit 開始時 HEAD）
-- GitHub Actions：`Quality` run `34355263039`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`63ae633b5a8501e834647c3a4544a79e9a637572`
+- GitHub Actions：`Quality` run `34358833458`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
@@ -15,7 +15,9 @@
 - 建立確定性模擬行情：固定 seed、OHLCV、SMA、RSI、量比與 rolling high；同一標的跨程序可重現。
 - 建立回測引擎：收盤形成訊號、下一根開盤成交；顯式手續費、滑價、倉位、回撤、交易明細與模型假設。
 - 建立 paper broker：TWD／USD 隔離帳戶、本機持倉／現金／訂單持久化；沒有網路請求，不接真券商。
+- 建立 paper execution boundary 與 order state：confirm 時重新驗證帳戶／風控，order 保留 `NEW → VALIDATED → FILLED` transition events；仍明確標為 immediate paper simulation。
 - 建立風控：角色權限、單筆名目金額 20% 上限、日損 2% 斷路器、持倉數上限、拒絕代碼、二次確認與稽核 CSV。
+- 強化回測：OHLCV validation、equity-peak drawdown percentage、可設定 Sharpe annualization。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 
@@ -26,7 +28,7 @@
 ```text
 npm run check:static
 npm run check:syntax
-npm test                 # 18 tests passed
+npm test                 # 26 tests passed
 
 git diff --check
 git ls-remote origin refs/heads/main
