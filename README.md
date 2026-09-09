@@ -25,6 +25,7 @@
 index.html          單頁殼＋六頁籤
 css/styles.css      設計代幣＋元件（深色數據密度風）
 js/data.js          種子隨機行情產生器（mulberry32，確定性、可重現）
+js/dom.js           safe DOM text escaping helper
 js/market-rules.js  TW／US 市場規則 contract（TW partial sourced、US simplified）
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
 js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數）

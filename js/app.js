@@ -7,6 +7,7 @@ import { drawCandles, drawLine } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
+import { escapeHtml } from "./dom.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 
 const state = {
@@ -67,7 +68,7 @@ function setPage(page) {
 function populateSelect(selector, items, selected) {
   const select = $(selector);
   if (!select) return;
-  select.innerHTML = items.map((item) => `<option value="${item.code}">${symbolLabel(item.code)}</option>`).join("");
+  select.innerHTML = items.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(symbolLabel(item.code))}</option>`).join("");
   if (items.some((item) => item.code === selected)) select.value = selected;
 }
 
@@ -110,11 +111,12 @@ function renderDashboard() {
     const hot = Math.abs(item.pct) >= 2 ? "hot" : "";
     const changeClass = item.pct > 0.05 ? "up" : item.pct < -0.05 ? "down" : "flat";
     const grow = Math.max(1, Math.sqrt(meta.cap) / 20);
-    return `<div class="tile ${changeClass} ${hot}" style="flex-grow:${grow}" data-open-symbol="${item.code}" title="${meta.name}"><div class="t-code">${item.code}</div><div class="t-chg">${pct(item.pct)}</div></div>`;
+    const tileSize = grow >= 50 ? "tile-xl" : grow >= 20 ? "tile-lg" : grow >= 8 ? "tile-md" : "tile-sm";
+    return `<div class="tile ${tileSize} ${changeClass} ${hot}" data-open-symbol="${escapeHtml(item.code)}" title="${escapeHtml(meta.name)}"><div class="t-code">${escapeHtml(item.code)}</div><div class="t-chg">${pct(item.pct)}</div></div>`;
   }).join("");
   $$("[data-open-symbol]").forEach((tile) => tile.addEventListener("click", () => openSymbol(tile.dataset.openSymbol)));
 
-  $("#dashboard-watchlist tbody").innerHTML = quotes.map((item) => `<tr data-open-symbol="${item.code}"><td><button class="fav" type="button" aria-label="加入自選">★</button> <b>${item.code}</b> <span style="color:var(--muted)">${getSymbol(item.code).name}</span></td><td class="n">${fmtPrice(item.price, ccy)}</td><td class="n ${tone(item.pct)}">${pct(item.pct)}</td><td class="n">${volumeRatio(item.code).toFixed(2)}×</td></tr>`).join("");
+  $("#dashboard-watchlist tbody").innerHTML = quotes.map((item) => `<tr data-open-symbol="${escapeHtml(item.code)}"><td><button class="fav" type="button" aria-label="加入自選">★</button> <b>${escapeHtml(item.code)}</b> <span class="muted">${escapeHtml(getSymbol(item.code).name)}</span></td><td class="n">${fmtPrice(item.price, ccy)}</td><td class="n ${tone(item.pct)}">${pct(item.pct)}</td><td class="n">${volumeRatio(item.code).toFixed(2)}×</td></tr>`).join("");
   $$("#dashboard-watchlist [data-open-symbol]").forEach((row) => row.addEventListener("click", () => openSymbol(row.dataset.openSymbol)));
 
   const up = quotes.filter((item) => item.pct > 0).length;
@@ -122,7 +124,7 @@ function renderDashboard() {
   const flat = quotes.length - up - down;
   $("#breadth").innerHTML = [
     ["上漲", up, "up"], ["下跌", down, "down"], ["持平", flat, "neutral"],
-  ].map(([label, value, cls]) => `<div><span style="color:var(--muted);font-size:12px">${label}</span><div class="kpi ${cls}">${value}</div></div>`).join("");
+  ].map(([label, value, cls]) => `<div><span class="muted fs-12">${escapeHtml(label)}</span><div class="kpi ${cls}">${value}</div></div>`).join("");
   renderAudit("#dashboard-audit");
 }
 
@@ -163,7 +165,7 @@ function renderScreener() {
   const minVolume = Number($("#filter-volume").value ?? 0);
   const rows = marketSymbols().map((meta) => ({ meta, quote: quote(meta.code), volume: volumeRatio(meta.code) })).filter((row) => row.quote.pct >= minChange && row.meta.pe <= maxPe && row.volume >= minVolume);
   $("#screen-count").textContent = `${rows.length} / ${marketSymbols().length} 個標的符合`;
-  $("#screener-table tbody").innerHTML = rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${meta.code}"><td><button class="fav" type="button" aria-label="加入自選">☆</button></td><td><b>${meta.code}</b> <span style="color:var(--muted)">${meta.name}</span></td><td><span class="badge neutral">${meta.market}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("");
+  $("#screener-table tbody").innerHTML = rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${escapeHtml(meta.code)}"><td><button class="fav" type="button" aria-label="加入自選">☆</button></td><td><b>${escapeHtml(meta.code)}</b> <span class="muted">${escapeHtml(meta.name)}</span></td><td><span class="badge neutral">${escapeHtml(meta.market)}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("");
   $$("#screener-table [data-open-symbol]").forEach((row) => row.addEventListener("click", () => openSymbol(row.dataset.openSymbol)));
 }
 
@@ -190,7 +192,7 @@ function renderBacktest() {
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
   $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${STRATEGIES[strategy] ?? strategy}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K</span></div>`;
-  $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : `<tr><td colspan="7" style="color:var(--muted)">此參數組合沒有完成交易；不要把零交易誤當成低風險。</td></tr>`;
+  $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : `<tr><td colspan="7" class="muted">此參數組合沒有完成交易；不要把零交易誤當成低風險。</td></tr>`;
 }
 
 function renderTrade() {
@@ -199,8 +201,8 @@ function renderTrade() {
   const account = broker.snapshot(market, quoteMap(market));
   const meta = getSymbol($("#order-symbol").value || state.symbol);
   $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div>`;
-  $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${position.symbol}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : `<tr><td colspan="5" style="color:var(--muted)">尚無持倉。紙上帳戶從零開始，不會自動載入券商資料。</td></tr>`;
-  $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${order.timestamp}</td><td>${order.symbol}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : `<tr><td colspan="6" style="color:var(--muted)">尚無訂單。</td></tr>`;
+  $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">尚無持倉。紙上帳戶從零開始，不會自動載入券商資料。</td></tr>`;
+  $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : `<tr><td colspan="6" class="muted">尚無訂單。</td></tr>`;
   updateOrderPrice();
 }
 
@@ -235,7 +237,7 @@ function previewOrder(event) {
 }
 
 function openOrderModal(order, account) {
-  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${order.market}・${symbolLabel(order.symbol)}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div><div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
+  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div><div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
   $("#order-modal").classList.add("open");
 }
 
@@ -277,7 +279,7 @@ function renderRisk(target = "#audit-log") {
   const canManage = permissionsFor(state.role).includes("risk:trip");
   $("#kill-switch").disabled = !canManage || status.tripped;
   $("#reset-risk").disabled = !permissionsFor(state.role).includes("risk:reset") || !status.tripped;
-  $("#permission-table").innerHTML = Object.entries(ROLE_PERMISSIONS).map(([role, permissions]) => `<div class="row"><span>${role}</span><span class="mono" style="font-size:11px">${permissions.join(" · ")}</span></div>`).join("");
+  $("#permission-table").innerHTML = Object.entries(ROLE_PERMISSIONS).map(([role, permissions]) => `<div class="row"><span>${escapeHtml(role)}</span><span class="mono fs-11">${escapeHtml(permissions.join(" · "))}</span></div>`).join("");
   renderAudit(target);
 }
 
@@ -285,7 +287,7 @@ function renderAudit(target = "#audit-log") {
   const element = $(target);
   if (!element) return;
   const entries = audit.list().slice(-40).reverse();
-  element.innerHTML = entries.length ? entries.map((entry) => `<div><span class="t">${entry.timestamp}</span><b>${entry.event}</b> <span style="color:var(--muted)">${JSON.stringify(entry.details)}</span></div>`).join("") : `<div style="color:var(--muted)">尚無事件。</div>`;
+  element.innerHTML = entries.length ? entries.map((entry) => `<div><span class="t">${escapeHtml(entry.timestamp)}</span><b>${escapeHtml(entry.event)}</b> <span class="muted">${escapeHtml(JSON.stringify(entry.details))}</span></div>`).join("") : `<div class="muted">尚無事件。</div>`;
 }
 
 function downloadAudit() {
