@@ -2,6 +2,8 @@
    BrokerAdapter 介面刻意與真實券商隔離；本檔沒有網路請求，也不讀任何秘密。 */
 "use strict";
 
+import { createOrder, transitionOrder } from "./order-state.js";
+
 const STORAGE_KEY = "tw-us-stock-paper-v1";
 const DEFAULTS = {
   TW: { currency: "TWD", initialCash: 1_000_000 },
@@ -34,14 +36,20 @@ function sessionKeyFrom(timestamp) {
   return date.toISOString().slice(0, 10);
 }
 
+function defaultOrderId({ market, timestamp, sequence }) {
+  return `P-${market}-${timestamp.replace(/[^0-9]/g, "").slice(0, 14)}-${sequence}`;
+}
+
 export class PaperBroker {
   #storage;
   #now;
+  #idGenerator;
   #state;
 
-  constructor({ storage = browserStorage() ?? new MemoryStorage(), now = () => new Date().toISOString() } = {}) {
+  constructor({ storage = browserStorage() ?? new MemoryStorage(), now = () => new Date().toISOString(), idGenerator = defaultOrderId } = {}) {
     this.#storage = storage;
     this.#now = now;
+    this.#idGenerator = idGenerator;
     this.#state = this.#load();
   }
 
@@ -118,6 +126,19 @@ export class PaperBroker {
     const account = this.#state[market];
     const existing = account.positions[symbol];
     const notional = qty * price;
+    const timestamp = this.#now();
+    let order = createOrder({
+      id: this.#idGenerator({ market, timestamp, sequence: account.orders.length + 1 }),
+      clientId,
+      market,
+      symbol: String(symbol),
+      side,
+      qty,
+      price,
+      notional,
+      mode: "paper",
+    }, { now: () => timestamp });
+    order = transitionOrder(order, "VALIDATE", { now: () => timestamp });
     if (side === "buy") {
       if (account.cash < notional) throw new Error("現金不足：紙上帳戶拒絕這筆訂單");
       const nextQty = (existing?.qty ?? 0) + qty;
@@ -130,19 +151,7 @@ export class PaperBroker {
       if (existing.qty === qty) delete account.positions[symbol];
       else account.positions[symbol] = { ...existing, qty: existing.qty - qty };
     }
-    const order = {
-      id: `P-${market}-${Date.now()}-${account.orders.length + 1}`,
-      timestamp: this.#now(),
-      clientId,
-      market,
-      symbol: String(symbol),
-      side,
-      qty,
-      price,
-      notional,
-      status: "filled",
-      mode: "paper",
-    };
+    order = transitionOrder(order, "FILL", { now: () => timestamp, reason: "immediate paper simulation" });
     account.orders.unshift(order);
     account.orders = account.orders.slice(0, 100);
     this.#save();

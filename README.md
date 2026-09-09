@@ -15,7 +15,7 @@
 | 看盤 | TradingView／XQ／富果 | K 線圖＋MA20/50＋成交量、自選清單、盤勢資訊 |
 | 選股 | Finviz／XQ／Stock Rover | 漲跌幅、量比、本益比、殖利率等多條件篩選 |
 | 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑） |
-| 交易 | Alpaca／Shioaji 模擬單 | 紙上限價模擬單（台股 TWD 100 萬、美股 USD 10 萬分帳）、持倉損益 |
+| 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合；台股 TWD 100 萬、美股 USD 10 萬分帳）、持倉損益 |
 | 風控 | IB TWS／QuantConnect | 單筆上限、日損斷路器（kill switch）、下單二次確認、稽核日誌（audit log）可匯出 CSV |
 | 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens） |
 
@@ -28,6 +28,7 @@ js/data.js          種子隨機行情產生器（mulberry32，確定性、可�
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
 js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數）
 js/paper.js         紙上交易帳本（localStorage 持久化）
+js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
 js/app.js           UI 組裝＋角色治理

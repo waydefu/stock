@@ -37,15 +37,22 @@ Acceptance already covered by `tests/risk-integration.test.js`: daily loss wires
 - 明確標記目前日線 simulated market 的 limitation。
 - Acceptance：TW／US 的 calendar、timezone、currency、tick／quantity assumptions 不再散落於 UI。
 
-## Phase 2 — Paper order semantics（P0/P1）
+## Phase 2 — Paper order semantics（部分完成；P1 remains）
 
-- 設計 deterministic order state machine：`NEW → VALIDATED → FILLED | REJECTED | CANCELED`。
-- 記錄 `OrderEvent`、reason code、clientOrderId。
-- 加 idempotency test。
-- 加 deterministic injected clock／ID generator。
-- 明確定義 prototype fill model；若仍 instant fill，UI／docs 只能叫 immediate simulation，不可暗示 limit matching。
-- Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejected order 不改 state。
+已完成：
 
+- deterministic `NEW → VALIDATED → FILLED` state machine。
+- transition event list with timestamps/reason.
+- invalid transition tests。
+
+仍待：
+
+- `OPEN`／`PARTIALLY_FILLED`／`CANCEL_PENDING`／`CANCELED`／`EXPIRED` semantics。
+- clientOrderId idempotency。
+- injected Clock／IdGenerator contract。
+- fill model decision: immediate simulation must remain explicitly named, or add deterministic matching model。
+
+Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejected order 不改 state；UI／docs 不暗示目前具有真實 limit matching。
 ## Phase 3 — Persistence／audit／security（P1）
 
 - localStorage schema version、validation、migration；壞資料安全 reset 並 audit。

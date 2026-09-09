@@ -5,7 +5,8 @@ import { MemoryStorage, PaperBroker } from "../js/paper.js";
 test("paper broker records a buy and updates cash and position", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
   const result = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100 });
-  assert.equal(result.status, "filled");
+  assert.equal(result.status, "FILLED");
+  assert.deepEqual(result.events.map((event) => event.type), ["VALIDATE", "FILL"]);
   const account = broker.snapshot("TW");
   assert.equal(account.positions["2330"].qty, 10);
   assert.equal(account.cash, 999000);

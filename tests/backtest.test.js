@@ -48,3 +48,40 @@ test("built-in moving-average strategy returns a complete report", () => {
   assert.ok(Number.isFinite(result.metrics.maxDrawdownPct));
   assert.ok(result.metrics.tradeCount >= 0);
 });
+
+test("max drawdown percentage uses the equity peak as denominator", () => {
+  const result = runBacktest([
+    { t: 1, o: 100, h: 100, l: 100, c: 100, v: 1 },
+    { t: 2, o: 100, h: 200, l: 100, c: 200, v: 1 },
+    { t: 3, o: 100, h: 150, l: 100, c: 150, v: 1 },
+    { t: 4, o: 100, h: 150, l: 100, c: 150, v: 1 },
+  ], ({ i }) => i === 0 ? "buy" : "hold", {
+    initialCapital: 10_000,
+    positionPct: 1,
+    commissionRate: 0,
+    slippageBps: 0,
+  });
+  assert.equal(result.metrics.maxDrawdown, 5_000);
+  assert.equal(result.metrics.maxDrawdownPct, 25);
+});
+
+test("Sharpe annualization is explicit and configurable", () => {
+  const bars = [
+    { t: 1, o: 100, h: 110, l: 90, c: 100, v: 1 },
+    { t: 2, o: 100, h: 110, l: 90, c: 110, v: 1 },
+    { t: 3, o: 110, h: 121, l: 99, c: 99, v: 1 },
+    { t: 4, o: 99, h: 109, l: 89, c: 108, v: 1 },
+  ];
+  const daily = runBacktest(bars, ({ i }) => i === 0 ? "buy" : "hold", { periodsPerYear: 252 });
+  const annual = runBacktest(bars, ({ i }) => i === 0 ? "buy" : "hold", { periodsPerYear: 1 });
+  assert.equal(daily.assumptions.periodsPerYear, 252);
+  assert.equal(annual.assumptions.periodsPerYear, 1);
+  assert.ok(Math.abs(daily.metrics.sharpe) > Math.abs(annual.metrics.sharpe));
+});
+
+test("backtest rejects malformed bar data before producing metrics", () => {
+  assert.throws(() => runBacktest([
+    { t: 2, o: 100, h: 99, l: 101, c: 100, v: 1 },
+    { t: 1, o: 100, h: 101, l: 99, c: 100, v: 1 },
+  ]), /invalid bar/i);
+});

@@ -14,6 +14,18 @@ function finite(value, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function validateBars(bars) {
+  let previousTime = null;
+  for (const [index, bar] of bars.entries()) {
+    const validNumbers = [bar?.t, bar?.o, bar?.h, bar?.l, bar?.c, bar?.v].every(Number.isFinite);
+    if (!validNumbers || bar.h < Math.max(bar.o, bar.c) || bar.l > Math.min(bar.o, bar.c) || bar.l > bar.h || bar.v < 0) {
+      throw new Error(`invalid bar at index ${index}`);
+    }
+    if (previousTime !== null && bar.t <= previousTime) throw new Error(`invalid bar timestamp at index ${index}`);
+    previousTime = bar.t;
+  }
+}
+
 function signalFor(strategy, bars, i, options) {
   if (typeof strategy === "function") return strategy({ bars, i, closes: bars.map((b) => b.c), position: options.position });
   const closes = bars.map((b) => b.c);
@@ -53,7 +65,11 @@ function signalFor(strategy, bars, i, options) {
  */
 export function runBacktest(bars, strategy = "maCross", options = {}) {
   if (!Array.isArray(bars) || bars.length < 2) throw new Error("回測至少需要兩根 K 線");
+  validateBars(bars);
   const initialCapital = finite(options.initialCapital, 1_000_000);
+  if (initialCapital <= 0) throw new Error("初始資金必須大於 0");
+  const periodsPerYear = finite(options.periodsPerYear, 252);
+  if (periodsPerYear <= 0) throw new Error("Sharpe annualization periods must be greater than 0");
   const commissionRate = Math.max(0, finite(options.commissionRate, 0.001425));
   const slippageBps = Math.max(0, finite(options.slippageBps, 5));
   const positionPct = Math.min(1, Math.max(0.01, finite(options.positionPct, 0.25)));
@@ -153,9 +169,12 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   const finalCapital = equity.at(-1) ?? initialCapital;
   let peak = initialCapital;
   let maxDrawdown = 0;
+  let maxDrawdownPct = 0;
   for (const value of equity) {
     peak = Math.max(peak, value);
-    maxDrawdown = Math.max(maxDrawdown, peak - value);
+    const drawdown = peak - value;
+    maxDrawdown = Math.max(maxDrawdown, drawdown);
+    maxDrawdownPct = Math.max(maxDrawdownPct, peak > 0 ? (drawdown / peak) * 100 : 0);
   }
   const wins = trades.filter((t) => t.netPnl > 0);
   const losses = trades.filter((t) => t.netPnl < 0);
@@ -171,19 +190,19 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     netProfit: finalCapital - initialCapital,
     netProfitPct: ((finalCapital / initialCapital) - 1) * 100,
     maxDrawdown,
-    maxDrawdownPct: initialCapital ? (maxDrawdown / initialCapital) * 100 : 0,
+    maxDrawdownPct,
     tradeCount: trades.length,
     wins: wins.length,
     losses: losses.length,
     winRate: trades.length ? (wins.length / trades.length) * 100 : 0,
     profitFactor: grossLosses === 0 ? (grossWins > 0 ? Infinity : 0) : grossWins / grossLosses,
-    sharpe: std === 0 ? 0 : (avg / std) * Math.sqrt(252),
+    sharpe: std === 0 ? 0 : (avg / std) * Math.sqrt(periodsPerYear),
   };
   return {
     trades,
     equity,
     metrics,
-    assumptions: { strategy, commissionRate, slippageBps, positionPct, fill: "next_bar_open", forceClose: "last_close" },
+    assumptions: { strategy, commissionRate, slippageBps, positionPct, periodsPerYear, fill: "next_bar_open", forceClose: "last_close" },
     closes,
   };
 }
