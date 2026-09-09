@@ -99,15 +99,20 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 不因重構而引入 React、bundler、TypeScript 或大型 runtime dependency。
 
-## Phase 6 — UI/UX benchmark P0/P1/P2（P2）
+## Phase 6 — UI/UX benchmark P0/P1/P2（P0 partially complete）
 
-依 `docs/UI_UX_BENCHMARK.md`：
+已完成 P0：
 
-- P0：清除 inline styles、tokens、KPI hierarchy、contrast、global paper status。
-- P1：canvas sizing、table states、empty/loading/error、sticky headers。
-- P2：motion tokens、purposeful transitions、modal／order states、responsive chrome。
+- inline styles 清除（static HTML/runtime template count 0）。
+- semantic utility tokens、primary contrast pair、stable canvas baseline、sticky table header。
+- purposeful page/control motion tokens、reduced-motion、safe DOM escaping。
 
-UI 改動必須保留 domain semantics，不得用視覺 fallback 掩蓋風控或資料錯誤。
+仍待 P1/P2：
+
+- loading／empty／error／permission states。
+- KPI hierarchy、dialog focus trap／Escape／restore、tabs semantics。
+- crosshair／tooltip、完整 responsive degradation、WCAG browser audit。
+- order acknowledgement motion 與完整 state-driven UI。
 
 ## Phase 7 — Adapter readiness（P1/P2）
 
