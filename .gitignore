@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test / coverage output
+coverage/
+.nyc_output/

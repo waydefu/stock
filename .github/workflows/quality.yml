@@ -1,0 +1,64 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Syntax, tests, static smoke check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          check-latest: true
+
+      - name: Show tool versions
+        run: |
+          node --version
+          npm --version
+          git --version
+
+      - name: Check committed patch whitespace
+        run: git show --check --pretty=short HEAD
+
+      - name: Check JavaScript syntax
+        run: npm run check:syntax
+
+      - name: Run deterministic unit tests
+        run: npm test
+
+      - name: Check required static files and module paths
+        run: npm run check:static
+
+      - name: Smoke-test static server
+        run: |
+          python3 -m http.server 4173 --directory . > /tmp/stock-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error http://127.0.0.1:4173/ > /tmp/stock-index.html; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/stock-index.html
+          grep -q '<title>' /tmp/stock-index.html
