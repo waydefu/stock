@@ -41,6 +41,8 @@
 - `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。
 - `js/market-rules.js`：TW／US market rules contract；目前 TW partial sourced、US simplified，尚未強制到 broker。
 - `js/session-clock.js`：market-local timezone session key；calendar policy 是 `simplified-weekday`，不是 exchange holiday calendar。
+- `js/trading-calendar.js`：明確命名的 simplified weekday calendar，供 deterministic data layer 使用。
+- `js/corporate-actions.js`：SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING schema contract；尚未取得或套用調整資料。
 - `js/execution-model.js`：立即 paper execution boundary；MATCHING 只保留未實作 contract。
 - `js/order-errors.js`：stable order／risk／broker error codes。
 - `js/backtest.js`：策略、成交假設、績效統計；不呼叫券商。

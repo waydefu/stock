@@ -31,6 +31,8 @@ js/order-errors.js  stable risk／validation／broker error codes
 js/dom.js           safe DOM text escaping helper
 js/market-rules.js  TW／US 市場規則 contract（TW partial sourced、US simplified）
 js/session-clock.js market-local timezone session key；calendar policy 明確是 simplified-weekday
+js/trading-calendar.js simplified weekday calendar；不含 exchange holidays
+js/corporate-actions.js corporate-action schema contract；不自動調整價格
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
 js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數）
 js/paper.js         紙上交易帳本（localStorage 持久化）

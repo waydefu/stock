@@ -1,6 +1,7 @@
 /* 行情資料層：確定性種子隨機（mulberry32）產生模擬 OHLC。
    同一 symbol 永遠產生同一條序列 → 回測可重現（reproducible）。
    真實接線時把 `getBars` 換成 Shioaji／Alpaca adapter 即可，UI 不動。 */
+import { SimplifiedWeekdayCalendar } from "./trading-calendar.js";
 "use strict";
 
 /** 字串 → 32bit 種子（FNV-1a） */
@@ -48,6 +49,7 @@ const BAR_COUNT = 250;
 
 /* 快取：每個 symbol 只算一次 */
 const cache = new Map();
+const calendar = new SimplifiedWeekdayCalendar();
 
 /** 取日 K（含今天共 BAR_COUNT 根）。bar: {t, o, h, l, c, v} */
 export function getBars(code) {
@@ -68,14 +70,13 @@ export function getBars(code) {
   };
   const bars = [];
   let price = meta.base * (1 - meta.drift * BAR_COUNT * 0.5); // 從過去推到現在
-  // 交易日曆：跳過週末（美股也一樣簡化）
+  // 只使用明確命名的 simplified weekday calendar；不宣稱涵蓋交易所假日。
   const day = 86400000;
   // 固定模擬終點，讓跨程序回測也能重現，而不是依賴本機目前時間。
   const simulationEnd = Date.UTC(2025, 11, 31);
   let t = simulationEnd - BAR_COUNT * day;
-  const dow = () => new Date(t).getDay();
   for (let i = 0; i < BAR_COUNT; i++) {
-    while (dow() === 0 || dow() === 6) t += day;
+    while (!calendar.isTradingDay(meta.market, t)) t += day;
     const shock = gauss() * meta.vol;
     // 偶發跳空（財報／事件）：約 2% 機率 ±3σ
     const gap = rnd() < 0.02 ? (rnd() < 0.5 ? -1 : 1) * 3 * meta.vol : 0;
