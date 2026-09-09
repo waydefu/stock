@@ -4,8 +4,9 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`9086745d48981b521b0404417f5aaa2e8e6e6f80`
-- GitHub Actions：`Quality` run `34352307673`，對應同一個 SHA，`success`
+- Checkpoint：`fd11766e638899cefe64891f18fa6a7510c41150`
+- GitHub Actions：`Quality` run `34352709516`，對應同一個 SHA，`success`，annotations `0`
+- CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
 ## 做了什麼
@@ -55,8 +56,8 @@ git ls-remote origin refs/heads/main
 
 - Repo 初始 `IDEA.md` 時間戳：`2026-09-09 19:38:23 +0800`。
 - 第一個 checkpoint commit：`2026-09-09 20:39:13 +0800`。
-- 報告整理時的時間快照：`2026-09-09 20:40:42 +0800`。
-- 從初始檔案時間戳到報告快照的 wall-clock 下限：**1 小時 02 分 19 秒**。
+- 報告整理時的時間快照：`2026-09-09 20:44:26 +0800`。
+- 從初始檔案時間戳到報告快照的 wall-clock 下限：**1 小時 06 分 03 秒**。
 - 從初始檔案時間戳到第一個 checkpoint：**1 小時 00 分 50 秒**。
 
 這是工作階段的可證明牆鐘下限，不等於 agent 的純 CPU 執行時間；工具等待、研究閱讀與使用者中斷沒有可靠的逐秒 billing log，因此不偽造「精準 active minutes」。
@@ -95,3 +96,5 @@ git ls-remote origin refs/heads/main
 [41] https://interactivebrokers.github.io/tws-api/third_party.html
 [42] https://interactivebrokers.github.io/tws-api/basic_orders.html
 [50] https://help.ctrader.com/ctrader-algo/documentation/plugins
+[62] https://github.com/actions/setup-node/releases/tag/v5.0.0
+[63] https://github.com/actions/checkout/releases/tag/v5.0.0
