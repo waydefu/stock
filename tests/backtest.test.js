@@ -79,6 +79,27 @@ test("Sharpe annualization is explicit and configurable", () => {
   assert.ok(Math.abs(daily.metrics.sharpe) > Math.abs(annual.metrics.sharpe));
 });
 
+test("Sharpe requires minimum samples and exposes risk-free assumption", () => {
+  const tiny = runBacktest([
+    { t: 1, o: 100, h: 101, l: 99, c: 100, v: 1 },
+    { t: 2, o: 100, h: 101, l: 99, c: 101, v: 1 },
+  ], () => "hold", { commissionRate: 0, slippageBps: 0 });
+  assert.equal(tiny.metrics.sharpe, 0);
+  assert.equal(tiny.metrics.sharpeSamples, 1);
+  assert.equal(tiny.metrics.sharpeInsufficient, true);
+  assert.equal(tiny.assumptions.riskFreeRate, 0);
+
+  const bars = [
+    { t: 1, o: 100, h: 110, l: 90, c: 100, v: 1 },
+    { t: 2, o: 100, h: 110, l: 90, c: 110, v: 1 },
+    { t: 3, o: 110, h: 121, l: 99, c: 99, v: 1 },
+    { t: 4, o: 99, h: 109, l: 89, c: 108, v: 1 },
+  ];
+  const base = runBacktest(bars, ({ i }) => i === 0 ? "buy" : "hold", { periodsPerYear: 252 });
+  const withRf = runBacktest(bars, ({ i }) => i === 0 ? "buy" : "hold", { periodsPerYear: 252, riskFreeRate: 0.01 });
+  assert.ok(withRf.metrics.sharpe < base.metrics.sharpe);
+});
+
 test("backtest rejects malformed bar data before producing metrics", () => {
   assert.throws(() => runBacktest([
     { t: 2, o: 100, h: 99, l: 101, c: 100, v: 1 },
