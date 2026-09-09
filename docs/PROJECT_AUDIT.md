@@ -11,13 +11,13 @@
 
 ## Current checkpoint
 
-- HEAD：`0ed8695b6ddac755466420fcd4e3cfcf1bed70a9`
+- HEAD：`e1a4947a30187261c00a743c31df6f9acd237f70`
 - Branch：`main`；working tree was clean immediately after the domain checkpoint commit
-- Local verification：`check:static` 18 files、`check:syntax` exit 0、`npm test` 48 passed／0 failed、`git diff --check` exit 0
-- Remote Quality：run `34375478717`，same SHA，success
+- Local verification：`check:static` 18 files、`check:syntax` exit 0、`npm test` 50 passed／0 failed、`git diff --check` exit 0
+- Remote Quality：run `34384250799`，same SHA，success
 - Baseline scores below are historical；本輪尚未重新執行 UI／engineering rubric，因此不把修復直接換算成新分數。
-- Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset。
-- Remaining gates：full exchange calendar／corporate actions、matching fills、multi-tab semantics、full accessibility states、performance benchmark、server-grade tamper-resistant audit。
+- Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、shared TW/US lot validation、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset、1,000-intent deterministic accounting fuzz、core tab／tabpanel／dialog keyboard semantics。
+- Remaining gates：full exchange calendar／corporate actions、matching fills、multi-tab semantics、loading／empty／error accessibility states、full WCAG audit、performance benchmark、server-grade tamper-resistant audit。
 
 ## Verification evidence
 

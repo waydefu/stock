@@ -2,7 +2,7 @@
 
 ## Status
 
-Current checkpoint `0ed8695` has 48 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current checkpoint `e1a4947` has 50 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
 
 ## Phase 0 — Baseline（完成）
 
@@ -78,16 +78,17 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 - dynamic `innerHTML` 對 provider／user input 的 safe DOM boundary。
 - secret scanning、code scanning、dependency review policy。
 
-## Phase 4 — Test hardening（P1）
+## Phase 4 — Test hardening（domain core complete；browser/a11y remaining）
 
-- risk integration tests
-- preview / confirm stale-state tests
-- kill-switch persistence／scope tests
-- order state-machine tests
-- backtest golden／property tests
-- localStorage corruption tests
-- browser smoke：tabs、screener、backtest、rejected order、confirm、kill switch、keyboard、responsive
-- accessibility：contrast、focus、dialog、table semantics、reduced motion
+已完成：
+
+- risk integration、preview／confirm stale-state、kill-switch、order state-machine tests。
+- accounting golden tests、storage corruption tests、1,000-intent deterministic fuzz。
+
+仍待：
+
+- browser smoke：rejected order、duplicate submit、responsive、多 tab。
+- full accessibility：contrast、focus、dialog、table semantics、reduced motion。
 
 ## Phase 5 — Architecture cleanup（P1/P2）
 
@@ -102,13 +103,19 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 不因重構而引入 React、bundler、TypeScript 或大型 runtime dependency。
 
-## Phase 6 — UI/UX benchmark P0/P1/P2（P0 partially complete）
+## Phase 6 — UI/UX benchmark P0/P1/P2（core accessibility P1 complete；states remaining）
 
 已完成 P0：
 
 - inline styles 清除（static HTML/runtime template count 0）。
 - semantic utility tokens、primary contrast pair、stable canvas baseline、sticky table header。
 - purposeful page/control motion tokens、reduced-motion、safe DOM escaping。
+
+已完成 core P1：
+
+- tablist／tab／tabpanel、aria-controls、hidden inactive panels、arrow-key navigation。
+- dialog description、focus entry、focus trap、Escape、backdrop close、trigger restore。
+- table `scope="col"` semantics。
 
 仍待 P1/P2：
 

@@ -4,8 +4,8 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`0ed8695b6ddac755466420fcd4e3cfcf1bed70a9`
-- GitHub Actions：`Quality` run `34375478717`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`e1a4947a30187261c00a743c31df6f9acd237f70`
+- GitHub Actions：`Quality` run `34384250799`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
@@ -20,6 +20,9 @@
 - 強化回測：OHLCV validation、equity-peak drawdown percentage、可設定 Sharpe annualization。
 - UI P0：清除 index／runtime inline style，加入 semantic utility tokens、stable canvas baseline、sticky table headers、contrast-safe primary button、purposeful motion 與 safe DOM escaping。
 - Domain convergence checkpoint：AccountSnapshot、realized／unrealized／total PnL、zero-fee FeeModel、market-local session clock、immediate execution mode、OPEN/CANCELED transition contract、stable error categories、versioned local session audit 與 corrupted-order safe reset。
+- MarketRules integration：shared TW/US lot validation 已接到 RiskEngine、PaperBroker 與 UI order intent；TW default odd-lot、regular lot requires explicit 1,000-share multiples。
+- Test hardening：1,000-intent deterministic accounting fuzz，rejected state preservation、finite equity、position invariants。
+- Accessibility core：tablist／tabpanel、arrow-key navigation、dialog focus trap／Escape／restore、table column scopes。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 
@@ -30,7 +33,7 @@
 ```text
 npm run check:static
 npm run check:syntax
-npm test                 # 48 tests passed
+npm test                 # 50 tests passed
 
 git diff --check
 git ls-remote origin refs/heads/main
