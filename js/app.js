@@ -2,7 +2,8 @@
    介面層只組合資料、回測、風控與紙上 broker；沒有網路、秘密或真實下單副作用。 */
 "use strict";
 
-import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getBars, getSymbol, quote, rsi, volumeRatio } from "./data.js";
+import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getSymbol, rsi, volumeRatio } from "./data.js";
+import { SimulatedAdapter } from "./market-data.js";
 import { drawCandles, drawLine } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
@@ -25,6 +26,7 @@ let clientOrderSequence = 0;
 
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
+const marketData = new SimulatedAdapter();
 const risk = new RiskEngine(DEFAULT_RISK);
 const audit = new AuditLog({ storage });
 const $ = (selector) => document.querySelector(selector);
@@ -32,9 +34,9 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const nextClientOrderId = () => globalThis.crypto?.randomUUID?.() ?? `ui-${Date.now()}-${++clientOrderSequence}`;
 
 function marketSymbols() { return SYMBOLS.filter((item) => item.market === state.market); }
-function currentQuote(code = state.symbol) { return quote(code); }
+function currentQuote(code = state.symbol) { return marketData.quote(code); }
 function quoteMap(market = state.market) {
-  return Object.fromEntries(marketSymbolsFor(market).map((item) => [item.code, quote(item.code)]));
+  return Object.fromEntries(marketSymbolsFor(market).map((item) => [item.code, marketData.quote(item.code)]));
 }
 function marketSymbolsFor(market) { return SYMBOLS.filter((item) => item.market === market); }
 
@@ -119,7 +121,7 @@ function renderDashboard() {
   $("#kpi-day-sub").textContent = "紙上帳本累計損益（非即時日損益）";
   $("#kpi-exposure").textContent = money(account.marketValue, ccy);
   $("#kpi-exposure-sub").textContent = `${Object.keys(account.positions).length} 檔持倉・不含未接即時行情`;
-  const quotes = marketSymbols().map((item) => quote(item.code));
+  const quotes = marketSymbols().map((item) => marketData.quote(item.code));
   const signals = quotes.filter((item) => Math.abs(item.pct) >= 2).length;
   $("#kpi-signal").textContent = `${signals} 個異動`;
 
@@ -176,7 +178,7 @@ function openSymbol(code) {
 function renderChart() {
   const meta = getSymbol(state.symbol);
   const q = currentQuote();
-  const bars = getBars(state.symbol);
+  const bars = marketData.getBars(state.symbol);
   const closes = bars.map((bar) => bar.c);
   const rsiValues = rsi(closes, 14);
   const lastRsi = rsiValues.at(-1);
@@ -196,7 +198,7 @@ function renderScreener() {
   const minChange = Number($("#filter-change").value ?? -99);
   const maxPe = Number($("#filter-pe").value ?? 999);
   const minVolume = Number($("#filter-volume").value ?? 0);
-  const rows = marketSymbols().map((meta) => ({ meta, quote: quote(meta.code), volume: volumeRatio(meta.code) })).filter((row) => row.quote.pct >= minChange && row.meta.pe <= maxPe && row.volume >= minVolume);
+  const rows = marketSymbols().map((meta) => ({ meta, quote: marketData.quote(meta.code), volume: volumeRatio(meta.code) })).filter((row) => row.quote.pct >= minChange && row.meta.pe <= maxPe && row.volume >= minVolume);
   $("#screen-count").textContent = `${rows.length} / ${marketSymbols().length} 個標的符合`;
   const favs = loadFavorites(storage);
   const screenerBody = rows.length ? rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${escapeHtml(meta.code)}"><td>${favButton(meta.code, favs)}</td><td><b>${escapeHtml(meta.code)}</b> <span class="muted">${escapeHtml(meta.name)}</span></td><td><span class="badge neutral">${escapeHtml(meta.market)}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("") : stateRow(9, "empty", "沒有符合條件的標的", "放寬日變化、本益比或量比條件後再試一次。");
@@ -217,7 +219,7 @@ function renderBacktest() {
     slippageBps: Number($("#backtest-slippage").value) || 0,
   };
   let result;
-  try { result = runBacktest(getBars(state.symbol), strategy, options); }
+  try { result = runBacktest(marketData.getBars(state.symbol), strategy, options); }
   catch (error) {
     $("#backtest-metrics").innerHTML = statePanel("error", "回測無法執行", error.message);
     $("#backtest-assumptions").innerHTML = statePanel("error", "模型假設不可用", "修正輸入參數後重新執行。");
@@ -403,7 +405,17 @@ function initEvents() {
   window.addEventListener("resize", () => { if (state.page === "chart") renderChart(); if (state.page === "backtest") renderBacktest(); });
 }
 
+function renderDataSource() {
+  const source = marketData.getSource();
+  const badge = $("#market-status");
+  if (badge) {
+    badge.textContent = source.shortLabel;
+    badge.title = `${source.name}：${source.note}（${source.updatedAt}）`;
+  }
+}
+
 auditEvent("SESSION_OPEN", { app: "Stock Lab" });
 initEvents();
 setPage(state.page);
+renderDataSource();
 renderAll();
