@@ -78,6 +78,13 @@ export function drawCandles(canvas, bars, { fast = 20, slow = 50, window = 90 } 
   }
   drawSeries(ctx, fastValues, xAt, yAt, COLORS.fast);
   drawSeries(ctx, slowValues, xAt, yAt, COLORS.slow);
+  const lastBar = data.at(-1);
+  const lastColor = lastBar.c >= lastBar.o ? COLORS.candleUp : COLORS.candleDown;
+  const lastY = Math.min(Math.max(yAt(lastBar.c), bounds.top), candleAreaBottom);
+  ctx.setLineDash([4, 3]);
+  line(ctx, 40, lastY, width - 8, lastY, lastColor, 1);
+  ctx.setLineDash([]);
+  text(ctx, lastBar.c.toFixed(2), width - 8, lastY - 4, lastColor, "right");
 }
 
 function drawSeries(ctx, values, xAt, yAt, color) {
