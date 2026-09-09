@@ -76,4 +76,5 @@ npm test
 - `docs/PROJECT_ROADMAP.md` — correctness-first 長程路線
 - `docs/RISK_REGISTER.md` — P0/P1/P2 風險、證據與修復驗證
 - `docs/RESEARCH_LEDGER.md` — 外部規則／設計／API claim 的來源索引
+- `docs/FUTURE_PLAN.md` — 可照跑的收斂計劃書（Phase 步驟、驗收、證據、決策點）
 - `DISCLAIMER.md` — 最高優先：教育用途、非投資建議、自負盈虧
