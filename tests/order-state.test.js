@@ -12,9 +12,19 @@ test("paper order follows explicit new → validated → filled transitions", ()
   assert.equal(filled.events.at(-1).reason, "immediate paper simulation");
 });
 
-test("order state machine rejects invalid transitions", () => {
-  const created = createOrder({ id: "P-2", market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100 });
-  const rejected = transitionOrder(created, "REJECT", { reason: "risk" });
+test("state machine supports open lifecycle and rejects terminal-state resurrection", () => {
+  const created = createOrder({ id: "P-3", market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100 });
+  const validated = transitionOrder(created, "VALIDATE");
+  const open = transitionOrder(validated, "OPEN", { reason: "matching model submitted" });
+  const canceled = transitionOrder(open, "CANCEL", { reason: "user request" });
+  assert.equal(canceled.status, ORDER_STATUS.CANCELED);
+  assert.throws(() => transitionOrder(canceled, "FILL"), /invalid order transition/i);
+
+  const rejected = transitionOrder(createOrder({ id: "P-2", market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100 }), "REJECT", { reason: "risk" });
   assert.equal(rejected.status, ORDER_STATUS.REJECTED);
   assert.throws(() => transitionOrder(rejected, "FILL"), /invalid order transition/i);
+
+  const filled = transitionOrder(validated, "FILL");
+  assert.throws(() => transitionOrder(filled, "OPEN"), /invalid order transition/i);
+  assert.throws(() => transitionOrder(filled, "CANCEL"), /invalid order transition/i);
 });

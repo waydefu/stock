@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RiskEngine, AuditLog, permissionsFor } from "../js/risk.js";
+import { MemoryStorage } from "../js/paper.js";
 
 test("risk engine rejects an order above the notional cap", () => {
   const risk = new RiskEngine({ maxOrderNotionalPct: 0.2 });
@@ -57,6 +58,20 @@ test("audit CSV neutralizes spreadsheet formula prefixes", () => {
   const csv = audit.toCSV();
   assert.match(csv, /'=HYPERLINK/);
   assert.doesNotMatch(csv, /,=1\+1/);
+});
+
+test("audit log reloads versioned events from local persistence", () => {
+  const storage = new MemoryStorage();
+  const first = new AuditLog({ storage, now: () => "2025-01-01T00:00:00.000Z" });
+  first.record("SESSION_OPEN", { mode: "paper" });
+  const reloaded = new AuditLog({ storage, now: () => "2025-01-01T00:00:01.000Z" });
+  assert.equal(reloaded.list().length, 1);
+  assert.equal(reloaded.list()[0].event, "SESSION_OPEN");
+  assert.equal(reloaded.list()[0].version, 1);
+
+  storage.setItem("tw-us-stock-audit-v1", "malformed");
+  const recovered = new AuditLog({ storage });
+  assert.deepEqual(recovered.list(), []);
 });
 
 test("role permissions keep observer read-only", () => {

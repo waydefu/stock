@@ -2,7 +2,11 @@
    BrokerAdapter 介面刻意與真實券商隔離；本檔沒有網路請求，也不讀任何秘密。 */
 "use strict";
 
-import { createOrder, transitionOrder } from "./order-state.js";
+import { ACCOUNTING_VERSION, ZERO_FEE_MODEL, createAccountSnapshot, feeFor } from "./accounting.js";
+import { createExecutionModel, ExecutionMode } from "./execution-model.js";
+import { MarketSessionClock } from "./session-clock.js";
+import { ORDER_ERROR_CODE, OrderError } from "./order-errors.js";
+import { createOrder, ORDER_STATUS } from "./order-state.js";
 
 const STORAGE_KEY = "tw-us-stock-paper-v1";
 const PAPER_SCHEMA_VERSION = 1;
@@ -21,9 +25,17 @@ export class MemoryStorage {
 function defaultState() {
   return {
     schemaVersion: PAPER_SCHEMA_VERSION,
-    TW: { currency: "TWD", initialCash: DEFAULTS.TW.initialCash, cash: DEFAULTS.TW.initialCash, sessionKey: null, sessionOpenEquity: DEFAULTS.TW.initialCash, positions: {}, orders: [] },
-    US: { currency: "USD", initialCash: DEFAULTS.US.initialCash, cash: DEFAULTS.US.initialCash, sessionKey: null, sessionOpenEquity: DEFAULTS.US.initialCash, positions: {}, orders: [] },
+    TW: { accountingVersion: ACCOUNTING_VERSION, currency: "TWD", initialCash: DEFAULTS.TW.initialCash, cash: DEFAULTS.TW.initialCash, realizedPnl: 0, totalFees: 0, feeModel: ZERO_FEE_MODEL.name, sessionKey: null, sessionOpenEquity: DEFAULTS.TW.initialCash, positions: {}, orders: [] },
+    US: { accountingVersion: ACCOUNTING_VERSION, currency: "USD", initialCash: DEFAULTS.US.initialCash, cash: DEFAULTS.US.initialCash, realizedPnl: 0, totalFees: 0, feeModel: ZERO_FEE_MODEL.name, sessionKey: null, sessionOpenEquity: DEFAULTS.US.initialCash, positions: {}, orders: [] },
   };
+}
+
+function validPersistedOrder(order, market, ids) {
+  if (!order || typeof order !== "object" || order.market !== market || typeof order.id !== "string" || typeof order.clientOrderId !== "string" || !order.clientOrderId || !order.symbol || !/^[A-Za-z0-9.]+$/.test(order.symbol) || !["buy", "sell"].includes(order.side) || !Number.isInteger(order.qty) || order.qty <= 0 || !Number.isFinite(order.price) || order.price <= 0 || !Object.values(ORDER_STATUS).includes(order.status) || !Array.isArray(order.events)) return false;
+  if (ids.has(order.id) || ids.has(`client:${order.clientOrderId}`)) return false;
+  ids.add(order.id);
+  ids.add(`client:${order.clientOrderId}`);
+  return true;
 }
 
 function validAccountOrDefault(candidate, market) {
@@ -31,23 +43,20 @@ function validAccountOrDefault(candidate, market) {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return fallback;
   const account = { ...fallback, ...candidate };
   if (!Number.isFinite(Number(account.initialCash)) || Number(account.initialCash) <= 0 || !Number.isFinite(Number(account.cash)) || Number(account.cash) < 0) return fallback;
+  if (!Number.isFinite(Number(account.realizedPnl)) || !Number.isFinite(Number(account.totalFees)) || Number(account.totalFees) < 0 || typeof account.feeModel !== "string") return fallback;
   if (!account.positions || typeof account.positions !== "object" || Array.isArray(account.positions) || !Array.isArray(account.orders)) return fallback;
   for (const position of Object.values(account.positions)) {
     if (!position || !Number.isInteger(position.qty) || position.qty <= 0 || !Number.isFinite(Number(position.avgCost)) || Number(position.avgCost) <= 0) return fallback;
   }
-  return { ...account, initialCash: Number(account.initialCash), cash: Number(account.cash) };
+  const orderIds = new Set();
+  if (!account.orders.every((order) => validPersistedOrder(order, market, orderIds))) return fallback;
+  return { ...account, initialCash: Number(account.initialCash), cash: Number(account.cash), realizedPnl: Number(account.realizedPnl), totalFees: Number(account.totalFees) };
 }
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
 function browserStorage() {
   try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; }
-}
-
-function sessionKeyFrom(timestamp) {
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.valueOf())) throw new Error("paper account clock returned an invalid timestamp");
-  return date.toISOString().slice(0, 10);
 }
 
 function defaultOrderId({ market, timestamp, sequence }) {
@@ -58,12 +67,18 @@ export class PaperBroker {
   #storage;
   #now;
   #idGenerator;
+  #feeModel;
+  #executionModel;
+  #sessionClock;
   #state;
 
-  constructor({ storage = browserStorage() ?? new MemoryStorage(), now = () => new Date().toISOString(), idGenerator = defaultOrderId } = {}) {
+  constructor({ storage = browserStorage() ?? new MemoryStorage(), now = () => new Date().toISOString(), idGenerator = defaultOrderId, feeModel = ZERO_FEE_MODEL, executionMode = ExecutionMode.IMMEDIATE, sessionClock = new MarketSessionClock() } = {}) {
     this.#storage = storage;
     this.#now = now;
     this.#idGenerator = idGenerator;
+    this.#feeModel = feeModel;
+    this.#executionModel = createExecutionModel(executionMode);
+    this.#sessionClock = sessionClock;
     this.#state = this.#load();
   }
 
@@ -86,8 +101,8 @@ export class PaperBroker {
 
   #save() { this.#storage.setItem(STORAGE_KEY, JSON.stringify(this.#state)); }
 
-  #ensureSession(account, equity) {
-    const key = sessionKeyFrom(this.#now());
+  #ensureSession(account, equity, market) {
+    const key = this.#sessionClock.sessionKey(market, this.#now());
     if (account.sessionKey === null || account.sessionKey === undefined) {
       account.sessionKey = key;
       if (!Number.isFinite(account.sessionOpenEquity)) account.sessionOpenEquity = account.initialCash;
@@ -114,23 +129,20 @@ export class PaperBroker {
       marketValue += position.marketValue;
     }
     const equity = account.cash + marketValue;
-    this.#ensureSession(account, equity);
-    const dailyPnl = equity - account.sessionOpenEquity;
-    return clone({
-      schemaVersion: PAPER_SCHEMA_VERSION,
+    this.#ensureSession(account, equity, market);
+    return clone(createAccountSnapshot({
       market,
       currency: account.currency,
       initialCash: account.initialCash,
       cash: account.cash,
-      marketValue,
-      equity,
-      dailyPnl,
-      dailyPnlPct: account.sessionOpenEquity === 0 ? 0 : (dailyPnl / account.sessionOpenEquity) * 100,
-      dailyLossReferenceEquity: account.sessionOpenEquity,
+      realizedPnl: account.realizedPnl,
+      totalFees: account.totalFees,
+      feeModel: account.feeModel,
       sessionKey: account.sessionKey,
+      sessionOpenEquity: account.sessionOpenEquity,
       positions,
       orders: account.orders,
-    });
+    }));
   }
 
   findOrder(market = "TW", clientOrderId) {
@@ -142,16 +154,17 @@ export class PaperBroker {
 
   placeOrder({ market = "TW", symbol, side, qty, price, clientId = "manual", clientOrderId }) {
     this.#assertMarket(market);
-    if (!clientOrderId || typeof clientOrderId !== "string") throw new Error("clientOrderId 必須存在");
-    if (!symbol || !/^[A-Za-z0-9.]+$/.test(String(symbol))) throw new Error("標的代號格式不正確");
-    if (!(["buy", "sell"].includes(side))) throw new Error("只支援 buy 或 sell");
-    if (!Number.isInteger(qty) || qty <= 0) throw new Error("數量必須是正整數");
-    if (!Number.isFinite(price) || price <= 0) throw new Error("價格必須是正數");
+    if (!clientOrderId || typeof clientOrderId !== "string") throw new OrderError(ORDER_ERROR_CODE.VALIDATION_REJECTED, "clientOrderId 必須存在");
+    if (!symbol || !/^[A-Za-z0-9.]+$/.test(String(symbol))) throw new OrderError(ORDER_ERROR_CODE.INVALID_SYMBOL, "標的代號格式不正確");
+    if (!( ["buy", "sell"].includes(side))) throw new OrderError(ORDER_ERROR_CODE.INVALID_SIDE, "只支援 buy 或 sell");
+    if (!Number.isInteger(qty) || qty <= 0) throw new OrderError(ORDER_ERROR_CODE.INVALID_QTY, "數量必須是正整數");
+    if (!Number.isFinite(price) || price <= 0) throw new OrderError(ORDER_ERROR_CODE.INVALID_PRICE, "價格必須是正數");
     const account = this.#state[market];
     const duplicate = account.orders.find((existingOrder) => existingOrder.clientOrderId === clientOrderId);
     if (duplicate) return clone(duplicate);
     const existing = account.positions[symbol];
     const notional = qty * price;
+    const fee = feeFor(this.#feeModel, { market, symbol: String(symbol), side, qty, price, notional });
     const timestamp = this.#now();
     let order = createOrder({
       id: this.#idGenerator({ market, timestamp, sequence: account.orders.length + 1 }),
@@ -163,22 +176,27 @@ export class PaperBroker {
       qty,
       price,
       notional,
+      fee,
+      feeModel: this.#feeModel.name,
+      executionMode: this.#executionModel.mode,
       mode: "paper",
     }, { now: () => timestamp });
-    order = transitionOrder(order, "VALIDATE", { now: () => timestamp });
     if (side === "buy") {
-      if (account.cash < notional) throw new Error("現金不足：紙上帳戶拒絕這筆訂單");
+      if (account.cash < notional + fee) throw new OrderError(ORDER_ERROR_CODE.INSUFFICIENT_CASH, "現金不足：紙上帳戶拒絕這筆訂單");
       const nextQty = (existing?.qty ?? 0) + qty;
-      const nextAvg = existing ? ((existing.avgCost * existing.qty) + notional) / nextQty : price;
-      account.cash -= notional;
+      const nextAvg = existing ? ((existing.avgCost * existing.qty) + notional + fee) / nextQty : (notional + fee) / qty;
+      account.cash -= notional + fee;
+      account.totalFees += fee;
       account.positions[symbol] = { symbol, qty: nextQty, avgCost: nextAvg };
     } else {
-      if (!existing || existing.qty < qty) throw new Error("持倉不足：目前紙上帳戶不允許裸賣");
-      account.cash += notional;
+      if (!existing || existing.qty < qty) throw new OrderError(ORDER_ERROR_CODE.INSUFFICIENT_POSITION, "持倉不足：目前紙上帳戶不允許裸賣");
+      account.cash += notional - fee;
+      account.realizedPnl += (price - existing.avgCost) * qty - fee;
+      account.totalFees += fee;
       if (existing.qty === qty) delete account.positions[symbol];
       else account.positions[symbol] = { ...existing, qty: existing.qty - qty };
     }
-    order = transitionOrder(order, "FILL", { now: () => timestamp, reason: "immediate paper simulation" });
+    order = this.#executionModel.execute(order, { timestamp });
     account.orders.unshift(order);
     account.orders = account.orders.slice(0, 100);
     this.#save();

@@ -23,7 +23,7 @@ let clientOrderSequence = 0;
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
 const risk = new RiskEngine(DEFAULT_RISK);
-const audit = new AuditLog();
+const audit = new AuditLog({ storage });
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const money = (value, currency) => `${currency} ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -94,7 +94,7 @@ function renderAll() {
 function renderDashboard() {
   const account = broker.snapshot(state.market, quoteMap());
   const ccy = account.currency;
-  const totalPnl = account.equity - account.initialCash;
+  const totalPnl = account.totalPnl;
   $("#kpi-equity").textContent = money(account.equity, ccy);
   $("#kpi-equity-sub").textContent = `初始 ${money(account.initialCash, ccy)}`;
   $("#kpi-day").textContent = money(totalPnl, ccy);
@@ -200,7 +200,7 @@ function renderTrade() {
   if (market !== state.market) state.market = market;
   const account = broker.snapshot(market, quoteMap(market));
   const meta = getSymbol($("#order-symbol").value || state.symbol);
-  $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div>`;
+  $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div><div class="row"><span>已實現／未實現</span><span>${money(account.realizedPnl, account.currency)} ／ ${money(account.unrealizedPnl, account.currency)}</span></div><div class="row"><span>本 session 損益</span><span class="${tone(account.dailyPnl)}">${money(account.dailyPnl, account.currency)} (${account.sessionKey})</span></div>`;
   $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">尚無持倉。紙上帳戶從零開始，不會自動載入券商資料。</td></tr>`;
   $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : `<tr><td colspan="6" class="muted">尚無訂單。</td></tr>`;
   updateOrderPrice();

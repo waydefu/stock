@@ -40,6 +40,35 @@ test("paper broker discards malformed persisted account state", () => {
   assert.deepEqual(account.orders, []);
 });
 
+test("paper broker discards malformed persisted orders and duplicate ids", () => {
+  const storage = new MemoryStorage();
+  storage.setItem("tw-us-stock-paper-v1", JSON.stringify({
+    schemaVersion: 1,
+    TW: {
+      cash: 999_000,
+      realizedPnl: 0,
+      totalFees: 0,
+      feeModel: "zero-fee-paper",
+      positions: {},
+      orders: [{ id: "same", clientOrderId: "same-client", status: "FILLED", symbol: "2330", side: "buy", qty: -1, price: 100 }, { id: "same", clientOrderId: "same-client", status: "FILLED", symbol: "2330", side: "buy", qty: 1, price: 100 }],
+    },
+  }));
+  const account = new PaperBroker({ storage }).snapshot("TW");
+  assert.equal(account.cash, 1_000_000);
+  assert.deepEqual(account.orders, []);
+});
+
+test("paper account invariants survive deterministic buy and full sell sequence", () => {
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
+  broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100, clientOrderId: "invariant-buy" });
+  broker.placeOrder({ market: "TW", symbol: "2330", side: "sell", qty: 10, price: 110, clientOrderId: "invariant-sell" });
+  const snapshot = broker.snapshot("TW", { "2330": { price: 110 } });
+  assert.equal(snapshot.positions["2330"], undefined);
+  assert.ok(Number.isFinite(snapshot.cash));
+  assert.ok(Number.isFinite(snapshot.equity));
+  assert.ok(snapshot.cash >= 0);
+});
+
 test("paper broker returns the original fill for a duplicate client order id", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
   const first = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 2, price: 100, clientOrderId: "duplicate-1" });

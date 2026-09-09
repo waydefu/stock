@@ -14,6 +14,8 @@ const ROLE_PERMISSIONS = {
   maintainer: ["market:read", "research:read", "audit:read", "paper:order", "risk:trip", "risk:reset", "repo:change"],
 };
 
+const AUDIT_STORAGE_KEY = "tw-us-stock-audit-v1";
+
 export function permissionsFor(role) { return [...(ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS.observer)]; }
 
 export class RiskEngine {
@@ -27,6 +29,7 @@ export class RiskEngine {
     if (this.#tripped) return { ok: false, code: "KILL_SWITCH", reason: `斷路器已啟動：${this.#reason}` };
     const equity = Number(account?.equity ?? 0);
     if (!Number.isFinite(equity) || equity <= 0) return { ok: false, code: "NO_EQUITY", reason: "帳戶權益無效，停止下單" };
+    if (!order?.symbol || !/^[A-Za-z0-9.]+$/.test(String(order.symbol))) return { ok: false, code: "INVALID_SYMBOL", reason: "標的代號格式不正確" };
     if (!["buy", "sell"].includes(order?.side)) return { ok: false, code: "INVALID_SIDE", reason: "交易方向必須是 buy 或 sell" };
     if (!Number.isInteger(order?.qty) || order.qty <= 0) return { ok: false, code: "INVALID_QTY", reason: "數量必須是正整數" };
     if (!Number.isFinite(order?.price) || order.price <= 0) return { ok: false, code: "INVALID_PRICE", reason: "價格必須是正數" };
@@ -71,14 +74,23 @@ function safeDetails(details) {
 }
 
 export class AuditLog {
-  #events = [];
+  #events;
   #now;
   #idGenerator;
-  #sequence = 0;
+  #storage;
+  #sequence;
 
-  constructor({ now = () => new Date().toISOString(), idGenerator = ({ sequence }) => `audit-${sequence}` } = {}) {
+  constructor({ now = () => new Date().toISOString(), idGenerator = ({ sequence }) => `audit-${sequence}`, storage = null } = {}) {
     this.#now = now;
     this.#idGenerator = idGenerator;
+    this.#storage = storage;
+    this.#events = loadAuditEvents(storage);
+    this.#sequence = this.#events.length;
+  }
+
+  #save() {
+    if (!this.#storage) return;
+    try { this.#storage.setItem(AUDIT_STORAGE_KEY, JSON.stringify({ version: 1, events: this.#events })); } catch { /* local persistence is best effort */ }
   }
 
   record(event, details = {}) {
@@ -91,6 +103,7 @@ export class AuditLog {
       details: safeDetails(details),
     };
     this.#events.push(entry);
+    this.#save();
     return { ...entry };
   }
 
@@ -107,6 +120,19 @@ function csvCell(value) {
   let text = String(value ?? "");
   if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function loadAuditEvents(storage) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(AUDIT_STORAGE_KEY);
+    if (!raw) return [];
+    const payload = JSON.parse(raw);
+    if (payload.version !== 1 || !Array.isArray(payload.events)) return [];
+    return payload.events.filter((entry) => entry && entry.version === 1 && typeof entry.eventId === "string" && typeof entry.timestamp === "string" && typeof entry.event === "string" && entry.details && typeof entry.details === "object");
+  } catch {
+    return [];
+  }
 }
 
 export { DEFAULT_RISK, ROLE_PERMISSIONS };

@@ -9,4 +9,5 @@ test("risk engine rejects malformed order fields before notional checks", () => 
   assert.equal(risk.approveOrder(account, { symbol: "AAPL", side: "buy", qty: 0, price: 100 }).code, "INVALID_QTY");
   assert.equal(risk.approveOrder(account, { symbol: "AAPL", side: "buy", qty: 1.5, price: 100 }).code, "INVALID_QTY");
   assert.equal(risk.approveOrder(account, { symbol: "AAPL", side: "buy", qty: 1, price: 0 }).code, "INVALID_PRICE");
+  assert.equal(risk.approveOrder(account, { symbol: "bad symbol", side: "buy", qty: 1, price: 100 }).code, "INVALID_SYMBOL");
 });

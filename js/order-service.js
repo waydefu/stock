@@ -6,7 +6,7 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
   if (!canTrade) {
     return {
       filled: false,
-      decision: { ok: false, code: "ROLE_DENIED", reason: "目前角色沒有紙上交易權限" },
+      decision: { ok: false, code: "ROLE_DENIED", category: "AUTHORIZATION_REJECTED", reason: "目前角色沒有紙上交易權限" },
     };
   }
   const previous = broker.findOrder(order.market, order.clientOrderId);
@@ -21,7 +21,7 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
   }
   const account = broker.snapshot(order.market, quotes);
   const decision = risk.approveOrder(account, order);
-  if (!decision.ok) return { filled: false, decision, account };
+  if (!decision.ok) return { filled: false, decision: { ...decision, category: "RISK_REJECTED" }, account };
   try {
     const fill = broker.placeOrder(order);
     return {
@@ -33,7 +33,7 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
   } catch (error) {
     return {
       filled: false,
-      decision: { ok: false, code: "BROKER_REJECTED", reason: error.message },
+      decision: { ok: false, code: error?.code ?? "BROKER_REJECTED", category: "BROKER_REJECTED", reason: error.message },
       account,
     };
   }

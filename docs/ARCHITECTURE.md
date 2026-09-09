@@ -38,7 +38,11 @@
 ### 邊界
 
 - `js/data.js`：資料與純技術指標；目前只提供固定模擬資料。
+- `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。
 - `js/market-rules.js`：TW／US market rules contract；目前 TW partial sourced、US simplified，尚未強制到 broker。
+- `js/session-clock.js`：market-local timezone session key；calendar policy 是 `simplified-weekday`，不是 exchange holiday calendar。
+- `js/execution-model.js`：立即 paper execution boundary；MATCHING 只保留未實作 contract。
+- `js/order-errors.js`：stable order／risk／broker error codes。
 - `js/backtest.js`：策略、成交假設、績效統計；不呼叫券商。
 - `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）。
 - `js/paper.js`：本機紙上帳本；將來 broker adapter 必須維持相同狀態回讀介面。
