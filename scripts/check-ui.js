@@ -212,12 +212,14 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("fav-toggle", problems.join("；"));
 }
 
-// 10. 狀態元件角色（empty／error 可感知；role 是動態計算故驗字串字面）
+// 10. 狀態元件角色（empty／error 可感知；role 是動態計算故驗字串字面；實作住在 view.js）
 {
   const problems = [];
-  if (!app.includes('role="${role}"')) problems.push("statePanel 未輸出動態 role");
-  if (!app.includes('"alert"') || !app.includes('"status"')) problems.push("statePanel 缺 alert／status 兩種角色字面");
-  if (!app.includes("stateRow(")) problems.push("找不到表格空狀態 stateRow");
+  const view = readFileSync("js/view.js", "utf8");
+  if (!view.includes('role="${role}"')) problems.push("statePanel 未輸出動態 role");
+  if (!view.includes('"alert"') || !view.includes('"status"')) problems.push("statePanel 缺 alert／status 兩種角色字面");
+  if (!view.includes("function stateRow(")) problems.push("找不到表格空狀態 stateRow");
+  if (!app.includes("stateRow(") && !app.includes("statePanel(")) problems.push("app.js 未使用狀態元件");
   if (problems.length === 0) ok("state-roles");
   else fail("state-roles", problems.join("；"));
 }

@@ -9,6 +9,7 @@ import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
 import { escapeHtml } from "./dom.js";
 import { loadFavorites, toggleFavorite } from "./favorites.js";
+import { avgLast, fmtDay, money, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 
 const state = {
@@ -28,11 +29,6 @@ const risk = new RiskEngine(DEFAULT_RISK);
 const audit = new AuditLog({ storage });
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const money = (value, currency) => `${currency} ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const signed = (value, digits = 2) => `${value >= 0 ? "+" : ""}${Number(value).toFixed(digits)}`;
-const pct = (value) => `${signed(value)}%`;
-const tone = (value) => value > 0 ? "up" : value < 0 ? "down" : "neutral";
-const symbolLabel = (code) => { const item = getSymbol(code); return item ? `${item.code} ${item.name}` : code; };
 const nextClientOrderId = () => globalThis.crypto?.randomUUID?.() ?? `ui-${Date.now()}-${++clientOrderSequence}`;
 
 function marketSymbols() { return SYMBOLS.filter((item) => item.market === state.market); }
@@ -41,17 +37,6 @@ function quoteMap(market = state.market) {
   return Object.fromEntries(marketSymbolsFor(market).map((item) => [item.code, quote(item.code)]));
 }
 function marketSymbolsFor(market) { return SYMBOLS.filter((item) => item.market === market); }
-function fmtDay(t) { return new Date(t).toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" }); }
-
-function statePanel(kind, title, detail) {
-  const safeKind = ["empty", "error", "loading", "permission", "success"].includes(kind) ? kind : "empty";
-  const role = safeKind === "error" ? "alert" : "status";
-  return `<div class="state-block state-${safeKind}" role="${role}"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
-}
-
-function stateRow(colspan, kind, title, detail) {
-  return `<tr><td colspan="${colspan}">${statePanel(kind, title, detail)}</td></tr>`;
-}
 
 function auditEvent(event, details) {
   audit.record(event, { ...details, mode: "paper", role: state.role, market: state.market });
@@ -206,8 +191,6 @@ function renderChart() {
   if (chart && (state.page === "chart" || chart.closest(".active"))) drawCandles(chart, bars, { window: Number($("#chart-window").value || state.chartWindow) });
   $("#technical-readings").innerHTML = `<div class="row"><span>MA20</span><span class="mono">${fmtPrice(avgLast(closes, 20))}</span></div><div class="row"><span>MA50</span><span class="mono">${fmtPrice(avgLast(closes, 50))}</span></div><div class="row"><span>RSI(14)</span><span class="badge ${lastRsi < 30 ? "up" : lastRsi > 70 ? "down" : "neutral"}">${lastRsi.toFixed(2)}</span></div><div class="row"><span>成交量</span><span class="mono">${fmtInt(q.vol)}</span></div>`;
 }
-
-function avgLast(values, length) { return values.slice(-length).reduce((a, b) => a + b, 0) / Math.min(length, values.length); }
 
 function renderScreener() {
   const minChange = Number($("#filter-change").value ?? -99);
