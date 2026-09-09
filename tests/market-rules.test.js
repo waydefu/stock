@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getMarketRules, validateQuantity } from "../js/market-rules.js";
+import { defaultLotForMarket, getMarketRules, validateQuantity } from "../js/market-rules.js";
 
 test("TW market rules expose sourced regular and odd-lot boundaries", () => {
   const rules = getMarketRules("TW");
@@ -11,8 +11,12 @@ test("TW market rules expose sourced regular and odd-lot boundaries", () => {
   assert.equal(validateQuantity("TW", 2000, "regular").ok, true);
   assert.equal(validateQuantity("TW", 999, "regular").ok, false);
   assert.equal(validateQuantity("TW", 999, "oddLot").ok, true);
-  assert.equal(validateQuantity("TW", 1000, "oddLot").ok, false);
+  assert.equal(defaultLotForMarket("TW"), "oddLot");
+  assert.equal(defaultLotForMarket("US"), "regular");
+  assert.equal(validateQuantity("TW", 1).ok, true);
+  assert.equal(validateQuantity("TW", 1000).ok, false);
 });
+
 
 test("US market rules remain explicitly simplified until an official venue adapter exists", () => {
   const rules = getMarketRules("US");

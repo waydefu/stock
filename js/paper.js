@@ -5,6 +5,7 @@
 import { ACCOUNTING_VERSION, ZERO_FEE_MODEL, createAccountSnapshot, feeFor } from "./accounting.js";
 import { createExecutionModel, ExecutionMode } from "./execution-model.js";
 import { MarketSessionClock } from "./session-clock.js";
+import { defaultLotForMarket, validateQuantity } from "./market-rules.js";
 import { ORDER_ERROR_CODE, OrderError } from "./order-errors.js";
 import { createOrder, ORDER_STATUS } from "./order-state.js";
 
@@ -31,7 +32,7 @@ function defaultState() {
 }
 
 function validPersistedOrder(order, market, ids) {
-  if (!order || typeof order !== "object" || order.market !== market || typeof order.id !== "string" || typeof order.clientOrderId !== "string" || !order.clientOrderId || !order.symbol || !/^[A-Za-z0-9.]+$/.test(order.symbol) || !["buy", "sell"].includes(order.side) || !Number.isInteger(order.qty) || order.qty <= 0 || !Number.isFinite(order.price) || order.price <= 0 || !Object.values(ORDER_STATUS).includes(order.status) || !Array.isArray(order.events)) return false;
+  if (!order || typeof order !== "object" || order.market !== market || typeof order.id !== "string" || typeof order.clientOrderId !== "string" || !order.clientOrderId || !order.symbol || !/^[A-Za-z0-9.]+$/.test(order.symbol) || !["buy", "sell"].includes(order.side) || !Number.isInteger(order.qty) || order.qty <= 0 || !Number.isFinite(order.price) || order.price <= 0 || (order.lot !== undefined && !["regular", "oddLot"].includes(order.lot)) || !Object.values(ORDER_STATUS).includes(order.status) || !Array.isArray(order.events)) return false;
   if (ids.has(order.id) || ids.has(`client:${order.clientOrderId}`)) return false;
   ids.add(order.id);
   ids.add(`client:${order.clientOrderId}`);
@@ -152,12 +153,14 @@ export class PaperBroker {
     return found ? clone(found) : null;
   }
 
-  placeOrder({ market = "TW", symbol, side, qty, price, clientId = "manual", clientOrderId }) {
+  placeOrder({ market = "TW", symbol, side, qty, price, lot = defaultLotForMarket(market), clientId = "manual", clientOrderId }) {
     this.#assertMarket(market);
     if (!clientOrderId || typeof clientOrderId !== "string") throw new OrderError(ORDER_ERROR_CODE.VALIDATION_REJECTED, "clientOrderId 必須存在");
     if (!symbol || !/^[A-Za-z0-9.]+$/.test(String(symbol))) throw new OrderError(ORDER_ERROR_CODE.INVALID_SYMBOL, "標的代號格式不正確");
     if (!( ["buy", "sell"].includes(side))) throw new OrderError(ORDER_ERROR_CODE.INVALID_SIDE, "只支援 buy 或 sell");
     if (!Number.isInteger(qty) || qty <= 0) throw new OrderError(ORDER_ERROR_CODE.INVALID_QTY, "數量必須是正整數");
+    const quantityDecision = validateQuantity(market, qty, lot);
+    if (!quantityDecision.ok) throw new OrderError(quantityDecision.code, quantityDecision.reason);
     if (!Number.isFinite(price) || price <= 0) throw new OrderError(ORDER_ERROR_CODE.INVALID_PRICE, "價格必須是正數");
     const account = this.#state[market];
     const duplicate = account.orders.find((existingOrder) => existingOrder.clientOrderId === clientOrderId);
@@ -173,6 +176,7 @@ export class PaperBroker {
       market,
       symbol: String(symbol),
       side,
+      lot,
       qty,
       price,
       notional,

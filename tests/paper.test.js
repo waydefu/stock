@@ -58,6 +58,14 @@ test("paper broker discards malformed persisted orders and duplicate ids", () =>
   assert.deepEqual(account.orders, []);
 });
 
+test("paper broker applies the shared TW lot policy", () => {
+  const broker = new PaperBroker({ storage: new MemoryStorage() });
+  assert.throws(() => broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1000, price: 100, clientOrderId: "wrong-default-lot" }), (error) => error.code === "ODD_LOT_RANGE");
+  const regular = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1000, price: 100, lot: "regular", clientOrderId: "regular-lot" });
+  assert.equal(regular.status, "FILLED");
+  assert.equal(regular.lot, "regular");
+});
+
 test("paper account invariants survive deterministic buy and full sell sequence", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
   broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100, clientOrderId: "invariant-buy" });

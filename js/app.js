@@ -223,7 +223,7 @@ function previewOrder(event) {
   const qty = Number($("#order-qty").value);
   const price = Number($("#order-price").value);
   const account = broker.snapshot(market, quoteMap(market));
-  const candidate = { market, symbol, side, qty, price, clientOrderId: nextClientOrderId() };
+  const candidate = { market, symbol, side, qty, price, lot: market === "TW" ? "oddLot" : "regular", clientOrderId: nextClientOrderId() };
   let decision;
   if (!permissionsFor(state.role).includes("paper:order")) decision = { ok: false, code: "ROLE_DENIED", reason: "目前角色是觀察者；切換 Trader 才能建立紙上訂單" };
   else decision = risk.approveOrder(account, candidate);

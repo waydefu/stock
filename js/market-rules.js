@@ -34,7 +34,11 @@ export function getMarketRules(market) {
   return rules;
 }
 
-export function validateQuantity(market, quantity, lot = "regular") {
+export function defaultLotForMarket(market) {
+  return market === "TW" ? "oddLot" : "regular";
+}
+
+export function validateQuantity(market, quantity, lot = defaultLotForMarket(market)) {
   const rules = getMarketRules(market);
   if (!Number.isInteger(quantity) || quantity <= 0) return { ok: false, code: "INVALID_QUANTITY", reason: "數量必須是正整數" };
   if (market === "TW" && lot === "regular" && quantity % rules.regularUnit !== 0) {

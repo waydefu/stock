@@ -7,7 +7,7 @@ test("risk engine rejects an order above the notional cap", () => {
   const risk = new RiskEngine({ maxOrderNotionalPct: 0.2 });
   const decision = risk.approveOrder(
     { equity: 10000, cash: 10000, dailyPnl: 0, positions: [] },
-    { symbol: "2330", side: "buy", qty: 30, price: 100 },
+    { market: "US", symbol: "AAPL", side: "buy", qty: 30, price: 100 },
   );
   assert.equal(decision.ok, false);
   assert.match(decision.reason, /上限/);
@@ -17,7 +17,7 @@ test("risk engine trips the daily loss circuit breaker", () => {
   const risk = new RiskEngine({ maxDailyLossPct: 0.02 });
   const decision = risk.approveOrder(
     { equity: 10000, cash: 5000, dailyPnl: -250, positions: [] },
-    { symbol: "2330", side: "buy", qty: 1, price: 100 },
+    { market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100 },
   );
   assert.equal(decision.ok, false);
   assert.equal(decision.code, "DAILY_LOSS_LIMIT");
@@ -27,7 +27,7 @@ test("risk engine trips the daily loss circuit breaker", () => {
 test("kill switch blocks future orders until explicitly reset", () => {
   const risk = new RiskEngine();
   risk.trip("manual test");
-  assert.equal(risk.approveOrder({ equity: 10000, cash: 10000, dailyPnl: 0, positions: [] }, { symbol: "AAPL", side: "buy", qty: 1, price: 100 }).code, "KILL_SWITCH");
+  assert.equal(risk.approveOrder({ equity: 10000, cash: 10000, dailyPnl: 0, positions: [] }, { market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100 }).code, "KILL_SWITCH");
   risk.reset();
   assert.equal(risk.isTripped(), false);
 });

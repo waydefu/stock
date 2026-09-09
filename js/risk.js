@@ -1,5 +1,6 @@
 /* 風控與稽核：先判斷、再讓 paper broker 改狀態；拒絕要有代碼與可行動原因。 */
-"use strict";
+import { defaultLotForMarket, validateQuantity } from "./market-rules.js";
+import { ORDER_ERROR_CODE } from "./order-errors.js";
 
 const DEFAULT_RISK = {
   maxOrderNotionalPct: 0.2,
@@ -29,10 +30,13 @@ export class RiskEngine {
     if (this.#tripped) return { ok: false, code: "KILL_SWITCH", reason: `斷路器已啟動：${this.#reason}` };
     const equity = Number(account?.equity ?? 0);
     if (!Number.isFinite(equity) || equity <= 0) return { ok: false, code: "NO_EQUITY", reason: "帳戶權益無效，停止下單" };
+    if (!["TW", "US"].includes(order?.market)) return { ok: false, code: ORDER_ERROR_CODE.INVALID_MARKET, reason: "市場必須是 TW 或 US" };
     if (!order?.symbol || !/^[A-Za-z0-9.]+$/.test(String(order.symbol))) return { ok: false, code: "INVALID_SYMBOL", reason: "標的代號格式不正確" };
     if (!["buy", "sell"].includes(order?.side)) return { ok: false, code: "INVALID_SIDE", reason: "交易方向必須是 buy 或 sell" };
     if (!Number.isInteger(order?.qty) || order.qty <= 0) return { ok: false, code: "INVALID_QTY", reason: "數量必須是正整數" };
     if (!Number.isFinite(order?.price) || order.price <= 0) return { ok: false, code: "INVALID_PRICE", reason: "價格必須是正數" };
+    const quantityDecision = validateQuantity(order.market, order.qty, order.lot ?? defaultLotForMarket(order.market));
+    if (!quantityDecision.ok) return { ok: false, code: quantityDecision.code, reason: quantityDecision.reason };
     const dailyPnl = Number(account?.dailyPnl ?? 0);
     const dailyLossPct = Math.abs(Math.min(0, dailyPnl)) / equity;
     if (dailyLossPct >= this.#config.maxDailyLossPct) {

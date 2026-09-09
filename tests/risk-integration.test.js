@@ -25,10 +25,10 @@ test("paper snapshot wires session daily PnL into the account contract", () => {
 test("execution boundary rechecks cash after a preview becomes stale", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage() });
   const risk = new RiskEngine({ maxOrderNotionalPct: 0.2 });
-  const candidate = { market: "TW", symbol: "2330", side: "buy", qty: 2_000, price: 100, clientOrderId: "stale-order" };
+  const candidate = { market: "TW", symbol: "2330", side: "buy", qty: 2_000, price: 100, lot: "regular", clientOrderId: "stale-order" };
 
   // Simulate another trusted paper operation changing account cash after preview.
-  broker.placeOrder({ market: "TW", symbol: "2317", side: "buy", qty: 9_000, price: 100, clientOrderId: "stale-cash-seed" });
+  broker.placeOrder({ market: "TW", symbol: "2317", side: "buy", qty: 9_000, price: 100, lot: "regular", clientOrderId: "stale-cash-seed" });
   const result = executePaperOrder({ broker, risk, order: candidate });
 
   assert.equal(result.filled, false);
