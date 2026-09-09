@@ -2,6 +2,7 @@
    取 Kraken 紫＋語義色的骨架，轉為深色 Monitor/Operate 介面（原創深色改作，非複刻）。 */
 :root {
   --brand: #855bfb;
+  --brand-ink: #a78bfa;
   --brand-deep: #5b1ecf;
   --brand-subtle: rgba(133, 91, 251, 0.16);
   --bg: #0d0e13;
@@ -78,14 +79,14 @@ a { color: var(--brand); }
   position: sticky; top: 0; z-index: 50;
 }
 .logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; white-space: nowrap; }
-.logo b { color: var(--brand); }
+.logo b { color: var(--brand-ink); }
 .market-switch { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-s); overflow: hidden; }
 .market-switch button {
   border: 0; background: transparent; color: var(--muted);
   padding: 6px 14px; cursor: pointer; font-size: 13px; font-weight: 600;
   transition: color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
-.market-switch button[aria-pressed="true"] { background: var(--brand-subtle); color: var(--brand); }
+.market-switch button[aria-pressed="true"] { background: var(--brand-subtle); color: var(--brand-ink); }
 .rolebox { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 select, input, button { font-family: inherit; }
 select, input[type="text"], input[type="number"] {
@@ -139,7 +140,7 @@ main { padding: 16px; max-width: 1480px; margin: 0 auto; }
 .badge.down { background: var(--down-bg); color: var(--down); }
 .badge.warn { background: var(--warn-bg); color: var(--warn); }
 .badge.neutral { background: rgba(148, 151, 169, 0.14); color: var(--muted); }
-.badge.brand { background: var(--brand-subtle); color: var(--brand); }
+.badge.brand { background: var(--brand-subtle); color: var(--brand-ink); }
 
 /* 表格 */
 table { width: 100%; border-collapse: collapse; font-size: 13px; }

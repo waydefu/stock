@@ -9,6 +9,8 @@ const required = [
   "js/execution-model.js",
   "js/order-errors.js",
   "js/dom.js",
+  "js/favorites.js",
+  "js/view.js",
   "js/market-rules.js",
   "js/session-clock.js",
   "js/trading-calendar.js",

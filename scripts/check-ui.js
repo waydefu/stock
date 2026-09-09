@@ -28,7 +28,7 @@ const count = (text, re) => (text.match(re) ?? []).length;
 // 2. CSS 設計代幣齊全
 {
   const root = (css.match(/:root\s*\{[^}]*\}/) ?? [""])[0];
-  const required = ["--brand", "--brand-deep", "--bg", "--surface", "--ink", "--muted", "--faint",
+  const required = ["--brand", "--brand-ink", "--brand-deep", "--bg", "--surface", "--ink", "--muted", "--faint",
     "--border", "--up", "--down", "--warn", "--info",
     "--motion-fast", "--motion-base", "--ease-standard", "--radius", "--mono", "--sans"];
   const missing = required.filter((v) => !root.includes(v));
@@ -77,6 +77,45 @@ const count = (text, re) => (text.match(re) ?? []).length;
     if (r < floor) fail("contrast", `${name} 實測 ${r.toFixed(2)}:1 低於門檻 ${floor}（${use}）`);
   }
   if (!failures.some((f) => f.startsWith("[FAIL] contrast"))) ok("contrast");
+}
+
+// 4b. 功能文字用色：badge 與選中態的 color 實測必須達 4.5（只驗 text，不驗線條／logotype）
+{
+  const problems = [];
+  const resolveColor = (block) => {
+    const m = block.match(/color\s*:\s*(var\(--([\w-]+)\)|#[0-9a-fA-F]{6})/);
+    if (!m) return null;
+    if (m[2]) {
+      const hex = (css.match(new RegExp(`--${m[2]}\\s*:\\s*(#[0-9a-fA-F]{6})`)) ?? [])[1];
+      return hex ?? null;
+    }
+    return m[1];
+  };
+  const lum = (h) => {
+    const v = [0, 2, 4].map((i) => parseInt(h.slice(i + 1, i + 3), 16) / 255)
+      .map((x) => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4));
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  };
+  const ratio = (a, b) => {
+    const s = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (s[0] + 0.05) / (s[1] + 0.05);
+  };
+  const vars = Object.fromEntries([...css.matchAll(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]));
+  const targets = [
+    ["badge.brand 文字", /\.badge\.brand\s*\{[^}]*\}/, vars["surface"]],
+    ["market-switch 選中文字", /\.market-switch button\[aria-pressed="true"\]\s*\{[^}]*\}/, vars["surface-2"]],
+  ];
+  for (const [name, re, bg] of targets) {
+    const block = (css.match(re) ?? [""])[0];
+    if (!block) { problems.push(`找不到規則：${name}`); continue; }
+    const fg = resolveColor(block);
+    if (!fg) { problems.push(`${name} 解析不出 color`); continue; }
+    const r = ratio(fg, bg);
+    console.log(`  ${name}: ${fg} on ${bg} = ${r.toFixed(2)}:1（門檻 4.5）`);
+    if (r < 4.5) problems.push(`${name} 實測 ${r.toFixed(2)}:1 未達 4.5`);
+  }
+  if (problems.length === 0) ok("text-contrast-usage");
+  else fail("text-contrast-usage", problems.join("；"));
 }
 
 // 5. tabs 語義
@@ -134,6 +173,7 @@ const count = (text, re) => (text.match(re) ?? []).length;
   const canvases = [...html.matchAll(/<canvas[^>]*>/g)].map((m) => m[0]);
   const problems = [];
   if (!/canvas\.chart\s*\{[^}]*height/.test(css)) problems.push("CSS 缺 canvas.chart 高度");
+  if (/canvas\.style\.height/.test(readFileSync("js/charts.js", "utf8"))) problems.push("charts.js 不可用 JS inline 高度覆蓋 CSS");
   if (canvases.length === 0) problems.push("找不到 canvas");
   for (const c of canvases) if (!/aria-label="[^"]+"/.test(c)) problems.push(`canvas 缺 aria-label：${c}`);
   if (problems.length === 0) ok("canvas-baseline");
@@ -162,12 +202,24 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("control-naming", problems.join("；"));
 }
 
-// 10. 狀態元件角色（empty／error 可感知；role 是動態計算故驗字串字面）
+// 9b. 自選按鈕必須是真開關而非裝飾：aria-pressed＋阻斷冒泡＋持久化管線
 {
   const problems = [];
-  if (!app.includes('role="${role}"')) problems.push("statePanel 未輸出動態 role");
-  if (!app.includes('"alert"') || !app.includes('"status"')) problems.push("statePanel 缺 alert／status 兩種角色字面");
-  if (!app.includes("stateRow(")) problems.push("找不到表格空狀態 stateRow");
+  for (const token of ['data-fav="', 'aria-pressed="${active}"', "stopPropagation", "toggleFavorite(storage", "loadFavorites(storage"]) {
+    if (!app.includes(token)) problems.push(`缺自選開關要素：${token}`);
+  }
+  if (problems.length === 0) ok("fav-toggle");
+  else fail("fav-toggle", problems.join("；"));
+}
+
+// 10. 狀態元件角色（empty／error 可感知；role 是動態計算故驗字串字面；實作住在 view.js）
+{
+  const problems = [];
+  const view = readFileSync("js/view.js", "utf8");
+  if (!view.includes('role="${role}"')) problems.push("statePanel 未輸出動態 role");
+  if (!view.includes('"alert"') || !view.includes('"status"')) problems.push("statePanel 缺 alert／status 兩種角色字面");
+  if (!view.includes("function stateRow(")) problems.push("找不到表格空狀態 stateRow");
+  if (!app.includes("stateRow(") && !app.includes("statePanel(")) problems.push("app.js 未使用狀態元件");
   if (problems.length === 0) ok("state-roles");
   else fail("state-roles", problems.join("；"));
 }
@@ -202,8 +254,8 @@ const count = (text, re) => (text.match(re) ?? []).length;
     if (spanStart - prev > 900) return false;
     return true;
   };
-  // 數值格式化包裝的輸出必為數字字串（非原始字串），不視為裸插值
-  const SAFE_NUMERIC = /^\s*(fmtPrice|fmtInt|fmtDay|money|signed|pct|volumeRatio|avgLast)\s*\(/;
+  // 數值格式化包裝的輸出必為數字字串、favButton 內部已 escape 參數；兩者皆非原始字串裸奔
+  const SAFE_NUMERIC = /^\s*(fmtPrice|fmtInt|fmtDay|money|signed|pct|volumeRatio|avgLast|favButton)\s*\(/;
   for (const [s, e] of spans) {
     if (!isSink(s)) continue;
     const body = app.slice(s, e);
