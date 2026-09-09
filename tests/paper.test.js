@@ -4,7 +4,7 @@ import { MemoryStorage, PaperBroker } from "../js/paper.js";
 
 test("paper broker records a buy and updates cash and position", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
-  const result = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100 });
+  const result = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100, clientOrderId: "paper-test-1" });
   assert.equal(result.status, "FILLED");
   assert.deepEqual(result.events.map((event) => event.type), ["VALIDATE", "FILL"]);
   const account = broker.snapshot("TW");
@@ -15,14 +15,36 @@ test("paper broker records a buy and updates cash and position", () => {
 
 test("paper broker rejects a cash overdraft and does not mutate state", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage() });
-  assert.throws(() => broker.placeOrder({ market: "US", symbol: "NVDA", side: "buy", qty: 1000, price: 200 }), /現金不足/);
+  assert.throws(() => broker.placeOrder({ market: "US", symbol: "NVDA", side: "buy", qty: 1000, price: 200, clientOrderId: "paper-overdraft" }), /現金不足/);
   assert.equal(broker.snapshot("US").orders.length, 0);
 });
 
 test("paper broker can reset one isolated market account", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage() });
-  broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100 });
+  broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, clientOrderId: "paper-reset" });
   broker.reset("TW");
   assert.equal(broker.snapshot("TW").cash, 1_000_000);
   assert.deepEqual(broker.snapshot("TW").positions, {});
+});
+
+test("paper broker discards malformed persisted account state", () => {
+  const storage = new MemoryStorage();
+  storage.setItem("tw-us-stock-paper-v1", JSON.stringify({
+    schemaVersion: 1,
+    TW: { cash: "not-a-number", positions: { "2330": { qty: -10, avgCost: "bad" } }, orders: "bad" },
+  }));
+  const broker = new PaperBroker({ storage });
+  const account = broker.snapshot("TW");
+  assert.equal(account.cash, 1_000_000);
+  assert.deepEqual(account.positions, {});
+  assert.deepEqual(account.orders, []);
+});
+
+test("paper broker returns the original fill for a duplicate client order id", () => {
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
+  const first = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 2, price: 100, clientOrderId: "duplicate-1" });
+  const duplicate = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 99, price: 1, clientOrderId: "duplicate-1" });
+  assert.deepEqual(duplicate, first);
+  assert.equal(broker.snapshot("TW").positions["2330"].qty, 2);
+  assert.equal(broker.snapshot("TW").orders.length, 1);
 });

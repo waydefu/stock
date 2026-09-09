@@ -9,6 +9,16 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
       decision: { ok: false, code: "ROLE_DENIED", reason: "目前角色沒有紙上交易權限" },
     };
   }
+  const previous = broker.findOrder(order.market, order.clientOrderId);
+  if (previous) {
+    return {
+      filled: true,
+      duplicate: true,
+      decision: { ok: true, code: "IDEMPOTENT_REPLAY", reason: "重複 clientOrderId，回傳原成交" },
+      fill: previous,
+      account: broker.snapshot(order.market, quotes),
+    };
+  }
   const account = broker.snapshot(order.market, quotes);
   const decision = risk.approveOrder(account, order);
   if (!decision.ok) return { filled: false, decision, account };

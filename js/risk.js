@@ -86,7 +86,8 @@ export class AuditLog {
 }
 
 function csvCell(value) {
-  const text = String(value ?? "");
+  let text = String(value ?? "");
+  if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 

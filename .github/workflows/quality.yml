@@ -21,12 +21,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout exact revision
-        uses: actions/checkout@v5
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
 
       - name: Set up Node.js 24
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           check-latest: true

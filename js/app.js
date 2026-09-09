@@ -17,6 +17,7 @@ const state = {
   chartWindow: 90,
   pendingOrder: null,
 };
+let clientOrderSequence = 0;
 
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
@@ -29,6 +30,7 @@ const signed = (value, digits = 2) => `${value >= 0 ? "+" : ""}${Number(value).t
 const pct = (value) => `${signed(value)}%`;
 const tone = (value) => value > 0 ? "up" : value < 0 ? "down" : "neutral";
 const symbolLabel = (code) => { const item = getSymbol(code); return item ? `${item.code} ${item.name}` : code; };
+const nextClientOrderId = () => globalThis.crypto?.randomUUID?.() ?? `ui-${Date.now()}-${++clientOrderSequence}`;
 
 function marketSymbols() { return SYMBOLS.filter((item) => item.market === state.market); }
 function currentQuote(code = state.symbol) { return quote(code); }
@@ -219,7 +221,7 @@ function previewOrder(event) {
   const qty = Number($("#order-qty").value);
   const price = Number($("#order-price").value);
   const account = broker.snapshot(market, quoteMap(market));
-  const candidate = { market, symbol, side, qty, price };
+  const candidate = { market, symbol, side, qty, price, clientOrderId: nextClientOrderId() };
   let decision;
   if (!permissionsFor(state.role).includes("paper:order")) decision = { ok: false, code: "ROLE_DENIED", reason: "目前角色是觀察者；切換 Trader 才能建立紙上訂單" };
   else decision = risk.approveOrder(account, candidate);

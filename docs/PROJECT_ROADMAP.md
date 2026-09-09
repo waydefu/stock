@@ -53,14 +53,20 @@ Acceptance already covered by `tests/risk-integration.test.js`: daily loss wires
 - fill model decision: immediate simulation must remain explicitly named, or add deterministic matching model。
 
 Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejected order 不改 state；UI／docs 不暗示目前具有真實 limit matching。
-## Phase 3 — Persistence／audit／security（P1）
+## Phase 3 — Persistence／audit／security（部分完成；P1 remains）
 
-- localStorage schema version、validation、migration；壞資料安全 reset 並 audit。
-- AuditLog event schema：version、eventId、timestamp、actor、mode、orderId、reasonCode、details。
-- CSV formula-injection regression test。
-- 決定 audit 的 prototype scope：memory-only 明確標記，或建立 local append-only export model。
-- 掃描 dynamic `innerHTML`；在 provider／user input 進入前改 safe DOM API。
-- GitHub Actions：評估 immutable SHA pin、Dependabot、secret scanning、code scanning、dependency review。
+已完成：
+
+- localStorage schemaVersion 1 與 malformed account safe reset。
+- CSV formula-prefix neutralization regression test。
+- GitHub Actions full SHA pin、Dependabot weekly config、官方 secure-use review。
+
+仍待：
+
+- formal migration policy（schema version bump／migration path）。
+- AuditLog event schema version／eventId／actor 與 persistence scope。
+- dynamic `innerHTML` 對 provider／user input 的 safe DOM boundary。
+- secret scanning、code scanning、dependency review policy。
 
 ## Phase 4 — Test hardening（P1）
 

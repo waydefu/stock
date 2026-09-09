@@ -5,6 +5,7 @@
 import { createOrder, transitionOrder } from "./order-state.js";
 
 const STORAGE_KEY = "tw-us-stock-paper-v1";
+const PAPER_SCHEMA_VERSION = 1;
 const DEFAULTS = {
   TW: { currency: "TWD", initialCash: 1_000_000 },
   US: { currency: "USD", initialCash: 100_000 },
@@ -19,9 +20,22 @@ export class MemoryStorage {
 
 function defaultState() {
   return {
+    schemaVersion: PAPER_SCHEMA_VERSION,
     TW: { currency: "TWD", initialCash: DEFAULTS.TW.initialCash, cash: DEFAULTS.TW.initialCash, sessionKey: null, sessionOpenEquity: DEFAULTS.TW.initialCash, positions: {}, orders: [] },
     US: { currency: "USD", initialCash: DEFAULTS.US.initialCash, cash: DEFAULTS.US.initialCash, sessionKey: null, sessionOpenEquity: DEFAULTS.US.initialCash, positions: {}, orders: [] },
   };
+}
+
+function validAccountOrDefault(candidate, market) {
+  const fallback = defaultState()[market];
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return fallback;
+  const account = { ...fallback, ...candidate };
+  if (!Number.isFinite(Number(account.initialCash)) || Number(account.initialCash) <= 0 || !Number.isFinite(Number(account.cash)) || Number(account.cash) < 0) return fallback;
+  if (!account.positions || typeof account.positions !== "object" || Array.isArray(account.positions) || !Array.isArray(account.orders)) return fallback;
+  for (const position of Object.values(account.positions)) {
+    if (!position || !Number.isInteger(position.qty) || position.qty <= 0 || !Number.isFinite(Number(position.avgCost)) || Number(position.avgCost) <= 0) return fallback;
+  }
+  return { ...account, initialCash: Number(account.initialCash), cash: Number(account.cash) };
 }
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -59,8 +73,9 @@ export class PaperBroker {
     try {
       const value = JSON.parse(raw);
       const fresh = defaultState();
+      if (value.schemaVersion !== undefined && value.schemaVersion !== PAPER_SCHEMA_VERSION) return fresh;
       for (const market of Object.keys(DEFAULTS)) {
-        if (value[market]) fresh[market] = { ...fresh[market], ...value[market] };
+        fresh[market] = validAccountOrDefault(value[market], market);
       }
       return fresh;
     } catch {
@@ -102,6 +117,7 @@ export class PaperBroker {
     this.#ensureSession(account, equity);
     const dailyPnl = equity - account.sessionOpenEquity;
     return clone({
+      schemaVersion: PAPER_SCHEMA_VERSION,
       market,
       currency: account.currency,
       initialCash: account.initialCash,
@@ -117,19 +133,30 @@ export class PaperBroker {
     });
   }
 
-  placeOrder({ market = "TW", symbol, side, qty, price, clientId = "manual" }) {
+  findOrder(market = "TW", clientOrderId) {
     this.#assertMarket(market);
+    if (!clientOrderId) return null;
+    const found = this.#state[market].orders.find((order) => order.clientOrderId === clientOrderId);
+    return found ? clone(found) : null;
+  }
+
+  placeOrder({ market = "TW", symbol, side, qty, price, clientId = "manual", clientOrderId }) {
+    this.#assertMarket(market);
+    if (!clientOrderId || typeof clientOrderId !== "string") throw new Error("clientOrderId 必須存在");
     if (!symbol || !/^[A-Za-z0-9.]+$/.test(String(symbol))) throw new Error("標的代號格式不正確");
     if (!(["buy", "sell"].includes(side))) throw new Error("只支援 buy 或 sell");
     if (!Number.isInteger(qty) || qty <= 0) throw new Error("數量必須是正整數");
     if (!Number.isFinite(price) || price <= 0) throw new Error("價格必須是正數");
     const account = this.#state[market];
+    const duplicate = account.orders.find((existingOrder) => existingOrder.clientOrderId === clientOrderId);
+    if (duplicate) return clone(duplicate);
     const existing = account.positions[symbol];
     const notional = qty * price;
     const timestamp = this.#now();
     let order = createOrder({
       id: this.#idGenerator({ market, timestamp, sequence: account.orders.length + 1 }),
       clientId,
+      clientOrderId,
       market,
       symbol: String(symbol),
       side,
@@ -160,7 +187,7 @@ export class PaperBroker {
 
   reset(market = "TW") {
     this.#assertMarket(market);
-    this.#state[market] = { ...DEFAULTS[market], cash: DEFAULTS[market].initialCash, positions: {}, orders: [] };
+    this.#state[market] = defaultState()[market];
     this.#save();
     return this.snapshot(market);
   }

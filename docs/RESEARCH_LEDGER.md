@@ -18,7 +18,7 @@
 | desktop/web/mobile and paperMoney continuity | [89] | Schwab official | responsive / paper flow | Product version-sensitive | mobile is a workflow, not a shrunk desktop |
 | API-first paper/live separation and simulator limitations | [36] | Alpaca official docs | broker boundary | Provider policy changes | paper-only adapter and explicit mode |
 | Taiwanese quant flow and provider API boundary | [26][30] | XQ／Fugle official | TW research／adapter | Highly time-sensitive | verify rules, rate limits, corporate actions before integration |
-
+| GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
 ## Evidence policy
 
 - Government／exchange／regulator > official broker/API docs > official design system > primary repo > secondary comparison。
@@ -61,3 +61,4 @@
 [91] https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum
 [92] https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html
 [93] https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance
+[94] https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions

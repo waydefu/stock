@@ -40,6 +40,14 @@ test("audit log exports stable CSV without secrets", () => {
   assert.doesNotMatch(csv, /secret|token|api_key/i);
 });
 
+test("audit CSV neutralizes spreadsheet formula prefixes", () => {
+  const audit = new AuditLog({ now: () => "2025-01-01T00:00:00.000Z" });
+  audit.record("=HYPERLINK(\"https://evil.example\")", { text: "=1+1" });
+  const csv = audit.toCSV();
+  assert.match(csv, /'=HYPERLINK/);
+  assert.doesNotMatch(csv, /,=1\+1/);
+});
+
 test("role permissions keep observer read-only", () => {
   assert.equal(permissionsFor("observer").includes("paper:order"), false);
   assert.equal(permissionsFor("trader").includes("paper:order"), true);
