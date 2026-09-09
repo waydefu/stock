@@ -21,7 +21,7 @@
 
 ## 稽核
 
-每筆事件至少保留：時間、事件、標的、方向、數量、價格、模式、角色、風控代碼、結果。禁止寫入 token、secret、password、CA 憑證內容。前端原型提供 CSV 匯出；正式服務要改成 append-only server log、request id、broker order id、fill 回讀與對帳。
+每筆事件至少保留：時間、事件、標的、方向、數量、價格、模式、角色、風控代碼、結果。禁止寫入 token、secret、password、CA 憑證內容。**目前前端原型的正式 scope 是 single-user session audit：事件以 versioned localStorage 保存、可匯出 CSV，但使用者可修改，不能當成 tamper-proof 或 authorization authority。**正式服務要改成 append-only server log、request id、broker order id、fill 回讀與對帳。
 
 ## CI／PR
 

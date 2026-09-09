@@ -4,8 +4,8 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`c09665acdf5df1990c7f35b2fa44787051b2270b`
-- GitHub Actions：`Quality` run `34363820258`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`0ed8695b6ddac755466420fcd4e3cfcf1bed70a9`
+- GitHub Actions：`Quality` run `34375478717`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
@@ -19,6 +19,7 @@
 - 建立風控：角色權限、單筆名目金額 20% 上限、日損 2% 斷路器、持倉數上限、拒絕代碼、二次確認與稽核 CSV。
 - 強化回測：OHLCV validation、equity-peak drawdown percentage、可設定 Sharpe annualization。
 - UI P0：清除 index／runtime inline style，加入 semantic utility tokens、stable canvas baseline、sticky table headers、contrast-safe primary button、purposeful motion 與 safe DOM escaping。
+- Domain convergence checkpoint：AccountSnapshot、realized／unrealized／total PnL、zero-fee FeeModel、market-local session clock、immediate execution mode、OPEN/CANCELED transition contract、stable error categories、versioned local session audit 與 corrupted-order safe reset。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 
@@ -29,7 +30,7 @@
 ```text
 npm run check:static
 npm run check:syntax
-npm test                 # 35 tests passed
+npm test                 # 48 tests passed
 
 git diff --check
 git ls-remote origin refs/heads/main
