@@ -11,6 +11,7 @@ const required = [
   "js/dom.js",
   "js/favorites.js",
   "js/view.js",
+  "js/market-data.js",
   "js/market-rules.js",
   "js/session-clock.js",
   "js/trading-calendar.js",

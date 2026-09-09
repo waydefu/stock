@@ -38,6 +38,7 @@
 ### 邊界
 
 - `js/data.js`：資料與純技術指標；目前只提供固定模擬資料。
+- `js/market-data.js`：行情入口；UI／回測只經 adapter 取數，live adapter 照同介面替換。
 - `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。
 - `js/market-rules.js`：TW／US market rules contract；目前 TW partial sourced、US simplified，尚未強制到 broker。
 - `js/session-clock.js`：market-local timezone session key；calendar policy 是 `simplified-weekday`，不是 exchange holiday calendar。
