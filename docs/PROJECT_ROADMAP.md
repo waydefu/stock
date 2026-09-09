@@ -20,7 +20,12 @@
 - stale cash 與 kill-switch confirm integration tests。
 - browser confirm revalidation smoke test。
 
-仍待：drawdown／Sharpe golden contract、parameter／bar validation、MarketRules。
+仍待：drawdown／Sharpe golden contract、parameter／bar validation、MarketRules integration。
+
+Phase 1 additions：
+
+- backtest peak drawdown／periodsPerYear／malformed bar validation completed with golden tests。
+- TW／US `MarketRules` contract added；TW regular／odd-lot／price-limit baseline is sourced, US remains simplified。
 
 Acceptance already covered by `tests/risk-integration.test.js`: daily loss wires through the normal snapshot path, and confirm-time state changes reject without mutating the account.
 

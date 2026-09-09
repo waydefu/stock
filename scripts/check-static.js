@@ -5,6 +5,7 @@ const required = [
   "css/styles.css",
   "js/app.js",
   "js/data.js",
+  "js/market-rules.js",
   "js/charts.js",
   "js/backtest.js",
   "js/paper.js",

@@ -18,6 +18,7 @@
 | desktop/web/mobile and paperMoney continuity | [89] | Schwab official | responsive / paper flow | Product version-sensitive | mobile is a workflow, not a shrunk desktop |
 | API-first paper/live separation and simulator limitations | [36] | Alpaca official docs | broker boundary | Provider policy changes | paper-only adapter and explicit mode |
 | Taiwanese quant flow and provider API boundary | [26][30] | XQ／Fugle official | TW research／adapter | Highly time-sensitive | verify rules, rate limits, corporate actions before integration |
+| TWSE regular／odd-lot／price-limit baseline | [95][96][97] | TWSE official rules | MarketRules contract | Highly time-sensitive | regular unit、odd-lot limit/day rules、daily limit are sourced; exceptions remain explicit gaps。 |
 | GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
 ## Evidence policy
 
@@ -62,3 +63,6 @@
 [92] https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html
 [93] https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance
 [94] https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions
+[95] https://www.twse.com.tw/en/products/system/trading.html
+[96] https://twse-regulation.twse.com.tw/ENG/EN/law/DAT0201.aspx?FLCODE=FL007115
+[97] https://twse-regulation.twse.com.tw/ENG/EN/law/DOC01.aspx?FLCODE=FL007304&FLNO=63
