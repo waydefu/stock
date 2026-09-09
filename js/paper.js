@@ -17,8 +17,8 @@ export class MemoryStorage {
 
 function defaultState() {
   return {
-    TW: { currency: "TWD", initialCash: DEFAULTS.TW.initialCash, cash: DEFAULTS.TW.initialCash, positions: {}, orders: [] },
-    US: { currency: "USD", initialCash: DEFAULTS.US.initialCash, cash: DEFAULTS.US.initialCash, positions: {}, orders: [] },
+    TW: { currency: "TWD", initialCash: DEFAULTS.TW.initialCash, cash: DEFAULTS.TW.initialCash, sessionKey: null, sessionOpenEquity: DEFAULTS.TW.initialCash, positions: {}, orders: [] },
+    US: { currency: "USD", initialCash: DEFAULTS.US.initialCash, cash: DEFAULTS.US.initialCash, sessionKey: null, sessionOpenEquity: DEFAULTS.US.initialCash, positions: {}, orders: [] },
   };
 }
 
@@ -26,6 +26,12 @@ function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
 function browserStorage() {
   try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; }
+}
+
+function sessionKeyFrom(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.valueOf())) throw new Error("paper account clock returned an invalid timestamp");
+  return date.toISOString().slice(0, 10);
 }
 
 export class PaperBroker {
@@ -57,6 +63,21 @@ export class PaperBroker {
 
   #save() { this.#storage.setItem(STORAGE_KEY, JSON.stringify(this.#state)); }
 
+  #ensureSession(account, equity) {
+    const key = sessionKeyFrom(this.#now());
+    if (account.sessionKey === null || account.sessionKey === undefined) {
+      account.sessionKey = key;
+      if (!Number.isFinite(account.sessionOpenEquity)) account.sessionOpenEquity = account.initialCash;
+      this.#save();
+      return;
+    }
+    if (account.sessionKey !== key) {
+      account.sessionKey = key;
+      account.sessionOpenEquity = equity;
+      this.#save();
+    }
+  }
+
   snapshot(market = "TW", quotes = {}) {
     this.#assertMarket(market);
     const account = this.#state[market];
@@ -69,13 +90,20 @@ export class PaperBroker {
       position.unrealized = (price - position.avgCost) * position.qty;
       marketValue += position.marketValue;
     }
+    const equity = account.cash + marketValue;
+    this.#ensureSession(account, equity);
+    const dailyPnl = equity - account.sessionOpenEquity;
     return clone({
       market,
       currency: account.currency,
       initialCash: account.initialCash,
       cash: account.cash,
       marketValue,
-      equity: account.cash + marketValue,
+      equity,
+      dailyPnl,
+      dailyPnlPct: account.sessionOpenEquity === 0 ? 0 : (dailyPnl / account.sessionOpenEquity) * 100,
+      dailyLossReferenceEquity: account.sessionOpenEquity,
+      sessionKey: account.sessionKey,
       positions,
       orders: account.orders,
     });

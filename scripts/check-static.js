@@ -8,6 +8,7 @@ const required = [
   "js/charts.js",
   "js/backtest.js",
   "js/paper.js",
+  "js/order-service.js",
   "js/risk.js",
   "README.md",
   "DISCLAIMER.md",

@@ -7,8 +7,8 @@
 
 | ID | Sev. | Confidence | Risk / root cause | Impact | Evidence | Fix / verification |
 |---|---|---|---|---|---|---|
-| R-001 | P0 | Confirmed | `PaperBroker.snapshot()` 沒有 `dailyPnl`；`RiskEngine` 以 `undefined → 0`，正常 UI path 的日損斷路器不會依實際日損觸發。 | 風控門檻形同未接線。 | `js/paper.js:60-81`、`js/risk.js:26-35`、`js/app.js:213-231`；現有 test 手工傳 dailyPnl。 | 定義 AccountSnapshot daily-PnL contract；先寫 integration red test，再修 snapshot／風控接線。 |
-| R-002 | P0 | Confirmed | preview 通過後，confirm 直接 `placeOrder()`，沒有重新驗證 risk／cash／position／kill switch。 | preview 與實際 commit 間狀態變更可繞過風控或造成 stale order。 | `js/app.js:213-255`；`js/paper.js:84-121`。 | 在 authoritative commit boundary 重讀並重驗；測 cash、kill switch、risk config 變化。 |
+| R-001 | P0 | Confirmed at baseline; fixed in Phase 1 | `PaperBroker.snapshot()` 沒有 `dailyPnl`；`RiskEngine` 以 `undefined → 0`，正常 UI path 的日損斷路器不會依實際日損觸發。 | 風控門檻形同未接線。 | Baseline：`js/paper.js:60-81`、`js/risk.js:26-35`、`js/app.js:213-231`；修復證據：`tests/risk-integration.test.js` daily-PnL wiring。 | 已定義 session daily-PnL／reference equity；保留 integration test 防回歸。 |
+| R-002 | P0 | Confirmed at baseline; fixed in Phase 1 | preview 通過後，confirm 直接 `placeOrder()`，沒有重新驗證 risk／cash／position／kill switch。 | preview 與實際 commit 間狀態變更可繞過風控或造成 stale order。 | Baseline：`js/app.js:213-255`；`js/paper.js:84-121`；修復證據：`tests/risk-integration.test.js` stale cash／kill-switch tests 與 browser confirm test。 | `js/order-service.js` 在 commit boundary 重新 snapshot → risk → place；拒絕時不改帳。 |
 | R-003 | P1 | Confirmed | `PaperBroker.placeOrder()` 直接改帳並 `status: filled`。 | 限價／部分成交／撤單語義被假裝成即時成交。 | `js/paper.js:84-121`。 | 先定義 prototype fill model；建立 order state machine 與 event tests。 |
 | R-004 | P1 | Confirmed | order 沒有 client idempotency enforcement；`clientId` 只是欄位。 | 重送 intent 可能重複改帳。 | `js/paper.js:84-121`。 | `clientOrderId` unique constraint；duplicate regression test。 |
 | R-005 | P1 | Confirmed | localStorage shallow merge、無 schema version／migration／完整 validation。 | 使用者可修改或破壞帳本；資料形狀不可信。 | `js/paper.js:42-55`。 | versioned schema、safe parse、migration／corrupt-state test。 |
@@ -28,4 +28,4 @@
 
 ## Immediate priority
 
-先處理 R-001、R-002；它們是安全門檻實際失效，不是 UI 問題。R-003、R-007、R-008 接著做 domain golden tests。UI P0 延到 critical path 有 integration evidence 後。
+R-001／R-002 已在 Phase 1 修復並有 integration／browser evidence。下一個 correctness gate 是 R-003 paper order lifecycle、R-007 drawdown、R-008 Sharpe 的 golden tests；UI P0 延到這些 domain evidence 穩定後。

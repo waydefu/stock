@@ -6,6 +6,7 @@ import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getBars, getSymbol, quote, rsi, vol
 import { drawCandles, drawLine } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
+import { executePaperOrder } from "./order-service.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 
 const state = {
@@ -238,21 +239,31 @@ function openOrderModal(order, account) {
 
 function confirmOrder() {
   if (!state.pendingOrder) return;
-  try {
-    const order = broker.placeOrder({ ...state.pendingOrder, clientId: state.role });
-    auditEvent("ORDER_FILLED_PAPER", { orderId: order.id, symbol: order.symbol, side: order.side, qty: order.qty, price: order.price });
+  const pending = { ...state.pendingOrder };
+  const result = executePaperOrder({
+    broker,
+    risk,
+    order: pending,
+    quotes: quoteMap(pending.market),
+    canTrade: permissionsFor(state.role).includes("paper:order"),
+  });
+  if (!result.filled) {
     closeOrderModal();
     state.pendingOrder = null;
-    $("#order-risk").className = "notice info";
-    $("#order-risk").textContent = `已寫入紙上帳本［${order.id}］；沒有真實券商副作用。`;
     $("#order-submit").disabled = true;
-    renderAll();
-  } catch (error) {
-    closeOrderModal();
-    state.pendingOrder = null;
-    $("#order-risk").textContent = `寫入拒絕：${error.message}`;
-    auditEvent("ORDER_REJECTED_PAPER", { reason: error.message });
+    $("#order-risk").textContent = `確認時拒絕［${result.decision.code}］${result.decision.reason}`;
+    auditEvent("ORDER_CONFIRM_REJECTED", { symbol: pending.symbol, code: result.decision.code, reason: result.decision.reason });
+    renderTrade();
+    return;
   }
+  const order = result.fill;
+  auditEvent("ORDER_FILLED_PAPER", { orderId: order.id, symbol: order.symbol, side: order.side, qty: order.qty, price: order.price });
+  closeOrderModal();
+  state.pendingOrder = null;
+  $("#order-risk").className = "notice info";
+  $("#order-risk").textContent = `已寫入紙上帳本［${order.id}］；沒有真實券商副作用。`;
+  $("#order-submit").disabled = true;
+  renderAll();
 }
 function closeOrderModal() { $("#order-modal").classList.remove("open"); }
 

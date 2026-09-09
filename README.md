@@ -28,6 +28,7 @@ js/data.js          種子隨機行情產生器（mulberry32，確定性、可�
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
 js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數）
 js/paper.js         紙上交易帳本（localStorage 持久化）
+js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
 js/app.js           UI 組裝＋角色治理
 tests/              node --test（零依賴，測回測數學與風控邊界）

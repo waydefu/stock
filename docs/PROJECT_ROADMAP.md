@@ -11,22 +11,18 @@
 - 建立 `docs/PROJECT_AUDIT.md`、`docs/RISK_REGISTER.md`、`docs/RESEARCH_LEDGER.md`。
 - 目前證據：18 tests passed；remote Quality success。
 
-## Phase 1 — Domain correctness（下一個，P0）
+## Phase 1 — Domain correctness（完成 P0 wiring；剩餘 metrics／market rules）
 
-### 1A Daily PnL contract
+已完成：
 
-- 先定義 daily-PnL semantics 與 reference equity。
-- 加 `AccountSnapshot` contract。
-- 讓 PaperBroker／UI／RiskEngine 使用同一個欄位來源。
-- 建立 UI-path integration test：snapshot → preview → RiskEngine。
-- Acceptance：daily loss 達閾值時，正常 UI 路徑一定拒絕並 trip；未達閾值不誤 trip。
+- `PaperBroker.snapshot()` 輸出 session `dailyPnl` 與 reference equity。
+- `executePaperOrder()` 在 confirm commit boundary 重新 snapshot → risk → place。
+- stale cash 與 kill-switch confirm integration tests。
+- browser confirm revalidation smoke test。
 
-### 1B Confirm-boundary revalidation
+仍待：drawdown／Sharpe golden contract、parameter／bar validation、MarketRules。
 
-- preview 只是一個 advisory decision。
-- confirm 重新讀 authoritative account／risk／config／state。
-- 將 execute gate 統一放在 PaperBroker 或 application service 的 commit boundary。
-- Acceptance：preview pass 後 cash／position／kill switch／risk config 任一變化，confirm 不能成交。
+Acceptance already covered by `tests/risk-integration.test.js`: daily loss wires through the normal snapshot path, and confirm-time state changes reject without mutating the account.
 
 ### 1C Backtest metric contract
 
