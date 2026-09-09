@@ -4,8 +4,8 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`e1a4947a30187261c00a743c31df6f9acd237f70`
-- GitHub Actions：`Quality` run `34384250799`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`0f8f3e2f8bbf8d8f03d10449c47428417729a529`
+- GitHub Actions：`Quality` run `34385478862`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
 - 工作樹：推送後乾淨
 
@@ -21,6 +21,7 @@
 - UI P0：清除 index／runtime inline style，加入 semantic utility tokens、stable canvas baseline、sticky table headers、contrast-safe primary button、purposeful motion 與 safe DOM escaping。
 - Domain convergence checkpoint：AccountSnapshot、realized／unrealized／total PnL、zero-fee FeeModel、market-local session clock、immediate execution mode、OPEN/CANCELED transition contract、stable error categories、versioned local session audit 與 corrupted-order safe reset。
 - MarketRules integration：shared TW/US lot validation 已接到 RiskEngine、PaperBroker 與 UI order intent；TW default odd-lot、regular lot requires explicit 1,000-share multiples。
+- Calendar／corporate-action boundary：market-local session、simplified weekday calendar 已接 deterministic data layer；SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING contract 已定義，但沒有虛構調整資料。
 - Test hardening：1,000-intent deterministic accounting fuzz，rejected state preservation、finite equity、position invariants。
 - Accessibility core：tablist／tabpanel、arrow-key navigation、dialog focus trap／Escape／restore、table column scopes。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
@@ -33,7 +34,7 @@
 ```text
 npm run check:static
 npm run check:syntax
-npm test                 # 50 tests passed
+npm test                 # 54 tests passed
 
 git diff --check
 git ls-remote origin refs/heads/main

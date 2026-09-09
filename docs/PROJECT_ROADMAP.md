@@ -2,7 +2,7 @@
 
 ## Status
 
-Current checkpoint `e1a4947` has 50 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current checkpoint `0f8f3e2` has 54 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
 
 ## Phase 0 — Baseline（完成）
 
@@ -27,7 +27,8 @@ Phase 1 additions：
 - backtest peak drawdown／periodsPerYear／malformed bar validation completed with golden tests。
 - `AccountSnapshot` now defines cash／marketValue／equity、realized／unrealized／total PnL、daily PnL、fees and invariants。
 - TW／US `MarketRules` contract added; `MarketSessionClock` uses market-local timezone while calendar remains simplified-weekday。
-- `MarketRules` TW partial／US simplified contract；TW regular／odd-lot／price-limit baseline is sourced, calendar／corporate actions remain open.
+- `MarketRules` TW partial／US simplified contract；shared lot validation 已接 RiskEngine／PaperBroker／UI intent。
+- `SimplifiedWeekdayCalendar` 已接 deterministic data layer；corporate-action types 已定義但沒有調整資料。
 
 Acceptance already covered by `tests/risk-integration.test.js`: daily loss wires through the normal snapshot path, and confirm-time state changes reject without mutating the account.
 
@@ -84,6 +85,7 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 - risk integration、preview／confirm stale-state、kill-switch、order state-machine tests。
 - accounting golden tests、storage corruption tests、1,000-intent deterministic fuzz。
+- market-session／simplified-calendar／corporate-action contract tests。
 
 仍待：
 
