@@ -1,0 +1,120 @@
+# Project Roadmap
+
+## Status
+
+目前 HEAD 的 baseline checks 全綠，但 audit 找到兩個 P0 correctness／safety issue；因此 roadmap 先走 domain correctness，不先做視覺大改。
+
+## Phase 0 — Baseline（完成）
+
+- 讀取 HEAD、tree、治理、程式、測試與 CI。
+- 跑 `npm run check:static`、`npm run check:syntax`、`npm test`、`git diff --check`。
+- 建立 `docs/PROJECT_AUDIT.md`、`docs/RISK_REGISTER.md`、`docs/RESEARCH_LEDGER.md`。
+- 目前證據：18 tests passed；remote Quality success。
+
+## Phase 1 — Domain correctness（下一個，P0）
+
+### 1A Daily PnL contract
+
+- 先定義 daily-PnL semantics 與 reference equity。
+- 加 `AccountSnapshot` contract。
+- 讓 PaperBroker／UI／RiskEngine 使用同一個欄位來源。
+- 建立 UI-path integration test：snapshot → preview → RiskEngine。
+- Acceptance：daily loss 達閾值時，正常 UI 路徑一定拒絕並 trip；未達閾值不誤 trip。
+
+### 1B Confirm-boundary revalidation
+
+- preview 只是一個 advisory decision。
+- confirm 重新讀 authoritative account／risk／config／state。
+- 將 execute gate 統一放在 PaperBroker 或 application service 的 commit boundary。
+- Acceptance：preview pass 後 cash／position／kill switch／risk config 任一變化，confirm 不能成交。
+
+### 1C Backtest metric contract
+
+- 先寫人工 5–20 bars golden fixtures。
+- 定義 max drawdown denominator、Sharpe timeframe／annualization／minimum samples。
+- 檢查 parameter validation、bar validation、time ordering。
+- Acceptance：golden expected cash/equity/trades/fees/drawdown 全部固定通過。
+
+### 1D Market-rule boundary
+
+- 先建立 `MarketRules` contract，不接 live data。
+- 明確標記目前日線 simulated market 的 limitation。
+- Acceptance：TW／US 的 calendar、timezone、currency、tick／quantity assumptions 不再散落於 UI。
+
+## Phase 2 — Paper order semantics（P0/P1）
+
+- 設計 deterministic order state machine：`NEW → VALIDATED → FILLED | REJECTED | CANCELED`。
+- 記錄 `OrderEvent`、reason code、clientOrderId。
+- 加 idempotency test。
+- 加 deterministic injected clock／ID generator。
+- 明確定義 prototype fill model；若仍 instant fill，UI／docs 只能叫 immediate simulation，不可暗示 limit matching。
+- Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejected order 不改 state。
+
+## Phase 3 — Persistence／audit／security（P1）
+
+- localStorage schema version、validation、migration；壞資料安全 reset 並 audit。
+- AuditLog event schema：version、eventId、timestamp、actor、mode、orderId、reasonCode、details。
+- CSV formula-injection regression test。
+- 決定 audit 的 prototype scope：memory-only 明確標記，或建立 local append-only export model。
+- 掃描 dynamic `innerHTML`；在 provider／user input 進入前改 safe DOM API。
+- GitHub Actions：評估 immutable SHA pin、Dependabot、secret scanning、code scanning、dependency review。
+
+## Phase 4 — Test hardening（P1）
+
+- risk integration tests
+- preview / confirm stale-state tests
+- kill-switch persistence／scope tests
+- order state-machine tests
+- backtest golden／property tests
+- localStorage corruption tests
+- browser smoke：tabs、screener、backtest、rejected order、confirm、kill switch、keyboard、responsive
+- accessibility：contrast、focus、dialog、table semantics、reduced motion
+
+## Phase 5 — Architecture cleanup（P1/P2）
+
+只在 tests 保護後做：
+
+- injectable Clock／IdGenerator
+- `MarketDataAdapter` port
+- `PaperBroker`／future Broker adapter separation
+- `OrderService` commit boundary
+- domain error classes
+- reduce `app.js` orchestration size
+
+不因重構而引入 React、bundler、TypeScript 或大型 runtime dependency。
+
+## Phase 6 — UI/UX benchmark P0/P1/P2（P2）
+
+依 `docs/UI_UX_BENCHMARK.md`：
+
+- P0：清除 inline styles、tokens、KPI hierarchy、contrast、global paper status。
+- P1：canvas sizing、table states、empty/loading/error、sticky headers。
+- P2：motion tokens、purposeful transitions、modal／order states、responsive chrome。
+
+UI 改動必須保留 domain semantics，不得用視覺 fallback 掩蓋風控或資料錯誤。
+
+## Phase 7 — Adapter readiness（P1/P2）
+
+先 fake contract，再考慮 paper provider：
+
+- Fugle／Shioaji：TW data／simulation assumptions、rate limit、corporate actions。
+- Alpaca：paper endpoint、paper/live separation。
+- IBKR：paper semantics、order status、reconciliation。
+
+仍不得自動進 live trading。
+
+## Phase 8 — Performance／observability（P2）
+
+先 baseline：
+
+- JS／CSS／HTML size
+- first load
+- render／resize time
+- backtest runtime at 250／10k／100k bars
+- chart redraw
+
+再決定 incremental indicators、memoization、requestAnimationFrame 或 metrics；不先猜。
+
+## Phase 9 — Production-readiness study（不等於 production deploy）
+
+只做 gap analysis：auth、MFA、secrets、multi-tenant、persistent audit、reconciliation、legal／data licensing、incident response。live broker、正式部署、branch protection 仍需明確決策。
