@@ -42,6 +42,16 @@ function quoteMap(market = state.market) {
 function marketSymbolsFor(market) { return SYMBOLS.filter((item) => item.market === market); }
 function fmtDay(t) { return new Date(t).toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" }); }
 
+function statePanel(kind, title, detail) {
+  const safeKind = ["empty", "error", "loading", "permission", "success"].includes(kind) ? kind : "empty";
+  const role = safeKind === "error" ? "alert" : "status";
+  return `<div class="state-block state-${safeKind}" role="${role}"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
+}
+
+function stateRow(colspan, kind, title, detail) {
+  return `<tr><td colspan="${colspan}">${statePanel(kind, title, detail)}</td></tr>`;
+}
+
 function auditEvent(event, details) {
   audit.record(event, { ...details, mode: "paper", role: state.role, market: state.market });
   renderAudit();
@@ -186,7 +196,8 @@ function renderScreener() {
   const minVolume = Number($("#filter-volume").value ?? 0);
   const rows = marketSymbols().map((meta) => ({ meta, quote: quote(meta.code), volume: volumeRatio(meta.code) })).filter((row) => row.quote.pct >= minChange && row.meta.pe <= maxPe && row.volume >= minVolume);
   $("#screen-count").textContent = `${rows.length} / ${marketSymbols().length} 個標的符合`;
-  $("#screener-table tbody").innerHTML = rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${escapeHtml(meta.code)}"><td><button class="fav" type="button" aria-label="加入自選">☆</button></td><td><b>${escapeHtml(meta.code)}</b> <span class="muted">${escapeHtml(meta.name)}</span></td><td><span class="badge neutral">${escapeHtml(meta.market)}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("");
+  const screenerBody = rows.length ? rows.map(({ meta, quote: q, volume }) => `<tr data-open-symbol="${escapeHtml(meta.code)}"><td><button class="fav" type="button" aria-label="加入自選">☆</button></td><td><b>${escapeHtml(meta.code)}</b> <span class="muted">${escapeHtml(meta.name)}</span></td><td><span class="badge neutral">${escapeHtml(meta.market)}</span></td><td class="n">${fmtPrice(q.price, meta.ccy)}</td><td class="n ${tone(q.pct)}">${pct(q.pct)}</td><td class="n">${volume.toFixed(2)}×</td><td class="n">${meta.pe.toFixed(1)}×</td><td class="n">${meta.yield.toFixed(1)}%</td><td><span class="badge ${q.pct > 2 ? "up" : q.pct < -2 ? "down" : "neutral"}">${q.pct > 2 ? "動能" : q.pct < -2 ? "觀察風險" : "中性"}</span></td></tr>`).join("") : stateRow(9, "empty", "沒有符合條件的標的", "放寬日變化、本益比或量比條件後再試一次。");
+  $("#screener-table tbody").innerHTML = screenerBody;
   $$("#screener-table [data-open-symbol]").forEach((row) => row.addEventListener("click", () => openSymbol(row.dataset.openSymbol)));
 }
 
@@ -203,7 +214,14 @@ function renderBacktest() {
   };
   let result;
   try { result = runBacktest(getBars(state.symbol), strategy, options); }
-  catch (error) { $("#backtest-assumptions").textContent = error.message; return; }
+  catch (error) {
+    $("#backtest-metrics").innerHTML = statePanel("error", "回測無法執行", error.message);
+    $("#backtest-assumptions").innerHTML = statePanel("error", "模型假設不可用", "修正輸入參數後重新執行。");
+    $("#backtest-trades tbody").innerHTML = stateRow(7, "error", "沒有成交明細", "回測尚未產生可解釋的結果。");
+    const canvas = $("#equity-chart");
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
   const m = result.metrics;
   $("#backtest-metrics").innerHTML = [
     ["淨損益", money(m.netProfit, getSymbol(state.symbol).ccy), tone(m.netProfit)],
@@ -213,7 +231,7 @@ function renderBacktest() {
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
   $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${STRATEGIES[strategy] ?? strategy}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K</span></div>`;
-  $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : `<tr><td colspan="7" class="muted">此參數組合沒有完成交易；不要把零交易誤當成低風險。</td></tr>`;
+  $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
 function renderTrade() {
@@ -222,8 +240,8 @@ function renderTrade() {
   const account = broker.snapshot(market, quoteMap(market));
   const meta = getSymbol($("#order-symbol").value || state.symbol);
   $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div><div class="row"><span>已實現／未實現</span><span>${money(account.realizedPnl, account.currency)} ／ ${money(account.unrealizedPnl, account.currency)}</span></div><div class="row"><span>本 session 損益</span><span class="${tone(account.dailyPnl)}">${money(account.dailyPnl, account.currency)} (${account.sessionKey})</span></div>`;
-  $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">尚無持倉。紙上帳戶從零開始，不會自動載入券商資料。</td></tr>`;
-  $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : `<tr><td colspan="6" class="muted">尚無訂單。</td></tr>`;
+  $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : stateRow(5, "empty", "尚無持倉", "紙上帳戶從零開始，不會自動載入券商資料。");
+  $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : stateRow(6, "empty", "尚無訂單", "建立紙上訂單後，這裡會保留本機歷史。");
   updateOrderPrice();
 }
 
@@ -341,7 +359,7 @@ function renderAudit(target = "#audit-log") {
   const element = $(target);
   if (!element) return;
   const entries = audit.list().slice(-40).reverse();
-  element.innerHTML = entries.length ? entries.map((entry) => `<div><span class="t">${escapeHtml(entry.timestamp)}</span><b>${escapeHtml(entry.event)}</b> <span class="muted">${escapeHtml(JSON.stringify(entry.details))}</span></div>`).join("") : `<div class="muted">尚無事件。</div>`;
+  element.innerHTML = entries.length ? entries.map((entry) => `<div><span class="t">${escapeHtml(entry.timestamp)}</span><b>${escapeHtml(entry.event)}</b> <span class="muted">${escapeHtml(JSON.stringify(entry.details))}</span></div>`).join("") : statePanel("empty", "尚無事件", "完成研究、風控或紙上操作後，這裡會留下 session audit。");
 }
 
 function downloadAudit() {

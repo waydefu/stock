@@ -38,6 +38,20 @@ body {
 }
 a { color: var(--brand); }
 .num, td.n, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.state-block {
+  display: grid;
+  gap: 5px;
+  padding: 14px 12px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-s);
+}
+.state-block strong { color: var(--ink); font-size: 13px; }
+.state-block span { font-size: 12px; line-height: 1.5; }
+.state-error { border-color: color-mix(in srgb, var(--down) 60%, var(--border)); }
+.state-error strong { color: var(--down); }
+.state-permission { border-color: color-mix(in srgb, var(--brand) 60%, var(--border)); }
+.state-success { border-color: color-mix(in srgb, var(--up) 60%, var(--border)); }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
 .fs-11 { font-size: 11px; }
