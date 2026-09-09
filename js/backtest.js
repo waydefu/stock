@@ -79,6 +79,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   if (initialCapital <= 0) throw new Error("初始資金必須大於 0");
   const periodsPerYear = finite(options.periodsPerYear, 252);
   if (periodsPerYear <= 0) throw new Error("Sharpe annualization periods must be greater than 0");
+  const riskFreeRate = finite(options.riskFreeRate, 0);
+  if (!Number.isFinite(riskFreeRate)) throw new Error("risk-free rate 必須是有限數值");
+  const minSharpeSamples = Math.max(2, Math.floor(finite(options.minSharpeSamples, 3)));
   const commissionRate = Math.max(0, finite(options.commissionRate, 0.001425));
   const slippageBps = Math.max(0, finite(options.slippageBps, 5));
   const positionPct = Math.min(1, Math.max(0.01, finite(options.positionPct, 0.25)));
@@ -194,6 +197,8 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   const avg = returns.length ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
   const variance = returns.length ? returns.reduce((a, b) => a + (b - avg) ** 2, 0) / returns.length : 0;
   const std = Math.sqrt(variance);
+  const sharpeInsufficient = returns.length < minSharpeSamples;
+  const excessAvg = avg - riskFreeRate;
   const metrics = {
     initialCapital,
     finalCapital,
@@ -206,13 +211,15 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     losses: losses.length,
     winRate: trades.length ? (wins.length / trades.length) * 100 : 0,
     profitFactor: grossLosses === 0 ? (grossWins > 0 ? Infinity : 0) : grossWins / grossLosses,
-    sharpe: std === 0 ? 0 : (avg / std) * Math.sqrt(periodsPerYear),
+    sharpe: sharpeInsufficient || std === 0 ? 0 : (excessAvg / std) * Math.sqrt(periodsPerYear),
+    sharpeSamples: returns.length,
+    sharpeInsufficient,
   };
   return {
     trades,
     equity,
     metrics,
-    assumptions: { strategy, commissionRate, slippageBps, positionPct, periodsPerYear, fill: "next_bar_open", forceClose: "last_close" },
+    assumptions: { strategy, commissionRate, slippageBps, positionPct, periodsPerYear, riskFreeRate, minSharpeSamples, fill: "next_bar_open", forceClose: "last_close" },
     closes,
   };
 }
