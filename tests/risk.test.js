@@ -35,9 +35,20 @@ test("audit log exports stable CSV without secrets", () => {
   const audit = new AuditLog({ now: () => "2025-01-01T00:00:00.000Z" });
   audit.record("ORDER_ACCEPTED", { symbol: "AAPL", side: "buy", qty: 1 });
   const csv = audit.toCSV();
-  assert.match(csv, /timestamp,event,details/);
+  assert.match(csv, /version,eventId,timestamp,event,details/);
   assert.match(csv, /ORDER_ACCEPTED/);
   assert.doesNotMatch(csv, /secret|token|api_key/i);
+});
+
+test("audit events have a versioned deterministic identity", () => {
+  const audit = new AuditLog({
+    now: () => "2025-01-01T00:00:00.000Z",
+    idGenerator: ({ sequence }) => `audit-${sequence}`,
+  });
+  const entry = audit.record("ORDER_ACCEPTED", { symbol: "AAPL" });
+  assert.equal(entry.version, 1);
+  assert.equal(entry.eventId, "audit-1");
+  assert.equal(typeof audit.clear, "undefined");
 });
 
 test("audit CSV neutralizes spreadsheet formula prefixes", () => {

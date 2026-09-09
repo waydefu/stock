@@ -64,12 +64,14 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 - localStorage schemaVersion 1 與 malformed account safe reset。
 - CSV formula-prefix neutralization regression test。
+- AuditLog version／eventId／deterministic ID、CSV schema、移除 clear()。
+- dynamic text 主要 sinks 加入 `escapeHtml` helper 與 regression test。
 - GitHub Actions full SHA pin、Dependabot weekly config、官方 secure-use review。
 
 仍待：
 
 - formal migration policy（schema version bump／migration path）。
-- AuditLog event schema version／eventId／actor 與 persistence scope。
+- AuditLog persistence scope、durable append-only storage、actor／request id。
 - dynamic `innerHTML` 對 provider／user input 的 safe DOM boundary。
 - secret scanning、code scanning、dependency review policy。
 

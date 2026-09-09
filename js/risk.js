@@ -27,6 +27,9 @@ export class RiskEngine {
     if (this.#tripped) return { ok: false, code: "KILL_SWITCH", reason: `斷路器已啟動：${this.#reason}` };
     const equity = Number(account?.equity ?? 0);
     if (!Number.isFinite(equity) || equity <= 0) return { ok: false, code: "NO_EQUITY", reason: "帳戶權益無效，停止下單" };
+    if (!["buy", "sell"].includes(order?.side)) return { ok: false, code: "INVALID_SIDE", reason: "交易方向必須是 buy 或 sell" };
+    if (!Number.isInteger(order?.qty) || order.qty <= 0) return { ok: false, code: "INVALID_QTY", reason: "數量必須是正整數" };
+    if (!Number.isFinite(order?.price) || order.price <= 0) return { ok: false, code: "INVALID_PRICE", reason: "價格必須是正數" };
     const dailyPnl = Number(account?.dailyPnl ?? 0);
     const dailyLossPct = Math.abs(Math.min(0, dailyPnl)) / equity;
     if (dailyLossPct >= this.#config.maxDailyLossPct) {
@@ -70,17 +73,32 @@ function safeDetails(details) {
 export class AuditLog {
   #events = [];
   #now;
-  constructor({ now = () => new Date().toISOString() } = {}) { this.#now = now; }
+  #idGenerator;
+  #sequence = 0;
+
+  constructor({ now = () => new Date().toISOString(), idGenerator = ({ sequence }) => `audit-${sequence}` } = {}) {
+    this.#now = now;
+    this.#idGenerator = idGenerator;
+  }
+
   record(event, details = {}) {
-    const entry = { timestamp: this.#now(), event: String(event), details: safeDetails(details) };
+    const timestamp = this.#now();
+    const entry = {
+      version: 1,
+      eventId: this.#idGenerator({ sequence: ++this.#sequence, timestamp, event: String(event) }),
+      timestamp,
+      event: String(event),
+      details: safeDetails(details),
+    };
     this.#events.push(entry);
     return { ...entry };
   }
-  list() { return this.#events.map((entry) => ({ ...entry })); }
-  clear() { this.#events = []; }
+
+  list() { return this.#events.map((entry) => ({ ...entry, details: safeDetails(entry.details) })); }
+
   toCSV() {
-    const rows = [["timestamp", "event", "details"]];
-    for (const entry of this.#events) rows.push([entry.timestamp, entry.event, JSON.stringify(entry.details)]);
+    const rows = [["version", "eventId", "timestamp", "event", "details"]];
+    for (const entry of this.#events) rows.push([entry.version, entry.eventId, entry.timestamp, entry.event, JSON.stringify(entry.details)]);
     return rows.map((row) => row.map(csvCell).join(",")).join("\n") + "\n";
   }
 }
