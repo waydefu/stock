@@ -19,6 +19,9 @@
 | API-first paper/live separation and simulator limitations | [36] | Alpaca official docs | broker boundary | Provider policy changes | paper-only adapter and explicit mode |
 | Taiwanese quant flow and provider API boundary | [26][30] | XQ／Fugle official | TW research／adapter | Highly time-sensitive | verify rules, rate limits, corporate actions before integration |
 | TWSE regular／odd-lot／price-limit baseline | [95][96][97] | TWSE official rules | MarketRules contract | Highly time-sensitive | regular unit、odd-lot limit/day rules、daily limit are sourced; exceptions remain explicit gaps。 |
+| QuantConnect Algorithm Framework 五層分工（Universe／Alpha／Portfolio Construction／Execution／Risk Management、可互換模組） | [12]＋次級整理 [98][99] | Primary：QC official docs；Secondary：community guides（不得覆蓋 primary） | Strategy／Signal／Portfolio／Execution 分層設計 | Framework guidance evolves | 只取「分層＋可互換」工程概念；本 repo 不依賴其程式碼或 API；legacy 融合迴圈見 R-021。 |
+| Volatility-managed portfolios：波動高時降險可提高 Sharpe；受限版本測試 leverage cap 1／1.5 | [100][101] | Primary：Journal of Finance＋NBER working paper | VolatilityTargetingOverlay（capped leverage） | Published research，stable | 低波動不變無限槓桿：maxLeverage 必須有限；本 repo 只做單標的 overlay，未做多因子。 |
+| 時間序列動量／橫截面動量／價值動量／配對交易／data-snooping 的 canonical 引用（本輪未重讀全文，只記研究假說出處） | [102][103][104][105][106][107] | Journals（JFE／JF／RFS／Econometrica）＋AQR 白皮書 | multi-horizon trend hypothesis；pairs／regime／White 檢驗留待後續 | Canonical references，需實作前重查 | 多 horizon 組合只為穩健高原，不宣稱機構級；pairs／regime 未達資料門檻不實作。 |
 | GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
 ## Evidence policy
 
@@ -32,6 +35,7 @@
 - TWSE 最新交易規則、tick schedule、odd-lot、corporate-action effective dates。
 - Fugle／Shioaji／Alpaca／IBKR 當前 adapter limits 與 paper 行為。
 - GitHub Actions secret scanning、code scanning、dependency review policy（immutable SHA pin＋Dependabot 已於 v7 落地並綠燈）。
+- AQR 白皮書 URL（[103]／[107]）為記憶重建、本輪未能開啟驗證；任何實作引用前必須重查官方頁，不得直接採用。
 
 ## Sources
 
@@ -66,3 +70,13 @@
 [95] https://www.twse.com.tw/en/products/system/trading.html
 [96] https://twse-regulation.twse.com.tw/ENG/EN/law/DAT0201.aspx?FLCODE=FL007115
 [97] https://twse-regulation.twse.com.tw/ENG/EN/law/DOC01.aspx?FLCODE=FL007304&FLNO=63
+[98] https://www.quantconnect.com/docs/v2/writing-algorithms/algorithm-framework
+[99] https://alphanova.tech/blog/quantconnect-lean-algorithmic-trading-engine
+[100] https://doi.org/10.1111/jofi.12513
+[101] https://www.nber.org/papers/w22208
+[102] https://doi.org/10.1016/j.jfineco.2011.11.006
+[103] https://www.aqr.com/Insights/Research/White-Papers/A-Century-of-Evidence-on-Trend-Following-Investing
+[104] https://doi.org/10.1111/j.1540-6261.1993.tb04702.x
+[105] https://doi.org/10.1093/rfs/hhj020
+[106] https://doi.org/10.1111/1468-0262.00152
+[107] https://www.aqr.com/Insights/Research/Journal-Article/Value-and-Momentum-Everywhere

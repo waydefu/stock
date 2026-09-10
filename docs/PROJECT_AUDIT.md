@@ -3,7 +3,7 @@
 ## Baseline
 
 - Repository：`waydefu/stock`
-- HEAD：`df0366a9aeb121ca0650aabadb261c80acd411d4`
+- HEAD：`604fbba60882a0c79062443ecbca864a97a5ca7b`
 - Branch：`main`
 - Working tree：clean at audit refresh
 - Runtime：Node.js 24 local；GitHub Actions `Quality` latest observed success on the same HEAD
@@ -11,14 +11,17 @@
 
 ## Current checkpoint
 
-- HEAD：`df0366a9aeb121ca0650aabadb261c80acd411d4`
-- Branch：`main`；working tree was clean immediately after the Dependabot v7 merges
-- Local verification：`check:static` 23 files、`check:syntax` exit 0、`check:ui` 16 passed／0 failed、`npm test` 69 passed／0 failed、`git diff --check` exit 0
-- Remote Quality：run `34408169232`，same SHA，success
-- Merged since `b06ed63`：PR#3 Sharpe sample-guard、PR#4 UI quality gate＋FUTURE_PLAN、PR#5 industry-grade refactor、PR#6 market-data adapter port、PR#7 order-ticket estimate／last-price／KPI hierarchy、PR#1 setup-node v7.0.0、PR#2 checkout v7.0.1（2026-09-09 UTC；已合併的功能分支本地已刪）
+- HEAD：`604fbba60882a0c79062443ecbca864a97a5ca7b`
+- Branch：`main`；working tree was clean after PR#9 squash-merge
+- Local verification：`check:static` 27 files、`check:syntax` exit 0、`check:ui` 21 passed／0 failed、`score:ui` 100/100 PASS、`npm test` 107 passed／0 failed、`git diff --check` exit 0
+- Remote Quality：run `34447357364`，same SHA，success
+- Merged since `df0366a`：PR#9 quant research engine＋professional trading workstation（7 原子提交：strategy/signal contract、research baselines＋multi-horizon trend、portfolio allocators＋vol overlay＋hard limits、IS/OOS＋walk-forward＋cost stress＋promotion gate、workstation visual contract、strategy research workspace、anti-template gates＋ui-score；2026-09-10 UTC squash-merge）
 - Baseline scores below are historical；本輪尚未重新執行 UI／engineering rubric，因此不把修復直接換算成新分數。
 - Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、shared TW/US lot validation、simplified calendar boundary used by deterministic data、corporate-action schema contract、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset、1,000-intent deterministic accounting fuzz、core tab／tabpanel／dialog keyboard semantics、precomputed backtest signal arrays、actionable empty/error state blocks；本輪新增：Sharpe min-sample guard＋explicit risk-free、programmatic UI gate（16 checks）、`MarketDataAdapter` port（`SimulatedAdapter`）、自選持久化、下單票 advisory 試算、K 線 last-price 線、KPI hero 層次、Actions v7 SHA pin。
 - Remaining gates：exchange holiday/session hours/tick policy、corporate-action adjustment data、matching fills、multi-tab semantics、loading／permission accessibility states、full WCAG audit、server-grade tamper-resistant audit。
+- 本輪新增（evidence 見 `docs/DELIVERY_REPORT.md`）：Strategy／Signal 契約＋lifecycle、Cash／Buy&Hold／multi-horizon trend 研究基準、Portfolio allocator＋capped vol overlay＋hard limits、分層研究引擎（IS/OOS＋walk-forward＋cost stress＋parameter surface＋6-check promotion gate）、workstation 視覺契約（spacing scale／8px radius／24px target／鍵盤可達 tiles）、策略中心（benchmark 同場＋gate＋provenance＋robustness）、anti-template gates（check-ui 21）＋ui-score 100/100。
+- 本輪誠實結果：multi-horizon trend 在 2330 模擬資料上 IS −11,888／OOS 零交易→promotion gate FAIL（OOS 期望為負）；buyHold IS +206k／OOS −20k。框架正確拒絕弱證據，不自動晉升任何策略。
+- 本輪未做（deferred with reason）：瀏覽器 4 viewport 截圖——本機 Chromium GPU 行程必崩（`GPU process isn't usable`），改以真實資料端到端＋ID 交叉引用＋ui-score 靜態證據替代；value／quality（缺 point-in-time fundamentals，只缺 interface 未建）、pairs／regime、多標的 universe、TWAP／VWAP execution（缺 intraday granularity）；legacy `runBacktest` 融合迴圈保留為相容路徑（見 R-021）。
 
 ## Verification evidence
 

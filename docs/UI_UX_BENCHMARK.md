@@ -4,7 +4,7 @@
 
 本報告不是宣稱存在一份客觀的「全球前十排名」。我選的是有公開官方設計規範、產品文件或成熟交易流程的 10 個網頁設計基準與 10 個股票研究／交易基準，拿它們的具體優點對照目前 repo 的實作。
 
-**目前網站評分：2.0 / 10。**
+**目前網站評分：2.0 / 10。**（歷史基線；workstation round 增補見文末「Workstation round（PR#9）」，原 rubric 不重算、不洗分。）
 
 這個分數不是因為深色主題本身不好，而是因為目前有三個結構性問題：
 
@@ -197,3 +197,18 @@
 [91] https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum
 [92] https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html
 [93] https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance
+
+## Workstation round（PR#9，`604fbba`）增補
+
+原 2.0/10 rubric 不重算（重算需要瀏覽器截圖＋人工 rubric，而本機 Chromium 正處於 R-020 環境限制）。本輪改用量測型分數：`npm run score:ui` **100/100 PASS**（8 維度、每分附 evidence；release gate ≥85 且零 hard-gate failure）。
+
+結構性變化（對照 rubric 維度）：
+
+- Design system integrity：inline style 0；spacing scale 4–32（2 處 waiver 附理由＋複審）；radius 上限 8px；無功能漸層／結構模糊。
+- Visual hierarchy：回測首屏改為權益曲線（含 IS／OOS 分界）優先，metrics 退後；策略中心採 dominant＋側欄 work-grid。
+- Data-dense UX：compact 列高（th 6px≈32px 列）、tabular-nums、sticky th、全表 contained scroll；標的搜尋＋快速鍵（/ 1–6 B S ?）。
+- States：策略表初始非空白、無 OOS 資料錯誤態、零交易 N/A、gate FAIL 明示。
+- Trading safety：PAPER 常駐頂欄＋下單票＋確認窗＋流程＋頁尾（5 處靜態）；整零股選擇＋預估手續費；確認窗「回去修改」。
+- Responsive/accessibility：1279／480 斷點、鍵盤可達 tiles（role＋tabindex＋Enter／Space）、dialog focus trap 擴及說明窗；check-ui 21/21。
+
+仍缺（誠實）：4 viewport 截圖、瀏覽器幾何閘（重疊／裁切／橫向捲動實測）、完整 WCAG 人工 audit——待 R-020 環境修復。

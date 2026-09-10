@@ -4,10 +4,10 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`df0366a9aeb121ca0650aabadb261c80acd411d4`
-- GitHub Actions：`Quality` run `34408169232`，對應同一個 SHA，`success`，annotations `0`
+- Checkpoint：`604fbba60882a0c79062443ecbca864a97a5ca7b`（PR#9 squash-merge，2026-09-10 UTC）
+- GitHub Actions：`Quality` run `34447357364`，對應同一個 SHA，`success`，annotations `0`
 - CI action runtime：`checkout@v7.0.1`／`setup-node@v7.0.0`（full SHA pin）使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
-- 本輪合併：PR#1（setup-node v7.0.0）、PR#2（checkout v7.0.1）、PR#3（Sharpe sample-guard）、PR#4（UI quality gate＋FUTURE_PLAN）、PR#5（industry-grade refactor）、PR#6（market-data adapter port）、PR#7（order-ticket estimate／last-price／KPI hierarchy）；open PR：無
+- 本輪合併：PR#9（quant research engine＋professional trading workstation，7 原子提交）；open PR：無
 - 工作樹：推送後乾淨
 
 ## 做了什麼
@@ -30,6 +30,8 @@
 - 行情入口：`js/market-data.js` adapter port（`SimulatedAdapter`），UI／回測經 adapter 取數；自選清單本機持久化（`js/favorites.js`）。
 - 交易 UX（advisory-only）：下單票即時試算（`orderEstimate`，不具決策權）、K 線 last-price 虛線、KPI hero 層次。
 - 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI；可照跑收斂計劃書 `docs/FUTURE_PLAN.md`。
+- 分層研究引擎（PR#9）：Strategy／Signal 契約＋lifecycle、Cash／Buy&Hold／multi-horizon trend 基準、Portfolio allocator＋capped vol overlay＋hard limits、IS/OOS＋walk-forward＋cost stress＋parameter surface＋promotion gate。
+- 策略中心 UI（PR#9）：benchmark 同場比較、gate 顯示、provenance、robustness、IS／OOS 分界曲線；專業快速鍵（/ 1-6 B S ?）與標的搜尋；下單票加整零股＋預估手續費。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 
 ## 驗證證據
@@ -39,8 +41,9 @@
 ```text
 npm run check:static
 npm run check:syntax
-npm test                 # 69 tests passed
-npm run check:ui         # 16 checks passed
+npm test                 # 107 tests passed
+npm run check:ui         # 21 checks passed
+npm run score:ui         # 100/100 PASS（靜態可證部分；瀏覽器幾何待補）
 
 git diff --check
 git ls-remote origin refs/heads/main
@@ -85,6 +88,8 @@ git ls-remote origin refs/heads/main
 
 ## 尚未做與決策邊界
 
+- 本輪誠實結果：multi-horizon trend 在 2330 模擬資料上 IS −11,888／OOS 零交易→promotion gate FAIL；buyHold IS +206k／OOS −20k；參數平面三格一致、無孤立尖峰。框架按設計拒絕弱證據，不自動晉升任何策略（見 R-019）。
+- 本機 Chromium GPU 行程必崩，4 viewport 截圖與瀏覽器幾何閘門延期；替代證據為真實資料端到端＋id-crossref＋ui-score 靜態 100/100（見 R-020）。
 - 沒有開啟 `main` branch protection；需要你明確決定是否要求 `Quality` 作為 required check。這是 GitHub 權限設定，不在本次自動修改內。
 - 沒有啟用 GitHub Pages／正式部署；部署管線與公開發布需另行決策。
 - 沒有接 live Shioaji／Alpaca／IBKR；正式接線前仍需服務端認證、秘密管理、reconciliation、法遵與資料授權。

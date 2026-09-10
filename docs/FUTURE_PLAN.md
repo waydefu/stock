@@ -27,12 +27,12 @@ gh run list --repo waydefu/stock --limit 3 --json databaseId,headSha,status,conc
 
 ### 0.3 基線快照（2026-09-10，`main`）
 
-- HEAD：`df0366a9aeb121ca0650aabadb261c80acd411d4`
-- `npm test`：69 passed／0 failed；`check:static` 23 files；`check:syntax` exit 0；`git diff --check` exit 0
-- Quality CI：`34408169232` success（對應同 SHA；含 Actions v7：checkout v7.0.1＋setup-node v7.0.0）
-- UI 閘門：`npm run check:ui` 16 項全過（含實測對比表，見 `scripts/check-ui.js`）
-- 已合併：PR#1／#2（Dependabot Actions 大版）、PR#3（Sharpe 最小樣本＋risk-free，已含 Phase 1 驗收）、PR#4（UI gate＋本計劃書）、PR#5（重構包）、PR#6（adapter port）、PR#7（UX polish）；open PR：無
-- 風險登錄：`docs/RISK_REGISTER.md` R-001～R-018（R-008 已關閉）；路線圖：`docs/PROJECT_ROADMAP.md`
+- HEAD：`604fbba60882a0c79062443ecbca864a97a5ca7b`（PR#9 squash-merge）
+- `npm test`：107 passed／0 failed；`check:static` 27 files；`check:syntax` exit 0；`git diff --check` exit 0
+- Quality CI：`34447357364` success（對應同 SHA）
+- UI 閘門：`npm run check:ui` 21 項全過；`npm run score:ui` 100/100 PASS（靜態可證部分）
+- 已合併：PR#9（quant research engine＋workstation，7 原子提交）；open PR：無
+- 風險登錄：`docs/RISK_REGISTER.md` R-001～R-021（R-008 已關閉；新增 R-019 誤讀風險、R-020 瀏覽器環境限制、R-021 legacy 相容路徑）；路線圖：`docs/PROJECT_ROADMAP.md`（新增 Phase 10）
 
 ---
 

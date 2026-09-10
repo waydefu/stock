@@ -14,10 +14,11 @@
 | 儀表板 | Koyfin／Finviz Matrix | 市場熱圖（市值加權方塊、漲跌著色）、大盤重點、自選報價 |
 | 看盤 | TradingView／XQ／富果 | K 線圖＋MA20/50＋成交量＋last-price 線、自選清單（本機持久化）、盤勢資訊 |
 | 選股 | Finviz／XQ／Stock Rover | 漲跌幅、量比、本益比、殖利率等多條件篩選 |
-| 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑） |
+| 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑）；研究策略走分層引擎：Cash／Buy&Hold 基準、多 horizon 趨勢、IS／OOS、walk-forward、cost stress、promotion gate |
+| 策略中心 | QuantConnect 研究框架精神 | 基準永遠同場比較、OOS 分段顯示、參數平面、provenance；gate FAIL 明示、不自動晉升 paper |
 | 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合；台股 TWD 100 萬、美股 USD 10 萬分帳）、持倉損益、下單票即時試算（advisory-only，不具決策權） |
 | 風控 | IB TWS／QuantConnect | 單筆上限、日損斷路器（kill switch）、下單二次確認、稽核日誌（audit log）可匯出 CSV |
-| 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens） |
+| 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens）、專業快速鍵（/ 搜尋、1–6 頁籤、B／S 開單、? 說明） |
 
 ## 架構
 
@@ -37,14 +38,19 @@ js/session-clock.js market-local timezone session key；calendar policy 明確�
 js/trading-calendar.js simplified weekday calendar；不含 exchange holidays
 js/corporate-actions.js corporate-action schema contract；不自動調整價格
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
-js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數）
+js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數；legacy 相容路徑，見 R-021）
+js/strategy.js     Strategy／Signal 契約、long-only 映射、註冊表、生命週期門
+js/alpha.js        研究基準庫（cash／buyHold／multi-horizon trend，皆有假說）
+js/portfolio.js    Allocator、capped 波動目標覆蓋、組合硬上限
+js/research.js     分層研究引擎（IS/OOS、walk-forward、cost stress、parameter surface、promotion gate）
 js/paper.js         紙上交易帳本（localStorage 持久化）
 js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
 js/app.js           UI 組裝＋角色治理
-tests/              node --test（零依賴，測回測數學與風控邊界）
+tests/              node --test（零依賴，107 tests：回測數學、風控邊界、策略契約、研究框架）
 docs/               ARCHITECTURE.md（模組研究矩陣）、GOVERNANCE.md、UI_UX.md
+scripts/            check-static.js、check-ui.js（21 閘門）、ui-score.js（/100 評分）
 ```
 
 ## 本機執行
