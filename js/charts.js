@@ -98,7 +98,7 @@ function drawSeries(ctx, values, xAt, yAt, color) {
   ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
 }
 
-export function drawLine(canvas, values, { color = COLORS.fast, height = 220, labels = true, baseline = null } = {}) {
+export function drawLine(canvas, values, { color = COLORS.fast, height = 220, labels = true, baseline = null, oosStart = null } = {}) {
   if (!canvas || !values?.length) return;
   const { ctx, width } = prepare(canvas, height);
   const bounds = chartBounds(values, 16, labels ? 28 : 12, height);
@@ -111,6 +111,15 @@ export function drawLine(canvas, values, { color = COLORS.fast, height = 220, la
   }
   if (baseline !== null && Number.isFinite(baseline)) line(ctx, 40, yAt(baseline), width - 8, yAt(baseline), COLORS.grid, 1);
   drawSeries(ctx, values, xAt, yAt, color);
+  // IS／OOS 視覺文法：IS 壓暗段＋OOS 強調分界線，兩段永遠標示，不混成一條曲線。
+  if (Number.isInteger(oosStart) && oosStart > 0 && oosStart < values.length) {
+    const x = xAt(oosStart);
+    ctx.setLineDash([5, 4]);
+    line(ctx, x, bounds.top, x, bounds.top + bounds.plotHeight, "#4da3ff", 1.5);
+    ctx.setLineDash([]);
+    text(ctx, "IS", x - 6, bounds.top + 10, COLORS.text, "right");
+    text(ctx, "OOS", x + 6, bounds.top + 10, "#4da3ff", "left");
+  }
   if (labels) {
     text(ctx, "起點", 40, height - 7, COLORS.text, "left");
     text(ctx, "最新", width - 8, height - 7, COLORS.text, "right");

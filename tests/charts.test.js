@@ -44,3 +44,14 @@ test("drawLine tolerates empty input and draws non-empty series", () => {
   drawLine(canvas, [1, 2, 3]);
   assert.ok(calls.some(([name]) => name === "stroke"));
 });
+
+test("drawLine marks the IS/OOS boundary only when the split is interior", () => {
+  const { canvas, calls } = stubCanvas();
+  drawLine(canvas, [1, 2, 3, 4, 5, 6], { oosStart: 4 });
+  const labels = calls.filter(([name]) => name === "fillText").map(([, text]) => text);
+  assert.ok(labels.includes("IS") && labels.includes("OOS"));
+  const plain = stubCanvas();
+  drawLine(plain.canvas, [1, 2, 3], { oosStart: 0 });
+  const plainLabels = plain.calls.filter(([name]) => name === "fillText").map(([, text]) => text);
+  assert.ok(!plainLabels.includes("OOS"));
+});

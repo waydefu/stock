@@ -41,7 +41,7 @@ test("avgLast and fmtDay handle short series", () => {
 });
 
 test("orderEstimate is advisory-only math with invalid-input guard", () => {
-  assert.deepEqual(orderEstimate({ qty: 10, price: 100, equity: 1_000_000 }), { notional: 1000, equityPct: 0.1 });
+  assert.deepEqual(orderEstimate({ qty: 10, price: 100, equity: 1_000_000 }), { notional: 1000, equityPct: 0.1, estFee: 1.425 });
   assert.equal(orderEstimate({ qty: 0, price: 100, equity: 1_000_000 }), null);
   assert.equal(orderEstimate({ qty: 1.5, price: 100, equity: 1_000_000 }), null);
   assert.equal(orderEstimate({ qty: 10, price: -5, equity: 1_000_000 }), null);

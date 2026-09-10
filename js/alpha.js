@@ -65,46 +65,50 @@ export const BUY_HOLD_STRATEGY = {
   generateSignal: () => ({ score: 1, confidence: 1, horizon: "full-sample", reasonCodes: ["BUY_HOLD"], diagnostics: {} }),
 };
 
-export const MULTI_HORIZON_TREND = {
-  id: "multiHorizonTrend",
-  name: "Multi-Horizon Trend（多 horizon 趨勢研究）",
-  version: "1.0.0",
-  hypothesis:
-    "時間序列動量具延續性，但單一均線交叉參數脆弱；短／中／長三個正規化趨勢分數加權" +
-    "組合，在方向一致時提高信心、方向分歧時降權，追求參數高原而非最佳單點。",
-  requiredData: ["ohlcv:daily"],
-  warmup: 120,
-  parameters: { short: 20, medium: 60, long: 120, weights: [1, 1, 1] },
-  generateSignal({ bars, index, symbol }) {
-    void symbol;
-    const closes = bars.slice(0, index + 1).map((b) => b.c);
-    const { short, medium, long, weights } = MULTI_HORIZON_TREND.parameters;
-    const parts = [
-      { key: "short", value: horizonScore(closes, short), weight: weights[0] },
-      { key: "medium", value: horizonScore(closes, medium), weight: weights[1] },
-      { key: "long", value: horizonScore(closes, long), weight: weights[2] },
-    ];
-    if (parts.some((p) => p.value === null)) {
-      return { score: 0, confidence: 0, horizon: "multi:20/60/120", reasonCodes: ["WARMUP"], diagnostics: {} };
-    }
-    const totalWeight = parts.reduce((a, p) => a + p.weight, 0);
-    const combined = parts.reduce((a, p) => a + p.value * p.weight, 0) / totalWeight;
-    const signs = parts.map((p) => Math.sign(p.value));
-    const agree = Math.max(
-      signs.filter((s) => s > 0).length,
-      signs.filter((s) => s < 0).length,
-    );
-    const confidence = agree / signs.length;
-    const reason = combined > 0.05 ? "TREND_UP" : combined < -0.05 ? "TREND_DOWN" : "TREND_MIXED";
-    return {
-      score: combined,
-      confidence,
-      horizon: "multi:20/60/120",
-      reasonCodes: [reason],
-      diagnostics: Object.fromEntries(parts.map((p) => [p.key, Math.round(p.value * 1000) / 1000])),
-    };
-  },
-};
+export function makeTrendStrategy({ id = "multiHorizonTrend", short = 20, medium = 60, long = 120, weights = [1, 1, 1] } = {}) {
+  const horizon = `multi:${short}/${medium}/${long}`;
+  return {
+    id,
+    name: "Multi-Horizon Trend（多 horizon 趨勢研究）",
+    version: "1.0.0",
+    hypothesis:
+      "時間序列動量具延續性，但單一均線交叉參數脆弱；短／中／長三個正規化趨勢分數加權" +
+      "組合，在方向一致時提高信心、方向分歧時降權，追求參數高原而非最佳單點。",
+    requiredData: ["ohlcv:daily"],
+    warmup: long,
+    parameters: { short, medium, long, weights },
+    generateSignal({ bars, index, symbol }) {
+      void symbol;
+      const closes = bars.slice(0, index + 1).map((b) => b.c);
+      const parts = [
+        { key: "short", value: horizonScore(closes, short), weight: weights[0] },
+        { key: "medium", value: horizonScore(closes, medium), weight: weights[1] },
+        { key: "long", value: horizonScore(closes, long), weight: weights[2] },
+      ];
+      if (parts.some((p) => p.value === null)) {
+        return { score: 0, confidence: 0, horizon, reasonCodes: ["WARMUP"], diagnostics: {} };
+      }
+      const totalWeight = parts.reduce((a, p) => a + p.weight, 0);
+      const combined = parts.reduce((a, p) => a + p.value * p.weight, 0) / totalWeight;
+      const signs = parts.map((p) => Math.sign(p.value));
+      const agree = Math.max(
+        signs.filter((s) => s > 0).length,
+        signs.filter((s) => s < 0).length,
+      );
+      const confidence = agree / signs.length;
+      const reason = combined > 0.05 ? "TREND_UP" : combined < -0.05 ? "TREND_DOWN" : "TREND_MIXED";
+      return {
+        score: combined,
+        confidence,
+        horizon,
+        reasonCodes: [reason],
+        diagnostics: Object.fromEntries(parts.map((p) => [p.key, Math.round(p.value * 1000) / 1000])),
+      };
+    },
+  };
+}
+
+export const MULTI_HORIZON_TREND = makeTrendStrategy();
 
 /** 預設研究註冊表：baselines 永遠在，新策略往後加。 */
 export function buildDefaultRegistry() {
