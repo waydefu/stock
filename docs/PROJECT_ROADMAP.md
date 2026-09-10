@@ -128,12 +128,18 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 - KPI 層次（PR#7）：淨值 28px hero，其餘 22px。
 - 自選清單本機持久化（`js/favorites.js`，寫入失敗不影響交易主流程）。
 
-仍待 P1/P2：
+仍待 P1/P2（誠實缺口）：
 
-- loading／permission states。
-- KPI hierarchy、dialog focus trap／Escape／restore、tabs semantics。
-- crosshair／tooltip、完整 responsive degradation、WCAG browser audit。
-- order acknowledgement motion 與完整 state-driven UI。
+- 完整 WCAG 人工 audit、viewport 瀏覽器幾何實測（重疊／裁切／橫向捲動）。
+- equity 曲線 hover（主圖 crosshair 已做，權益曲線 defer）。
+
+已完成 P1（`feat/ui-p1-remainder`，`check-ui` 25/25）：
+
+- loading／permission states：`statePanel` 五態＋`.state-loading` spinner＋`.state-permission` 下一步文案；權限拒絕走元件（`app.js:445`）。
+- crosshair／tooltip：主圖 `candleHoverAt` 純幾何 helper＋canvas OHLC 提示（`charts.js:88`），鍵盤使用者由表格取同資料。
+- 靜態初始 tbody＋noscript：JS 載入失敗不留白（`static-initial-states` 閘）。
+- 下單 ack 過渡：`.order-ack`（reduced-motion 全關）。
+- 響應式降級規則文件化（`docs/UI_UX.md`）；benchmark 同 rubric 重評 7.9/10（`UI_UX_BENCHMARK.md`，舊 2.0 保留）。
 
 ## Phase 7 — Adapter readiness（P1/P2）
 

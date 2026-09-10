@@ -212,3 +212,22 @@
 - Responsive/accessibility：1279／480 斷點、鍵盤可達 tiles（role＋tabindex＋Enter／Space）、dialog focus trap 擴及說明窗；check-ui 21/21。
 
 仍缺（誠實）：4 viewport 截圖、瀏覽器幾何閘（重疊／裁切／橫向捲動實測）、完整 WCAG 人工 audit——待 R-020 環境修復。
+
+## P1 收斂重評（`feat/ui-p1-remainder`，2026-09-10）
+
+同一 rubric、同一權重重算；舊 2.0 基線保留不改寫。證據為本分支實測輸出與檔行。
+
+| 維度 | 權重 | 分數 | 根據（evidence） |
+|---|---:|---:|---|
+| Design system integrity | 15% | 9 | `check-ui` 25/25：`no-inline-style` 0、`css-tokens` 全、`spacing-scale`（2 waiver 附複審 2026-12） |
+| Visual hierarchy | 15% | 8 | KPI hero＋語義 badge（`app.js:208`）、IS／OOS 文法（`charts.js:115`）、回測權益曲線優先 |
+| Surface／material quality | 15% | 7 | elevation 限 2 語義層級（`anti-template` 閘）、無功能漸層／模糊；深色扁平為刻意選擇 |
+| Motion／interaction polish | 15% | 7 | motion tokens＋page-enter＋`order-ack`＋spinner，reduced-motion 全關（`styles.css:261`）；canvas hover 為即時重繪、無多餘過渡 |
+| Trading workflow | 15% | 8 | preview→confirm→filled 同條 ack（`app.js:486`）、commit-time session 重驗（PR#12）、PAPER 常駐 5 處 |
+| Tables／states | 10% | 9 | sticky th、empty／error／loading／permission／success 五態（`view.js:27`）、靜態初始 tbody＋noscript（`index.html:44`） |
+| Accessibility／responsive | 10% | 7 | focus ring＋24px 觸達閘、鍵盤 tiles／快速鍵、dialog trap、降級規則（`UI_UX.md`）；缺完整 WCAG 人工 audit 與瀏覽器幾何閘 |
+| Safety／governance | 5% | 8 | paper-only、風控拒絕碼、versioned audit CSV、前端角色僅展示（`ARCHITECTURE.md:53`） |
+
+加權算式：1.35＋1.20＋1.05＋1.05＋1.20＋0.90＋0.70＋0.40＝**7.85 → 7.9 / 10**。
+
+仍缺（誠實）：完整 WCAG 人工 audit、4 viewport 瀏覽器幾何實測、equity 曲線 hover（主圖已做，權益曲線 defer）。
