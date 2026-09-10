@@ -30,11 +30,28 @@ test("execution boundary rechecks cash after a preview becomes stale", () => {
 
   // Simulate another trusted paper operation changing account cash after preview.
   broker.placeOrder({ market: "TW", symbol: "2317", side: "buy", qty: 9_000, price: 100, lot: "regular", clientOrderId: "stale-cash-seed", referencePrice: 100 });
-  const result = executePaperOrder({ broker, risk, order: candidate });
+  // Pin commit time inside trading hours: this test exercises the cash recheck, not the session gate.
+  const result = executePaperOrder({ broker, risk, order: candidate, now: timestamp });
 
   assert.equal(result.filled, false);
   assert.equal(result.decision.code, "INSUFFICIENT_CASH");
   assert.equal(broker.snapshot("TW").orders.length, 1);
+});
+
+test("execution boundary revalidates session at confirm time, not preview time", () => {
+  const previewTs = new Date("2025-01-06T05:29:00.000Z").getTime(); // Monday 13:29 Taipei → preClose, limit allowed
+  const confirmTs = new Date("2025-01-06T05:31:00.000Z").getTime(); // Monday 13:31 Taipei → closed
+  const broker = new PaperBroker({ storage: new MemoryStorage() });
+  const risk = new RiskEngine();
+  const order = { market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, referencePrice: 100, orderType: "limit", timestamp: previewTs, clientOrderId: "stale-session-order" };
+
+  const preview = risk.approveOrder(broker.snapshot("TW", {}), order);
+  assert.equal(preview.ok, true);
+
+  const result = executePaperOrder({ broker, risk, order, now: confirmTs });
+  assert.equal(result.filled, false);
+  assert.equal(result.decision.code, "MARKET_CLOSED");
+  assert.equal(broker.snapshot("TW").orders.length, 0);
 });
 
 test("execution boundary rechecks the kill switch at confirm time", () => {

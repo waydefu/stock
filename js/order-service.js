@@ -4,7 +4,7 @@
 
 import { ORDER_ERROR_CODE } from "./order-errors.js";
 
-export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade = true }) {
+export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade = true, now } = {}) {
   if (!canTrade) {
     return {
       filled: false,
@@ -22,7 +22,8 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
     };
   }
   const account = broker.snapshot(order.market, quotes);
-  const decision = risk.approveOrder(account, order);
+  // Commit-time clock: session revalidation must see now, not a stale preview timestamp.
+  const decision = risk.approveOrder(account, order, { now: now ?? Date.now() });
   if (!decision.ok) return { filled: false, decision: { ...decision, category: "RISK_REJECTED" }, account };
   try {
     const fill = broker.placeOrder(order);

@@ -26,7 +26,13 @@ export class RiskEngine {
 
   constructor(config = {}) { this.#config = { ...DEFAULT_RISK, ...config }; }
 
-  approveOrder(account, order) {
+  /**
+   * 風控決策的評估時點（evaluation time）來源：
+   * context.now（執行邊界在 commit 當下注入的權威時鐘）優先；
+   * order.timestamp 僅為 preview-only 舊呼叫者的相容退路；最後才用 Date.now()。
+   * Confirm 路徑必須經 executePaperOrder 注入 now，不得依賴 preview 留下的 timestamp。
+   */
+  approveOrder(account, order, context = {}) {
     if (this.#tripped) return { ok: false, code: "KILL_SWITCH", reason: `斷路器已啟動：${this.#reason}` };
     const equity = Number(account?.equity ?? 0);
     if (!Number.isFinite(equity) || equity <= 0) return { ok: false, code: "NO_EQUITY", reason: "帳戶權益無效，停止下單" };
@@ -57,8 +63,9 @@ export class RiskEngine {
         return { ok: false, code: codeMap[priceLimitDecision.code] ?? priceLimitDecision.code, reason: priceLimitDecision.reason };
       }
 
-      // Session validation for TW only
-      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", order.timestamp ?? Date.now());
+      // Session validation for TW only — evaluated at commit time, never at stale preview time.
+      const evaluationTs = context.now ?? order.timestamp ?? Date.now();
+      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", evaluationTs);
       if (!sessionDecision.ok) {
         return { ok: false, code: sessionDecision.code === "OUTSIDE_TRADING_HOURS" ? "MARKET_CLOSED" : sessionDecision.code, reason: sessionDecision.reason };
       }

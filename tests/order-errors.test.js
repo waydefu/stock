@@ -19,6 +19,7 @@ test("execution service preserves broker rejection category and code", () => {
     broker,
     risk,
     order: { market: "TW", symbol: "2330", side: "buy", qty: 1000, lot: "regular", price: 100, clientOrderId: "broker-invalid", referencePrice: 100, orderType: "limit", timestamp },
+    now: timestamp, // pin commit time inside trading hours; session gate is covered elsewhere
   });
   assert.equal(result.filled, true);
 
