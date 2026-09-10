@@ -312,6 +312,99 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("paper-markers", problems.join("；"));
 }
 
+// 15. 反 AI 模板：無功能漸層／結構模糊／失控圓角
+{
+  const problems = [];
+  if (/linear-gradient/.test(css)) problems.push("CSS 出現 linear-gradient（功能漸層禁用；需 waiver）");
+  if (/backdrop-filter/.test(css)) problems.push("CSS 出現 backdrop-filter（結構模糊禁用；需 waiver）");
+  const shadows = count(css, /box-shadow\s*:/g);
+  if (shadows > 2) problems.push(`box-shadow 有 ${shadows} 處（最多 2 個語義層級）`);
+  const radii = [...css.matchAll(/--radius(?:-s)?\s*:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  if (radii.some((v) => v > 8)) problems.push(`設計代幣圓角超過 8px：${radii.join("/")}`);
+  for (const m of css.matchAll(/border-radius\s*:\s*([^;]+);/g)) {
+    if (/var\(/.test(m[1])) continue;
+    const px = [...m[1].matchAll(/(\d+(?:\.\d+)?)px/g)].map((x) => Number(x[1]));
+    if (px.some((v) => v > 8)) problems.push(`border-radius 超過 8px：${m[1].trim()}`);
+  }
+  for (const m of html.matchAll(/<button([^>]*)>([\s\S]*?)<\/button>/g)) {
+    const text = m[2].replace(/<[^>]*>/g, "").trim();
+    // CJK 可見文字本身就是可及名稱；只抓無 aria-label 的裝飾符號按鈕（★☆✓✗▶◀ 等）
+    if (/[★☆✓✗✔▶◀●○◆■▲△⚠❓❗]/.test(text) && !/aria-label="[^"]+"/.test(m[1])) {
+      problems.push(`符號按鈕無 aria-label：${text.slice(0, 20)}`);
+    }
+    if (!text && !/aria-label="[^"]+"/.test(m[1])) problems.push("按鈕無可見文字也無 aria-label");
+  }
+  if (problems.length === 0) ok("anti-template");
+  else fail("anti-template", problems.join("；"));
+}
+
+// 16. 間距契約：margin／padding／gap 只能用 4／8／12／16／24／32（waiver 需理由＋範圍＋複審）
+{
+  const SCALE = new Set([0, 4, 8, 12, 16, 24, 32]);
+  const WAIVERS = [
+    { test: (ctx) => /th|td/.test(ctx), reason: "32px compact row density", scope: "table cells", review: "2026-12" },
+    { test: (ctx) => /tabs button/.test(ctx), reason: "active tab 與邊框重疊 1px 的標準頁籤技法", scope: ".tabs button margin-bottom", review: "2026-12" },
+  ];
+  const problems = [];
+  const waived = [];
+  for (const m of css.matchAll(/(margin|padding|gap)(-[a-z]+)?\s*:\s*([^;{]+);/g)) {
+    const values = [...m[3].matchAll(/(-?\d+(?:\.\d+)?)px/g)].map((x) => Number(x[1]));
+    const bad = values.filter((v) => !SCALE.has(v));
+    if (!bad.length) continue;
+    const selector = css.slice(css.lastIndexOf("}", m.index) + 1, m.index).split("{")[0];
+    const waiver = WAIVERS.find((w) => w.test(selector));
+    if (waiver) waived.push(`${bad.join("/")}px＠${selector.trim().slice(0, 40)}（waiver：${waiver.reason}，複審 ${waiver.review}）`);
+    else problems.push(`${m[1]} 出現非刻度值 ${bad.join("/")}px：${m[0].slice(0, 60)}`);
+  }
+  for (const w of waived) console.log(`  waiver spacing-scale: ${w}`);
+  if (problems.length === 0) ok("spacing-scale");
+  else fail("spacing-scale", problems.join("；"));
+}
+
+// 17. 觸達與焦點硬閘：可見 focus 環、控件最小 24px
+{
+  const problems = [];
+  if (!/outline:\s*2px/.test(css)) problems.push("缺 2px focus ring");
+  if (!/:focus-visible/.test(css)) problems.push("缺 :focus-visible 規則");
+  for (const m of css.matchAll(/min-(?:width|height)\s*:\s*(\d+)px/g)) {
+    // 只審互動控件（button／input／select／tab／tile／fav）；kbd 等指示器不算控件
+    const selector = css.slice(css.lastIndexOf("}", m.index) + 1, m.index).split("{")[0];
+    if (!/(button|input|select|\.btn|\.fav|\.tile|\.tabs)/.test(selector)) continue;
+    if (Number(m[1]) < 24) problems.push(`觸達尺寸不足 24px：${m[0]}`);
+  }
+  if (problems.length === 0) ok("focus-target");
+  else fail("focus-target", problems.join("；"));
+}
+
+// 18. JS→HTML ID 交叉引用：app.js 用的每個靜態 id 都必須在 index.html 存在
+{
+  const problems = [];
+  const ids = new Set();
+  for (const m of app.matchAll(/\$\(\s*"#([^"\s]+)"/g)) ids.add(m[1].split(" ")[0]);
+  for (const id of ids) {
+    if (!html.includes(`id="${id}"`)) problems.push(`app.js 用了 #${id}，index.html 找不到`);
+  }
+  if (problems.length === 0) ok("id-crossref");
+  else fail("id-crossref", problems.join("；"));
+}
+
+// 19. 研究工作區契約：IS／OOS 分界、基準比較、來源、gate 痕跡
+{
+  const problems = [];
+  const charts = readFileSync("js/charts.js", "utf8");
+  const research = readFileSync("js/research.js", "utf8");
+  if (!/oosStart/.test(charts)) problems.push("charts.js 缺 IS／OOS 分界（oosStart）");
+  if (!/IS/.test(html) || !/OOS/.test(html)) problems.push("index.html 缺 IS／OOS 文法標示");
+  if (!/id="strategy-run"/.test(html) || !/id="strategy-table"/.test(html)) problems.push("缺策略中心（strategy-run／strategy-table）");
+  if (!/id="research-provenance"/.test(html)) problems.push("缺資料來源（research-provenance）");
+  if (!/evaluatePromotion|runCostStress|walkForward|splitIS_OOS/.test(app)) problems.push("app.js 未接入研究框架（gate／cost stress／walk-forward／IS-OOS）");
+  if (!/parameterSurface|OVERFIT_RISK|EXECUTION_FRAGILE/.test(app + research)) problems.push("缺穩健性旗標（OVERFIT_RISK／EXECUTION_FRAGILE）");
+  if (!/GATE PASS|GATE FAIL/.test(app)) problems.push("策略中心缺 gate 顯示");
+  if (!/handleGlobalKeydown|symbol-search|PAGE_ORDER/.test(app)) problems.push("缺專業快速鍵（/／1-6／B／S）");
+  if (problems.length === 0) ok("research-workstation");
+  else fail("research-workstation", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
