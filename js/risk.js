@@ -1,5 +1,5 @@
 /* 風控與稽核：先判斷、再讓 paper broker 改狀態；拒絕要有代碼與可行動原因。 */
-import { defaultLotForMarket, validateQuantity } from "./market-rules.js";
+import { defaultLotForMarket, validateQuantity, validateTick, validatePriceLimit, validateOrderTypeInSession } from "./market-rules.js";
 import { ORDER_ERROR_CODE } from "./order-errors.js";
 
 const DEFAULT_RISK = {
@@ -26,7 +26,13 @@ export class RiskEngine {
 
   constructor(config = {}) { this.#config = { ...DEFAULT_RISK, ...config }; }
 
-  approveOrder(account, order) {
+  /**
+   * 風控決策的評估時點（evaluation time）來源：
+   * context.now（執行邊界在 commit 當下注入的權威時鐘）優先；
+   * order.timestamp 僅為 preview-only 舊呼叫者的相容退路；最後才用 Date.now()。
+   * Confirm 路徑必須經 executePaperOrder 注入 now，不得依賴 preview 留下的 timestamp。
+   */
+  approveOrder(account, order, context = {}) {
     if (this.#tripped) return { ok: false, code: "KILL_SWITCH", reason: `斷路器已啟動：${this.#reason}` };
     const equity = Number(account?.equity ?? 0);
     if (!Number.isFinite(equity) || equity <= 0) return { ok: false, code: "NO_EQUITY", reason: "帳戶權益無效，停止下單" };
@@ -37,6 +43,34 @@ export class RiskEngine {
     if (!Number.isFinite(order?.price) || order.price <= 0) return { ok: false, code: "INVALID_PRICE", reason: "價格必須是正數" };
     const quantityDecision = validateQuantity(order.market, order.qty, order.lot ?? defaultLotForMarket(order.market));
     if (!quantityDecision.ok) return { ok: false, code: quantityDecision.code, reason: quantityDecision.reason };
+
+    // Tick size validation
+    const tickDecision = validateTick(order.market, order.price);
+    if (!tickDecision.ok) return { ok: false, code: tickDecision.code, reason: tickDecision.reason };
+
+    // Price limit validation (requires reference price for TW)
+    if (order.market === "TW") {
+      if (!Number.isFinite(order.referencePrice) || order.referencePrice <= 0) {
+        return { ok: false, code: "REFERENCE_PRICE_REQUIRED", reason: "台股漲跌幅驗證需提供參考價" };
+      }
+      const priceLimitDecision = validatePriceLimit(order.market, order.price, order.referencePrice);
+      if (!priceLimitDecision.ok) {
+        // Map codes to stable ones
+        const codeMap = {
+          "PRICE_LIMIT_UP": "PRICE_ABOVE_LIMIT",
+          "PRICE_LIMIT_DOWN": "PRICE_BELOW_LIMIT",
+        };
+        return { ok: false, code: codeMap[priceLimitDecision.code] ?? priceLimitDecision.code, reason: priceLimitDecision.reason };
+      }
+
+      // Session validation for TW only — evaluated at commit time, never at stale preview time.
+      const evaluationTs = context.now ?? order.timestamp ?? Date.now();
+      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", evaluationTs);
+      if (!sessionDecision.ok) {
+        return { ok: false, code: sessionDecision.code === "OUTSIDE_TRADING_HOURS" ? "MARKET_CLOSED" : sessionDecision.code, reason: sessionDecision.reason };
+      }
+    }
+
     const dailyPnl = Number(account?.dailyPnl ?? 0);
     const dailyLossPct = Math.abs(Math.min(0, dailyPnl)) / equity;
     if (dailyLossPct >= this.#config.maxDailyLossPct) {

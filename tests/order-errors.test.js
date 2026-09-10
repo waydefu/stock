@@ -12,19 +12,21 @@ test("paper validation errors expose stable codes", () => {
 });
 
 test("execution service preserves broker rejection category and code", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage() });
+  const timestamp = new Date("2025-01-06T01:00:00.000Z").getTime(); // Monday 09:00 Taipei
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => new Date(timestamp).toISOString() });
   const risk = new RiskEngine();
   const result = executePaperOrder({
     broker,
     risk,
-    order: { market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, clientOrderId: "broker-invalid" },
+    order: { market: "TW", symbol: "2330", side: "buy", qty: 1000, lot: "regular", price: 100, clientOrderId: "broker-invalid", referencePrice: 100, orderType: "limit", timestamp },
+    now: timestamp, // pin commit time inside trading hours; session gate is covered elsewhere
   });
   assert.equal(result.filled, true);
 
   const rejected = executePaperOrder({
     broker,
     risk,
-    order: { market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, clientOrderId: "broker-invalid-2" },
+    order: { market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, clientOrderId: "broker-invalid-2", referencePrice: 100, orderType: "limit", timestamp },
     canTrade: false,
   });
   assert.equal(rejected.filled, false);

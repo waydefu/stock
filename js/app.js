@@ -471,6 +471,7 @@ function confirmOrder() {
     order: pending,
     quotes: quoteMap(pending.market),
     canTrade: permissionsFor(state.role).includes("paper:order"),
+    now: Date.now(),
   });
   if (!result.filled) {
     closeOrderModal();
