@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MemoryStorage, PaperBroker } from "../js/paper.js";
+import { AuditLog } from "../js/risk.js";
 
 test("paper broker records a buy and updates cash and position", () => {
   const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
@@ -85,3 +86,34 @@ test("paper broker returns the original fill for a duplicate client order id", (
   assert.equal(broker.snapshot("TW").positions["2330"].qty, 2);
   assert.equal(broker.snapshot("TW").orders.length, 1);
 });
+
+test("paper broker emits PERSISTENCE_RESET audit event on schema version mismatch", () => {
+  const storage = new MemoryStorage();
+  // First, create a valid audit log with some events
+  const audit = new AuditLog({ storage, now: () => "2025-01-01T00:00:00.000Z" });
+  audit.record("SESSION_OPEN", { mode: "paper" });
+  audit.record("ORDER_ACCEPTED", { symbol: "2330" });
+
+  // Now write paper data with wrong schema version
+  storage.setItem("tw-us-stock-paper-v1", JSON.stringify({
+    schemaVersion: 999,
+    TW: { cash: 500000, positions: { "2330": { qty: 100, avgCost: 100 } }, orders: [] },
+  }));
+
+  // Create new PaperBroker - should trigger reset and emit PERSISTENCE_RESET
+  const broker = new PaperBroker({ storage });
+  const account = broker.snapshot("TW");
+
+  // Account should be reset to defaults
+  assert.equal(account.cash, 1_000_000);
+  assert.deepEqual(account.positions, {});
+
+  // Audit log should have PERSISTENCE_RESET event
+  const audit2 = new AuditLog({ storage, now: () => "2025-01-01T00:00:01.000Z" });
+  const events = audit2.list();
+  const resetEvent = events.find(e => e.event === "PERSISTENCE_RESET");
+  assert.ok(resetEvent, "PERSISTENCE_RESET event should exist");
+  assert.equal(resetEvent.details.reason, "schema_version_mismatch");
+  assert.equal(resetEvent.details.expected, 1);
+  assert.equal(resetEvent.details.found, 999);
+  });

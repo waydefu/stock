@@ -89,7 +89,35 @@ export class PaperBroker {
     try {
       const value = JSON.parse(raw);
       const fresh = defaultState();
-      if (value.schemaVersion !== undefined && value.schemaVersion !== PAPER_SCHEMA_VERSION) return fresh;
+      if (value.schemaVersion !== undefined && value.schemaVersion !== PAPER_SCHEMA_VERSION) {
+        // Schema version mismatch: safe reset + audit event
+        if (this.#storage) {
+          try {
+            const auditRaw = this.#storage.getItem("tw-us-stock-audit-v1");
+            if (auditRaw) {
+              const auditPayload = JSON.parse(auditRaw);
+              if (auditPayload.version === 1 && Array.isArray(auditPayload.events)) {
+                const resetEvent = {
+                  version: 1,
+                  eventId: `audit-${auditPayload.events.length + 1}`,
+                  timestamp: new Date().toISOString(),
+                  event: "PERSISTENCE_RESET",
+                  details: {
+                    reason: "schema_version_mismatch",
+                    expected: PAPER_SCHEMA_VERSION,
+                    found: value.schemaVersion,
+                  },
+                };
+                auditPayload.events.push(resetEvent);
+                this.#storage.setItem("tw-us-stock-audit-v1", JSON.stringify(auditPayload));
+              }
+            }
+          } catch {
+            // audit persistence is best effort
+          }
+        }
+        return fresh;
+      }
       for (const market of Object.keys(DEFAULTS)) {
         fresh[market] = validAccountOrDefault(value[market], market);
       }
