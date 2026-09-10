@@ -31,7 +31,7 @@
 
 - TWSE 最新交易規則、tick schedule、odd-lot、corporate-action effective dates。
 - Fugle／Shioaji／Alpaca／IBKR 當前 adapter limits 與 paper 行為。
-- GitHub Actions immutable SHA／Dependabot／security feature policy。
+- GitHub Actions secret scanning、code scanning、dependency review policy（immutable SHA pin＋Dependabot 已於 v7 落地並綠燈）。
 
 ## Sources
 

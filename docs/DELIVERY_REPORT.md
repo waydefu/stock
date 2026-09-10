@@ -4,9 +4,10 @@
 
 - Repository：`https://github.com/waydefu/stock`
 - Branch：`main`
-- Checkpoint：`b06ed636c3ee07e3c8fbcdd7d2d3c39b61569803`
-- GitHub Actions：`Quality` run `34387611816`，對應同一個 SHA，`success`，annotations `0`
-- CI action runtime：`checkout@v5`／`setup-node@v5` 使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
+- Checkpoint：`df0366a9aeb121ca0650aabadb261c80acd411d4`
+- GitHub Actions：`Quality` run `34408169232`，對應同一個 SHA，`success`，annotations `0`
+- CI action runtime：`checkout@v7.0.1`／`setup-node@v7.0.0`（full SHA pin）使用 Node 24 runtime，並關閉不需要的 package-manager cache。[62][63]
+- 本輪合併：PR#1（setup-node v7.0.0）、PR#2（checkout v7.0.1）、PR#3（Sharpe sample-guard）、PR#4（UI quality gate＋FUTURE_PLAN）、PR#5（industry-grade refactor）、PR#6（market-data adapter port）、PR#7（order-ticket estimate／last-price／KPI hierarchy）；open PR：無
 - 工作樹：推送後乾淨
 
 ## 做了什麼
@@ -17,8 +18,8 @@
 - 建立 paper broker：TWD／USD 隔離帳戶、本機持倉／現金／訂單持久化；沒有網路請求，不接真券商。
 - 建立 paper execution boundary 與 order state：confirm 時重新驗證帳戶／風控，order 保留 `NEW → VALIDATED → FILLED` transition events；仍明確標為 immediate paper simulation。
 - 建立風控：角色權限、單筆名目金額 20% 上限、日損 2% 斷路器、持倉數上限、拒絕代碼、二次確認與稽核 CSV。
-- 強化回測：OHLCV validation、equity-peak drawdown percentage、可設定 Sharpe annualization。
-- UI P0：清除 index／runtime inline style，加入 semantic utility tokens、stable canvas baseline、sticky table headers、contrast-safe primary button、purposeful motion 與 safe DOM escaping。
+- 強化回測：OHLCV validation、equity-peak drawdown percentage、可設定 Sharpe annualization、risk-free 顯式（預設 0）、小樣本 Sharpe 顯示「樣本不足」不採信。
+- UI P0：清除 index／runtime inline style，加入 semantic utility tokens、stable canvas baseline、sticky table headers、contrast-safe primary button、purposeful motion 與 safe DOM escaping；programmatic UI gate（`scripts/check-ui.js` 16 checks）鎖住對比／inline／語義／狀態。
 - Domain convergence checkpoint：AccountSnapshot、realized／unrealized／total PnL、zero-fee FeeModel、market-local session clock、immediate execution mode、OPEN/CANCELED transition contract、stable error categories、versioned local session audit 與 corrupted-order safe reset。
 - MarketRules integration：shared TW/US lot validation 已接到 RiskEngine、PaperBroker 與 UI order intent；TW default odd-lot、regular lot requires explicit 1,000-share multiples。
 - Calendar／corporate-action boundary：market-local session、simplified weekday calendar 已接 deterministic data layer；SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING contract 已定義，但沒有虛構調整資料。
@@ -26,7 +27,9 @@
 - Performance checkpoint：backtest signal arrays precomputed；same Node 24 environment 10,000 bars `827.709ms → 10.299ms`，100,000 bars post-change `50.615ms`。
 - Accessibility core：tablist／tabpanel、arrow-key navigation、dialog focus trap／Escape／restore、table column scopes。
 - State safety UI：screener empty、backtest error、empty positions/orders/audit blocks 具備 `status`／`alert` semantics 與可行動訊息。
-- 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI。
+- 行情入口：`js/market-data.js` adapter port（`SimulatedAdapter`），UI／回測經 adapter 取數；自選清單本機持久化（`js/favorites.js`）。
+- 交易 UX（advisory-only）：下單票即時試算（`orderEstimate`，不具決策權）、K 線 last-price 虛線、KPI hero 層次。
+- 建立 repo 治理：`GOVERNANCE.md`、`CONTRIBUTING.md`、免責聲明、PR 範本與 CI；可照跑收斂計劃書 `docs/FUTURE_PLAN.md`。
 - 建立研究文件：`docs/ARCHITECTURE.md`、`docs/UI_UX.md`、`docs/UI_UX_BENCHMARK.md`、`docs/GOVERNANCE.md`；引用 ledger 收錄 93 個來源頁，按模組而非只按產品名稱整理。
 
 ## 驗證證據
@@ -36,7 +39,8 @@
 ```text
 npm run check:static
 npm run check:syntax
-npm test                 # 54 tests passed
+npm test                 # 69 tests passed
+npm run check:ui         # 16 checks passed
 
 git diff --check
 git ls-remote origin refs/heads/main
@@ -106,5 +110,5 @@ git ls-remote origin refs/heads/main
 [41] https://interactivebrokers.github.io/tws-api/third_party.html
 [42] https://interactivebrokers.github.io/tws-api/basic_orders.html
 [50] https://help.ctrader.com/ctrader-algo/documentation/plugins
-[62] https://github.com/actions/setup-node/releases/tag/v5.0.0
-[63] https://github.com/actions/checkout/releases/tag/v5.0.0
+|[62] https://github.com/actions/setup-node/releases/tag/v7.0.0
+|[63] https://github.com/actions/checkout/releases/tag/v7.0.1

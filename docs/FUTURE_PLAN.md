@@ -27,16 +27,16 @@ gh run list --repo waydefu/stock --limit 3 --json databaseId,headSha,status,conc
 
 ### 0.3 基線快照（2026-09-10，`main`）
 
-- HEAD：`25dd89a5712794752c599f67dbc84a34ea34a682`
-- `npm test`：54 passed／0 failed；`check:static` 20 files；`check:syntax` exit 0；`git diff --check` exit 0
-- Quality CI：`34388171298` success（對應同 SHA）
-- UI 閘門：`npm run check:ui` 14 項全過（含實測對比表，見 `scripts/check-ui.js`）
-- 已知 open PR：#1／#2（Dependabot，Actions 大版升級）、#3（Sharpe 最小樣本＋risk-free）
-- 風險登錄：`docs/RISK_REGISTER.md` R-001～R-018；路線圖：`docs/PROJECT_ROADMAP.md`
+- HEAD：`df0366a9aeb121ca0650aabadb261c80acd411d4`
+- `npm test`：69 passed／0 failed；`check:static` 23 files；`check:syntax` exit 0；`git diff --check` exit 0
+- Quality CI：`34408169232` success（對應同 SHA；含 Actions v7：checkout v7.0.1＋setup-node v7.0.0）
+- UI 閘門：`npm run check:ui` 16 項全過（含實測對比表，見 `scripts/check-ui.js`）
+- 已合併：PR#1／#2（Dependabot Actions 大版）、PR#3（Sharpe 最小樣本＋risk-free，已含 Phase 1 驗收）、PR#4（UI gate＋本計劃書）、PR#5（重構包）、PR#6（adapter port）、PR#7（UX polish）；open PR：無
+- 風險登錄：`docs/RISK_REGISTER.md` R-001～R-018（R-008 已關閉）；路線圖：`docs/PROJECT_ROADMAP.md`
 
 ---
 
-## Phase 1 — 合併 PR#3 並同步文件（S）
+## Phase 1 — 合併 PR#3 並同步文件（S）✅ 已完成（2026-09-09 UTC 合併）
 
 目標：把 Sharpe 契約收尾正式落地，文件不再描述舊行為。
 
@@ -66,7 +66,7 @@ gh pr create --repo waydefu/stock --base main --head docs/sharpe-checkpoint --ti
 - [ ] 文件 HEAD／test count／CI run 三者一致
 - [ ] R-008 狀態更新為「min-sample 已解；剩 risk-free 政策文件化」或關閉（見 Phase 2）
 
-證據：合併 commit SHA、Quality run ID、`npm test` 55 passed 輸出。
+證據：合併 commit SHA、Quality run ID、`npm test` 69 passed 輸出（見 `docs/PROJECT_AUDIT.md` Current checkpoint；R-008 已關閉）。
 
 ---
 

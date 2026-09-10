@@ -52,7 +52,7 @@
 - `js/order-state.js`：deterministic order status 與 transition event。
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
-- `js/view.js`：純顯示 helper；XSS 關鍵路徑由單測鎖住。
+- `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
 - `js/app.js`：UI 組裝；不應直接保存或處理秘密。
 
 ## 架構取捨
