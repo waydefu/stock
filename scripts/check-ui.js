@@ -450,6 +450,18 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("static-initial-states", problems.join("；"));
 }
 
+// 24. 手機版：頂欄可換行不溢出、480px 輸入 16px（擋 iOS 對焦縮放）、row 長值可斷行
+{
+  const problems = [];
+  const topbar = (css.match(/\.topbar\s*\{[^}]*\}/) ?? [""])[0];
+  if (!/flex-wrap\s*:\s*wrap/.test(topbar)) problems.push(".topbar 不可換行，360px 會橫向溢出");
+  const mobile480 = [...css.matchAll(/@media\s*\(max-width:\s*480px\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1]).join("\n");
+  if (!/font-size\s*:\s*16px/.test(mobile480)) problems.push("480px 下輸入字級不足 16px，iOS 對焦會自動縮放");
+  if (!/overflow-wrap\s*:\s*anywhere/.test(css)) problems.push("缺 row 長值斷行守則，窄版 mono 長字會撐破版面");
+  if (problems.length === 0) ok("mobile-layout");
+  else fail("mobile-layout", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
