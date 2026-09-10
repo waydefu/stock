@@ -2,7 +2,7 @@
 
 ## Status
 
-Current checkpoint `b06ed63` has 54 tests green and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current checkpoint `df0366a` has 69 tests green, `check:ui` 16 green, and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
 
 ## Phase 0 — Baseline（完成）
 
@@ -20,7 +20,7 @@ Current checkpoint `b06ed63` has 54 tests green and Quality green. Baseline and 
 - stale cash 與 kill-switch confirm integration tests。
 - browser confirm revalidation smoke test。
 
-仍待：full exchange calendar／holiday exceptions、corporate actions、正式 risk-free／minimum-sample metric policy、non-zero fee models。
+仍待：non-zero fee models（預設 prototype 仍為 zero-fee paper，見 R-018）。risk-free／minimum-sample metric policy 已由 PR#3 落地：`riskFreeRate` 顯式（預設 0）、`minSharpeSamples` 不足時標「樣本不足」不採信。
 
 Phase 1 additions：
 
@@ -28,6 +28,8 @@ Phase 1 additions：
 - `AccountSnapshot` now defines cash／marketValue／equity、realized／unrealized／total PnL、daily PnL、fees and invariants。
 - TW／US `MarketRules` contract added; `MarketSessionClock` uses market-local timezone while calendar remains simplified-weekday。
 - `MarketRules` TW partial／US simplified contract；shared lot validation 已接 RiskEngine／PaperBroker／UI intent。
+- Sharpe 小樣本守衛＋risk-free 顯式化（PR#3）：樣本不足顯示「樣本不足」，assumptions 記錄 `riskFreeRate`／`minSharpeSamples`。
+- `MarketDataAdapter` port 已落地（PR#6）：UI／回測經 `SimulatedAdapter` 取數，live adapter 照同介面替換。
 - `SimplifiedWeekdayCalendar` 已接 deterministic data layer；corporate-action types 已定義但沒有調整資料。
 
 Acceptance already covered by `tests/risk-integration.test.js`: daily loss wires through the normal snapshot path, and confirm-time state changes reject without mutating the account.
@@ -94,7 +96,7 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 ## Phase 5 — Architecture cleanup（P1/P2）
 
-只在 tests 保護後做：
+只在 tests 保護後做（`MarketDataAdapter` port、`OrderService` commit boundary、domain error classes 已於 PR#5／#6 落地）：
 
 - injectable Clock／IdGenerator
 - `MarketDataAdapter` port
@@ -118,6 +120,13 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 - tablist／tab／tabpanel、aria-controls、hidden inactive panels、arrow-key navigation。
 - dialog description、focus entry、focus trap、Escape、backdrop close、trigger restore。
 - table `scope="col"` semantics。
+
+已完成 P1（advisory-only、不碰決策路徑）：
+
+- 下單票試算 `orderEstimate`（PR#7；`role=status` 即時試算，決策仍只走 preview→RiskEngine→confirm revalidation）。
+- K 線 last-price 虛線＋標籤（PR#7；stub canvas 測試鎖住）。
+- KPI 層次（PR#7）：淨值 28px hero，其餘 22px。
+- 自選清單本機持久化（`js/favorites.js`，寫入失敗不影響交易主流程）。
 
 仍待 P1/P2：
 

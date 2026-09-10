@@ -3,20 +3,21 @@
 ## Baseline
 
 - Repository：`waydefu/stock`
-- HEAD：`7ef1a478b2d397c5061babbfa464154d4cda7521`
+- HEAD：`df0366a9aeb121ca0650aabadb261c80acd411d4`
 - Branch：`main`
-- Working tree：clean at audit start
+- Working tree：clean at audit refresh
 - Runtime：Node.js 24 local；GitHub Actions `Quality` latest observed success on the same HEAD
 - Product boundary：research／education／paper-only prototype；no live broker path
 
 ## Current checkpoint
 
-- HEAD：`b06ed636c3ee07e3c8fbcdd7d2d3c39b61569803`
-- Branch：`main`；working tree was clean immediately after the domain checkpoint commit
-- Local verification：`check:static` 20 files、`check:syntax` exit 0、`npm test` 54 passed／0 failed、`git diff --check` exit 0
-- Remote Quality：run `34387611816`，same SHA，success
+- HEAD：`df0366a9aeb121ca0650aabadb261c80acd411d4`
+- Branch：`main`；working tree was clean immediately after the Dependabot v7 merges
+- Local verification：`check:static` 23 files、`check:syntax` exit 0、`check:ui` 16 passed／0 failed、`npm test` 69 passed／0 failed、`git diff --check` exit 0
+- Remote Quality：run `34408169232`，same SHA，success
+- Merged since `b06ed63`：PR#3 Sharpe sample-guard、PR#4 UI quality gate＋FUTURE_PLAN、PR#5 industry-grade refactor、PR#6 market-data adapter port、PR#7 order-ticket estimate／last-price／KPI hierarchy、PR#1 setup-node v7.0.0、PR#2 checkout v7.0.1（2026-09-09 UTC；已合併的功能分支本地已刪）
 - Baseline scores below are historical；本輪尚未重新執行 UI／engineering rubric，因此不把修復直接換算成新分數。
-- Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、shared TW/US lot validation、simplified calendar boundary used by deterministic data、corporate-action schema contract、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset、1,000-intent deterministic accounting fuzz、core tab／tabpanel／dialog keyboard semantics、precomputed backtest signal arrays、actionable empty/error state blocks。
+- Current fixed／improved：AccountSnapshot accounting contract、realized／unrealized PnL、zero-fee FeeModel、market-local session clock、shared TW/US lot validation、simplified calendar boundary used by deterministic data、corporate-action schema contract、explicit immediate execution mode、OPEN state transitions、stable order error categories、persisted versioned session audit、corrupt order reset、1,000-intent deterministic accounting fuzz、core tab／tabpanel／dialog keyboard semantics、precomputed backtest signal arrays、actionable empty/error state blocks；本輪新增：Sharpe min-sample guard＋explicit risk-free、programmatic UI gate（16 checks）、`MarketDataAdapter` port（`SimulatedAdapter`）、自選持久化、下單票 advisory 試算、K 線 last-price 線、KPI hero 層次、Actions v7 SHA pin。
 - Remaining gates：exchange holiday/session hours/tick policy、corporate-action adjustment data、matching fills、multi-tab semantics、loading／permission accessibility states、full WCAG audit、server-grade tamper-resistant audit。
 
 ## Verification evidence
