@@ -405,6 +405,51 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("research-workstation", problems.join("；"));
 }
 
+// 20. 主圖 crosshair＋OHLC tooltip：純幾何 helper 可單測，app 綁 pointer 事件
+{
+  const problems = [];
+  const charts = readFileSync("js/charts.js", "utf8");
+  if (!/function candleHoverAt\(/.test(charts)) problems.push("charts.js 缺 candleHoverAt");
+  if (!/hover/.test(charts)) problems.push("drawCandles 未接受 hover 疊加");
+  if (!/price-chart/.test(app) || !/mousemove/.test(app)) problems.push("app.js 未在 price-chart 綁 mousemove");
+  if (!/mouseleave/.test(app)) problems.push("app.js 缺 mouseleave 復原");
+  if (problems.length === 0) ok("chart-crosshair");
+  else fail("chart-crosshair", problems.join("；"));
+}
+
+// 21. loading／permission 狀態元件：樣式＋reduced-motion＋實際呼叫點
+{
+  const problems = [];
+  const view = readFileSync("js/view.js", "utf8");
+  if (!/state-loading/.test(css)) problems.push("CSS 缺 .state-loading");
+  if (!view.includes('"loading"') || !view.includes('"permission"')) problems.push("view.js statePanel 缺 loading／permission 種類字面");
+  if (!/statePanel\("permission"/.test(app)) problems.push("app.js 權限拒絕未用 state-permission 元件");
+  if (!/@keyframes\s+spin/.test(css)) problems.push("CSS 缺 spin keyframes（loading 指示器）");
+  if (problems.length === 0) ok("loading-permission-states");
+  else fail("loading-permission-states", problems.join("；"));
+}
+
+// 22. 下單 ack 過渡：confirm 結果有獨立動效類，且 reduced-motion 下關閉
+{
+  const problems = [];
+  if (!/\.order-ack/.test(css)) problems.push("CSS 缺 .order-ack");
+  if (!/order-ack/.test(app)) problems.push("app.js confirm 結果未掛 order-ack");
+  if (!/prefers-reduced-motion/.test(css) || !/\.spinner,\s*\.notice\.order-ack\s*\{\s*animation:\s*none/.test(css)) problems.push("reduced-motion 未關閉 ack／spinner 動效");
+  if (problems.length === 0) ok("order-ack-motion");
+  else fail("order-ack-motion", problems.join("；"));
+}
+
+// 23. 靜態初始 tbody：JS 載入失敗也不得留白，須有可行動空狀態＋noscript 說明
+{
+  const problems = [];
+  const empties = [...html.matchAll(/<tbody><\/tbody>/g)].length;
+  if (empties > 0) problems.push(`仍有 ${empties} 個空白 tbody`);
+  if (!/<noscript>/.test(html)) problems.push("缺 noscript 說明");
+  if (!/state-block/.test(html)) problems.push("靜態 HTML 缺 state-block 初始狀態");
+  if (problems.length === 0) ok("static-initial-states");
+  else fail("static-initial-states", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);

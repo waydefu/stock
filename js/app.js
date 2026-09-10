@@ -4,7 +4,7 @@
 
 import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getSymbol, rsi, volumeRatio } from "./data.js";
 import { SimulatedAdapter } from "./market-data.js";
-import { drawCandles, drawLine } from "./charts.js";
+import { drawCandles, drawLine, candleHoverAt } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
@@ -209,6 +209,21 @@ function renderChart() {
   const chart = $("#price-chart");
   if (chart && (state.page === "chart" || chart.closest(".active"))) drawCandles(chart, bars, { window: Number($("#chart-window").value || state.chartWindow) });
   $("#technical-readings").innerHTML = `<div class="row"><span>MA20</span><span class="mono">${fmtPrice(avgLast(closes, 20))}</span></div><div class="row"><span>MA50</span><span class="mono">${fmtPrice(avgLast(closes, 50))}</span></div><div class="row"><span>RSI(14)</span><span class="badge ${lastRsi < 30 ? "up" : lastRsi > 70 ? "down" : "neutral"}">${lastRsi.toFixed(2)}</span></div><div class="row"><span>成交量</span><span class="mono">${fmtInt(q.vol)}</span></div>`;
+}
+
+// 主圖 hover：十字線＋OHLC 提示只做 pointer 增強；同樣資料表格本來就有。
+function bindChartHover() {
+  const chart = $("#price-chart");
+  if (!chart || chart.dataset.hoverBound) return;
+  chart.dataset.hoverBound = "1";
+  chart.addEventListener("mousemove", (event) => {
+    const rect = chart.getBoundingClientRect();
+    const bars = marketData.getBars(state.symbol);
+    const window = Number($("#chart-window").value || state.chartWindow);
+    const hit = candleHoverAt(bars, Math.max(320, Math.floor(rect.width || 720)), event.clientX - rect.left, { window });
+    drawCandles(chart, bars, { window, hover: hit ? hit.index : null });
+  });
+  chart.addEventListener("mouseleave", () => renderChart());
 }
 
 function renderScreener() {
@@ -442,11 +457,16 @@ function previewOrder(event) {
   const lot = $("#order-lot").value || (market === "TW" ? "oddLot" : "regular");
   const candidate = { market, symbol, side, qty, price, lot, clientOrderId: nextClientOrderId() };
   let decision;
-  if (!permissionsFor(state.role).includes("paper:order")) decision = { ok: false, code: "ROLE_DENIED", reason: "目前角色是觀察者；切換 Trader 才能建立紙上訂單" };
-  else decision = risk.approveOrder(account, candidate);
   const box = $("#order-risk");
-  box.className = `notice ${decision.ok ? "info" : ""}`;
-  box.textContent = `${decision.ok ? "通過" : "拒絕"}［${decision.code}］${decision.reason}`;
+  if (!permissionsFor(state.role).includes("paper:order")) {
+    decision = { ok: false, code: "ROLE_DENIED", reason: "目前角色是觀察者；切換 Trader 才能建立紙上訂單" };
+    box.className = "notice";
+    box.innerHTML = statePanel("permission", "觀察者角色無法下單", "切換為 Trader 後再按預覽；所有紙上訂單只寫本機帳本，不會送往交易所。");
+  } else {
+    decision = risk.approveOrder(account, candidate);
+    box.className = `notice ${decision.ok ? "info" : ""}`;
+    box.textContent = `${decision.ok ? "通過" : "拒絕"}［${decision.code}］${decision.reason}`;
+  }
   $("#order-submit").disabled = !decision.ok;
   state.pendingOrder = decision.ok ? candidate : null;
   if (decision.ok) openOrderModal(candidate, account);
@@ -477,6 +497,7 @@ function confirmOrder() {
     closeOrderModal();
     state.pendingOrder = null;
     $("#order-submit").disabled = true;
+    $("#order-risk").className = "notice order-ack";
     $("#order-risk").textContent = `確認時拒絕［${result.decision.code}］${result.decision.reason}`;
     auditEvent("ORDER_CONFIRM_REJECTED", { symbol: pending.symbol, code: result.decision.code, reason: result.decision.reason });
     renderTrade();
@@ -486,7 +507,7 @@ function confirmOrder() {
   auditEvent("ORDER_FILLED_PAPER", { orderId: order.id, symbol: order.symbol, side: order.side, qty: order.qty, price: order.price });
   closeOrderModal();
   state.pendingOrder = null;
-  $("#order-risk").className = "notice info";
+  $("#order-risk").className = "notice info order-ack";
   $("#order-risk").textContent = `已寫入紙上帳本［${order.id}］；沒有真實券商副作用。`;
   $("#order-submit").disabled = true;
   renderAll();
@@ -634,6 +655,7 @@ function initEvents() {
   $("#role-select").addEventListener("change", (event) => { state.role = event.target.value; auditEvent("ROLE_CHANGED", { role: state.role }); renderAll(); });
   $("#chart-symbol").addEventListener("change", (event) => { state.symbol = event.target.value; renderChart(); });
   $("#chart-window").addEventListener("change", (event) => { state.chartWindow = Number(event.target.value); renderChart(); });
+  bindChartHover();
   $("#screen-run").addEventListener("click", renderScreener);
   $("#screen-reset").addEventListener("click", () => { $("#filter-change").value = -99; $("#filter-pe").value = 999; $("#filter-volume").value = 0; renderScreener(); });
   $("#backtest-symbol").addEventListener("change", (event) => { state.symbol = event.target.value; renderBacktest(); });

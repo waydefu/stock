@@ -35,6 +35,15 @@ test("stateRow spans the given columns", () => {
   assert.ok(row.includes("state-empty"));
 });
 
+test("statePanel exposes loading and permission contracts", () => {
+  const loading = statePanel("loading", "t", "d");
+  assert.ok(loading.includes('role="status"'));
+  assert.ok(loading.includes("state-loading"));
+  const permission = statePanel("permission", "t", "d");
+  assert.ok(permission.includes('role="status"'));
+  assert.ok(permission.includes("state-permission"));
+});
+
 test("avgLast and fmtDay handle short series", () => {
   assert.equal(avgLast([1, 2, 3], 5), 2);
   assert.match(fmtDay(Date.UTC(2025, 0, 2)), /\d+\/\d+/);
