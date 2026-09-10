@@ -70,17 +70,13 @@ gh pr create --repo waydefu/stock --base main --head docs/sharpe-checkpoint --ti
 
 ---
 
-## Phase 2 — 回測殘留收尾（S）
+## Phase 2 — 回測殘留收尾（S）✅ 已完成（2026-09-10 UTC，PR#11）
 
 目標：關閉 R-008 與費用語義缺口，不留「以後再說」的指標。
 
 對應風險：R-008（Sharpe）、R-018（費用／滑價語義）。
 
 步驟：
-
-1. `riskFreeRate` 政策文件化：在 `docs/ARCHITECTURE.md` 邊界段加一行——預設 0＝未調整名目報酬，跨週期比較必須同 `periodsPerYear`＋同 risk-free 才可比。
-2. 費用可插拔證明（不改預設零費用）：加一個 `FeeModel` 注入測試，用固定比例 fee model 跑一次 buy＋full sell，斷言 `totalFees > 0` 且 accounting invariants 仍成立；預設 prototype 仍為 `zero-fee-paper`，UI／README 維持「紙上零費用模型」字樣。
-3. Backtest 滑價 vs paper 費用分工寫進 `docs/ARCHITECTURE.md`：前者是歷史模擬假設，後者是執行模型，名稱相同但實作分開。
 
 ```bash
 git checkout -b feat/fee-model-proof
@@ -94,9 +90,11 @@ gh pr create --repo waydefu/stock --base main --head feat/fee-model-proof --titl
 
 驗收：
 
-- [ ] R-008 可關閉（min-sample＋risk-free 皆有契約＋測試＋文件）
-- [ ] 預設 paper 行為零變更（既有現金數字測試全過）
-- [ ] `docs/ARCHITECTURE.md` 明確寫出 backtest-slip vs paper-fee 分工
+- [x] R-008 可關閉（min-sample＋risk-free 皆有契約＋測試＋文件）
+- [x] 預設 paper 行為零變更（既有現金數字測試全過）
+- [x] `docs/ARCHITECTURE.md` 明確寫出 backtest-slip vs paper-fee 分工
+
+證據：PR#11（`tests/fee-model.test.js` 4 測試通過、`js/paper.js:141` 修正 snapshot feeModel 讀取）、111 tests 綠、check:ui 21/21。
 
 ---
 
