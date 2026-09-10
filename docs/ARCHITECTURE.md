@@ -1,22 +1,6 @@
-# Architecture & Research Synthesis
+# 架構研究矩陣
 
-## 研究結論
-
-本專案不是把 50 個產品的畫面拼在一起，而是把不同工作模組分開研究，再用一條可稽核的資料流整合。[1][4][6] 這份 architecture 研究附錄當時收錄 **61 個來源頁**；目前全專案 research ledger 已擴充到 93 個來源頁，新增 benchmark 與 accessibility／CI evidence 另見 `docs/UI_UX_BENCHMARK.md` 與 `docs/RESEARCH_LEDGER.md`。
-
-### 模組決策矩陣
-
-| 模組 | 參考重點 | 本專案採用 | 明確不學的缺點 |
-|---|---|---|---|
-| 市場儀表板 | Koyfin 的可組態儀表板與 market movers；Finviz Matrix 的市值／產業視覺分層；TradingView 的熱圖與 screener。[1][4][6] | 上方先顯示市場廣度、熱圖、持倉暴露與異動，再進入單一標的 | 不用大型數字佔滿畫面；不把模擬數字偽裝成即時行情 |
-| 圖表與工作區 | TradingView 的跨裝置／多面板 workspace；thinkorswim 的 Monitor／Trade／Analyze／Scan 分區；TC2000 的 chart、watchlist、journal。[9][16][17][44] | 看盤頁把標的、K 線、技術讀數、資料假設放在同一決策面；選標的可回到同一上下文 | 不複製多層選單；不讓下單按鈕與研究讀數互相遮蔽 |
-| 選股與研究 | Koyfin 的大量條件、保存 watchlist；Stock Rover 的表格比較、長期基本面；XQ 的台股基本／技術／財務／籌碼欄位。[3][18][19][26][27] | 先用少量核心條件快速篩，再能保存／回看條件；結果直接開到看盤 | 不堆 5,000 個欄位讓新手找不到入口；不把篩選結果當交易訊號 |
-| 回測與策略研究 | TradingView 明確列出資金、倉位、手續費、滑價與成交設定；TrendSpider 連接測試到 bot；QuantConnect／VectorBT／Backtrader 拆出研究、組合、成交分析。[7][8][10][12][13][14] | bar close 產生訊號、下一根開盤成交；手續費／滑價非零；回報交易明細、回撤、勝率、Sharpe 與假設 | 不用零成本、未來函數、只看淨利；不宣稱回測等於實盤 |
-| 紙上交易與接線 | Alpaca 的 paper/live 差異說明；IBKR 的 paper account、API 狀態與 precautionary settings；Shioaji／Fugle 的台股行情與交易 API。[36][38][39][40][41][43][25][30][31] | paper 是唯一內建執行模式；UI、風控、帳本與未來 broker adapter 分離 | 不在前端放秘密；不把換 endpoint 當成上線；不跳過訂單狀態回讀 |
-| 風控與治理 | IBKR 的訂單限制與 API precaution；cTrader plugin 交易需明確 permission；TradeStation 的模擬／API 路徑；XQ 的策略執行紀錄。[41][42][45][50][27] | 角色權限、單筆名目上限、日損斷路器、二次確認、只增稽核日誌、CSV 匯出 | 不允許一般角色關閉風控；不靜默縮單／改價；不以 UI 角色冒充服務端授權 |
-| 台股特殊資料 | Fugle 的 candles、速率限制、API key 與 corporate actions；XQ 的多市場／多頻率與策略紀錄；CMoney 的標準化資料 API。[31][32][33][26][27][28][29] | 把資料來源與 corporate actions 列為 adapter 責任；資料狀態要能顯示來源／時間／限制 | 不把第三方抓取資料當成授權 API；不忽略除權息造成的歷史斷裂 |
-
-## 系統資料流
+## 模組職責邊界
 
 ```text
 [UI: Monitor / Explore / Operate]
@@ -35,14 +19,14 @@
                   [RiskEngine + RBAC + confirmation]
                          │
                          ▼
-                    [AuditLog]
+                       [AuditLog]
 ```
 
 ### 邊界
 
 - `js/data.js`：資料與純技術指標；目前只提供固定模擬資料。
 - `js/market-data.js`：行情入口；UI／回測只經 adapter 取數，live adapter 照同介面替換。
-- `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。
+- `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。**backtest slippage（`slippageBps`）是歷史模擬假設；paper fees（`FeeModel`）是執行模型。兩者名稱相似但實作分開、互不干涉。**
 - `js/market-rules.js`：TW／US market rules contract；目前 TW partial sourced、US simplified，尚未強制到 broker。
 - `js/session-clock.js`：market-local timezone session key；calendar policy 是 `simplified-weekday`，不是 exchange holiday calendar。
 - `js/trading-calendar.js`：明確命名的 simplified weekday calendar，供 deterministic data layer 使用。
