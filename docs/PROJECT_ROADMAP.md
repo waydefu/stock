@@ -2,7 +2,7 @@
 
 ## Status
 
-Current checkpoint `df0366a` has 69 tests green, `check:ui` 16 green, and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current checkpoint `604fbba` has 107 tests green, `check:ui` 21 green, `score:ui` 100/100 PASS, and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
 
 ## Phase 0 — Baseline（完成）
 
@@ -165,3 +165,11 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 ## Phase 9 — Production-readiness study（不等於 production deploy）
 
 只做 gap analysis：auth、MFA、secrets、multi-tenant、persistent audit、reconciliation、legal／data licensing、incident response。live broker、正式部署、branch protection 仍需明確決策。
+
+## Phase 10 — Quant research framework 第一輪（完成，PR#9）
+
+已落地：Strategy／Signal 契約（`js/strategy.js`）、研究基準庫（`js/alpha.js`：cash／buyHold／multi-horizon trend，皆有 hypothesis＋warmup）、Portfolio 層（`js/portfolio.js`：fixed-fraction／full-notional／capped vol overlay／hard limits）、研究引擎（`js/research.js`：分層回測、IS/OOS、walk-forward、cost stress、parameter surface、6-check promotion gate）、策略中心 UI（benchmark 同場、gate、provenance、robustness，不自動晉升）。
+
+誠實結果：trend 在 2330 模擬資料 gate FAIL；框架按設計拒絕弱證據。
+
+仍待（皆需先有資料／證據才動工）：value／quality interface（缺 point-in-time fundamentals）、pairs／regime、多標的 universe、TWAP／VWAP／participation execution（缺 intraday granularity）、FUTURE Phase 2 費用可插拔證明、瀏覽器 4 viewport 截圖（待 Chromium 環境修復，見 R-020）。

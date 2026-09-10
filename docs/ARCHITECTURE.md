@@ -25,7 +25,10 @@
 [MarketDataAdapter] ──> [deterministic seed data in prototype]
               │
               ├──> [Indicators + Screener]
-              ├──> [Backtest: signal at close → fill next open]
+              ├──> [Backtest: signal at close → fill next open]（legacy 相容路徑）
+              ├──> [Research: Strategy → Signal → Portfolio → next-bar-open]
+              │         ├──> [IS / OOS + walk-forward + cost stress + parameter surface]
+              │         └──> [Promotion gate → lifecycle（不自動進 paper）]
               └──> [PaperBroker]
                          ▲
                          │ only after
@@ -46,7 +49,11 @@
 - `js/corporate-actions.js`：SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING schema contract；尚未取得或套用調整資料。
 - `js/execution-model.js`：立即 paper execution boundary；MATCHING 只保留未實作 contract。
 - `js/order-errors.js`：stable order／risk／broker error codes。
-- `js/backtest.js`：策略、成交假設、績效統計；不呼叫券商。
+- `js/backtest.js`：策略、成交假設、績效統計；不呼叫券商。legacy 融合迴圈（相容保留，見 R-021）；新研究走 `js/research.js`。
+- `js/strategy.js`：Strategy／Signal 契約、long-only 映射、註冊表、生命週期門（新策略不得自動進 paper）。
+- `js/alpha.js`：研究基準庫（cash／buyHold／multi-horizon trend，皆有 hypothesis＋warmup）。
+- `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
+- `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate。
 - `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）。
 - `js/paper.js`：本機紙上帳本；將來 broker adapter 必須維持相同狀態回讀介面。
 - `js/order-state.js`：deterministic order status 與 transition event。
