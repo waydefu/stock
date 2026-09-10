@@ -138,7 +138,7 @@ export class PaperBroker {
       cash: account.cash,
       realizedPnl: account.realizedPnl,
       totalFees: account.totalFees,
-      feeModel: account.feeModel,
+      feeModel: this.#feeModel.name,
       sessionKey: account.sessionKey,
       sessionOpenEquity: account.sessionOpenEquity,
       positions,
