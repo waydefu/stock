@@ -73,10 +73,10 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 - AuditLog 以 versioned localStorage 進行 session persistence；明確不是 tamper-proof／server append-only audit。
 - dynamic text 主要 sinks 加入 `escapeHtml` helper 與 regression test。
 - GitHub Actions full SHA pin、Dependabot weekly config、官方 secure-use review。
+- **ADR-005 persistence strategy defined**: schema version guard + PERSISTENCE_RESET audit event, single-tab prototype scope documented.
 
 仍待：
 
-- formal migration policy（schema version bump／migration path）。
 - actor／request id、multi-tab scope、server-grade append-only audit。
 - dynamic `innerHTML` 對 provider／user input 的 safe DOM boundary。
 - secret scanning、code scanning、dependency review policy。
