@@ -19,9 +19,10 @@
 | API-first paper/live separation and simulator limitations | [36] | Alpaca official docs | broker boundary | Provider policy changes | paper-only adapter and explicit mode |
 | Taiwanese quant flow and provider API boundary | [26][30] | XQ／Fugle official | TW research／adapter | Highly time-sensitive | verify rules, rate limits, corporate actions before integration |
 | TWSE regular／odd-lot／price-limit baseline | [95][96][97] | TWSE official rules | MarketRules contract | Highly time-sensitive | regular unit、odd-lot limit/day rules、daily limit are sourced; exceptions remain explicit gaps。 |
-|| TWSE tick size schedule (營業細則第62條) | [95][98] | TWSE official rules | MarketRules contract | Highly time-sensitive | 6 price bands with tick sizes 0.01/0.05/0.10/0.50/1.00/5.00 implemented。 |
+|| TWSE tick size schedule (營業細則第62條) | [95][98] | TWSE official rules | MarketRules contract | Highly time-sensitive | 6 price bands with tick sizes 0.01/0.05/0.10/0.50/1.00/5.00 implemented; effectiveFrom resolver added。 |
 || TWSE daily price limit 10% with tick rounding (營業細則第63條) | [95][98] | TWSE official rules | MarketRules contract | Highly time-sensitive | Limit up rounded down, limit down rounded up to tick; example 40.60→up 44.65/down 36.55 verified。 |
 || TWSE trading sessions: pre-market call auction 08:30-09:00, continuous 09:00-13:25, pre-close call auction 13:25-13:30 | [95] | TWSE official rules | MarketRules contract | Stable | Order type restrictions per session enforced (limit only in call auctions)。 |
+|| TWSE 2026-12-07 odd-lot regression: 盤中零股交易開盤時間提前至 09:00 | [98] | TWSE official news | MarketRules contract | Highly time-sensitive | SimplifiedWeekdayCalendar remains simplified; no session change in prototype。 |
 | QuantConnect Algorithm Framework 五層分工（Universe／Alpha／Portfolio Construction／Execution／Risk Management、可互換模組） | [12]＋次級整理 [98][99] | Primary：QC official docs；Secondary：community guides（不得覆蓋 primary） | Strategy／Signal／Portfolio／Execution 分層設計 | Framework guidance evolves | 只取「分層＋可互換」工程概念；本 repo 不依賴其程式碼或 API；legacy 融合迴圈見 R-021。 |
 | Volatility-managed portfolios：波動高時降險可提高 Sharpe；受限版本測試 leverage cap 1／1.5 | [100][101] | Primary：Journal of Finance＋NBER working paper | VolatilityTargetingOverlay（capped leverage） | Published research，stable | 低波動不變無限槓桿：maxLeverage 必須有限；本 repo 只做單標的 overlay，未做多因子。 |
 | 時間序列動量／橫截面動量／價值動量／配對交易／data-snooping 的 canonical 引用（本輪未重讀全文，只記研究假說出處） | [102][103][104][105][106][107] | Journals（JFE／JF／RFS／Econometrica）＋AQR 白皮書 | multi-horizon trend hypothesis；pairs／regime／White 檢驗留待後續 | Canonical references，需實作前重查 | 多 horizon 組合只為穩健高原，不宣稱機構級；pairs／regime 未達資料門檻不實作。 |
@@ -75,12 +76,12 @@
 [97] https://twse-regulation.twse.com.tw/ENG/EN/law/DOC01.aspx?FLCODE=FL007304&FLNO=63
 [98] https://www.twse.com.tw/zh/products/system/trading.html
 [99] https://www.quantconnect.com/docs/v2/writing-algorithms/algorithm-framework
-[99] https://alphanova.tech/blog/quantconnect-lean-algorithmic-trading-engine
-[100] https://doi.org/10.1111/jofi.12513
-[101] https://www.nber.org/papers/w22208
-[102] https://doi.org/10.1016/j.jfineco.2011.11.006
-[103] https://www.aqr.com/Insights/Research/White-Papers/A-Century-of-Evidence-on-Trend-Following-Investing
+[100] https://alphanova.tech/blog/quantconnect-lean-algorithmic-trading-engine
+[101] https://doi.org/10.1111/jofi.12513
+[102] https://www.nber.org/papers/w22208
+[103] https://doi.org/10.1016/j.jfineco.2011.11.006
 [104] https://doi.org/10.1111/j.1540-6261.1993.tb04702.x
-[105] https://doi.org/10.1093/rfs/hhj020
+[105] https://doi.org/10.1111/j.1540-6261.1993.tb04702.x
 [106] https://doi.org/10.1111/1468-0262.00152
-[107] https://www.aqr.com/Insights/Research/Journal-Article/Value-and-Momentum-Everywhere
+[107] https://www.aqr.com/Insights/Research/White-Papers/A-Century-of-Evidence-on-Trend-Following-Investing
+[108] https://www.aqr.com/Insights/Research/Journal-Article/Value-and-Momentum-Everywhere

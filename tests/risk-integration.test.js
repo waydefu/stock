@@ -23,12 +23,13 @@ test("paper snapshot wires session daily PnL into the account contract", () => {
 });
 
 test("execution boundary rechecks cash after a preview becomes stale", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage() });
+  const timestamp = new Date("2025-01-06T01:00:00.000Z").getTime(); // Monday 09:00 Taipei
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => new Date(timestamp).toISOString() });
   const risk = new RiskEngine({ maxOrderNotionalPct: 0.2 });
-  const candidate = { market: "TW", symbol: "2330", side: "buy", qty: 2_000, price: 100, lot: "regular", clientOrderId: "stale-order" };
+  const candidate = { market: "TW", symbol: "2330", side: "buy", qty: 2_000, price: 100, lot: "regular", clientOrderId: "stale-order", referencePrice: 100, timestamp };
 
   // Simulate another trusted paper operation changing account cash after preview.
-  broker.placeOrder({ market: "TW", symbol: "2317", side: "buy", qty: 9_000, price: 100, lot: "regular", clientOrderId: "stale-cash-seed" });
+  broker.placeOrder({ market: "TW", symbol: "2317", side: "buy", qty: 9_000, price: 100, lot: "regular", clientOrderId: "stale-cash-seed", referencePrice: 100 });
   const result = executePaperOrder({ broker, risk, order: candidate });
 
   assert.equal(result.filled, false);
@@ -43,7 +44,7 @@ test("execution boundary rechecks the kill switch at confirm time", () => {
   const result = executePaperOrder({
     broker,
     risk,
-    order: { market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, clientOrderId: "kill-switch-confirm" },
+    order: { market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, referencePrice: 100, orderType: "limit", clientOrderId: "kill-switch-confirm" },
   });
 
   assert.equal(result.filled, false);

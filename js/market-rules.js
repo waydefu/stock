@@ -9,13 +9,13 @@ const TW_LIMIT_SOURCE = "https://twse-regulation.twse.com.tw/ENG/EN/law/DOC01.as
 
 // TWSE tick size schedule per 營業細則第62條
 // Price band: [minPrice, maxPrice) -> tick size
+// 0-10: 0.01, 10-50: 0.05, 50-100: 0.10, 100-500: 0.50, 500-1000: 1.00, >=1000: 5.00
 const TW_TICK_SCHEDULE = Object.freeze([
   { min: 0, max: 10, tick: 0.01 },
   { min: 10, max: 50, tick: 0.05 },
   { min: 50, max: 100, tick: 0.10 },
-  { min: 100, max: 150, tick: 0.50 },
-  { min: 150, max: 500, tick: 1.00 },
-  { min: 500, max: 1000, tick: 5.00 },
+  { min: 100, max: 500, tick: 0.50 },
+  { min: 500, max: 1000, tick: 1.00 },
   { min: 1000, max: Infinity, tick: 5.00 },
 ]);
 

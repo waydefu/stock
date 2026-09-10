@@ -36,7 +36,7 @@ test("US market rules remain explicitly simplified until an official venue adapt
 });
 
 test("TW tick size schedule matches TWSE 營業細則第62條", () => {
-  // Test each price band
+  // Test each price band: 0-10: 0.01, 10-50: 0.05, 50-100: 0.10, 100-500: 0.50, 500-1000: 1.00, >=1000: 5.00
   assert.equal(getTickSize("TW", 5), 0.01);      // < 10
   assert.equal(getTickSize("TW", 9.99), 0.01);
   assert.equal(getTickSize("TW", 10), 0.05);     // 10-50
@@ -44,12 +44,12 @@ test("TW tick size schedule matches TWSE 營業細則第62條", () => {
   assert.equal(getTickSize("TW", 49.99), 0.05);
   assert.equal(getTickSize("TW", 50), 0.10);     // 50-100
   assert.equal(getTickSize("TW", 99), 0.10);
-  assert.equal(getTickSize("TW", 100), 0.50);    // 100-150
-  assert.equal(getTickSize("TW", 149), 0.50);
-  assert.equal(getTickSize("TW", 150), 1.00);    // 150-500
-  assert.equal(getTickSize("TW", 499), 1.00);
-  assert.equal(getTickSize("TW", 500), 5.00);    // 500-1000
-  assert.equal(getTickSize("TW", 999), 5.00);
+  assert.equal(getTickSize("TW", 100), 0.50);    // 100-500
+  assert.equal(getTickSize("TW", 149.5), 0.50);  // boundary at 150
+  assert.equal(getTickSize("TW", 150), 0.50);    // 150 is in 100-500 band
+  assert.equal(getTickSize("TW", 499.5), 0.50);  // boundary at 500
+  assert.equal(getTickSize("TW", 500), 1.00);    // 500-1000
+  assert.equal(getTickSize("TW", 999), 1.00);
   assert.equal(getTickSize("TW", 1000), 5.00);   // >= 1000
   assert.equal(getTickSize("TW", 5000), 5.00);
   // US has no tick schedule

@@ -5,9 +5,10 @@ import { MemoryStorage } from "../js/paper.js";
 
 test("risk engine rejects an order above the notional cap", () => {
   const risk = new RiskEngine({ maxOrderNotionalPct: 0.2 });
+  const timestamp = new Date("2025-01-06T01:00:00.000Z").getTime(); // Monday 09:00 Taipei
   const decision = risk.approveOrder(
     { equity: 10000, cash: 10000, dailyPnl: 0, positions: [] },
-    { market: "US", symbol: "AAPL", side: "buy", qty: 30, price: 100 },
+    { market: "US", symbol: "AAPL", side: "buy", qty: 30, price: 100, orderType: "limit", timestamp },
   );
   assert.equal(decision.ok, false);
   assert.match(decision.reason, /上限/);
@@ -15,9 +16,10 @@ test("risk engine rejects an order above the notional cap", () => {
 
 test("risk engine trips the daily loss circuit breaker", () => {
   const risk = new RiskEngine({ maxDailyLossPct: 0.02 });
+  const timestamp = new Date("2025-01-06T01:00:00.000Z").getTime(); // Monday 09:00 Taipei
   const decision = risk.approveOrder(
     { equity: 10000, cash: 5000, dailyPnl: -250, positions: [] },
-    { market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100 },
+    { market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100, orderType: "limit", timestamp },
   );
   assert.equal(decision.ok, false);
   assert.equal(decision.code, "DAILY_LOSS_LIMIT");
@@ -26,8 +28,9 @@ test("risk engine trips the daily loss circuit breaker", () => {
 
 test("kill switch blocks future orders until explicitly reset", () => {
   const risk = new RiskEngine();
+  const timestamp = new Date("2025-01-06T01:00:00.000Z").getTime(); // Monday 09:00 Taipei
   risk.trip("manual test");
-  assert.equal(risk.approveOrder({ equity: 10000, cash: 10000, dailyPnl: 0, positions: [] }, { market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100 }).code, "KILL_SWITCH");
+  assert.equal(risk.approveOrder({ equity: 10000, cash: 10000, dailyPnl: 0, positions: [] }, { market: "US", symbol: "AAPL", side: "buy", qty: 1, price: 100, orderType: "limit", timestamp }).code, "KILL_SWITCH");
   risk.reset();
   assert.equal(risk.isTripped(), false);
 });

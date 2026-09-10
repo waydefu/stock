@@ -1,5 +1,5 @@
 /* 風控與稽核：先判斷、再讓 paper broker 改狀態；拒絕要有代碼與可行動原因。 */
-import { defaultLotForMarket, validateQuantity } from "./market-rules.js";
+import { defaultLotForMarket, validateQuantity, validateTick, validatePriceLimit, validateOrderTypeInSession } from "./market-rules.js";
 import { ORDER_ERROR_CODE } from "./order-errors.js";
 
 const DEFAULT_RISK = {
@@ -37,6 +37,33 @@ export class RiskEngine {
     if (!Number.isFinite(order?.price) || order.price <= 0) return { ok: false, code: "INVALID_PRICE", reason: "價格必須是正數" };
     const quantityDecision = validateQuantity(order.market, order.qty, order.lot ?? defaultLotForMarket(order.market));
     if (!quantityDecision.ok) return { ok: false, code: quantityDecision.code, reason: quantityDecision.reason };
+
+    // Tick size validation
+    const tickDecision = validateTick(order.market, order.price);
+    if (!tickDecision.ok) return { ok: false, code: tickDecision.code, reason: tickDecision.reason };
+
+    // Price limit validation (requires reference price for TW)
+    if (order.market === "TW") {
+      if (!Number.isFinite(order.referencePrice) || order.referencePrice <= 0) {
+        return { ok: false, code: "REFERENCE_PRICE_REQUIRED", reason: "台股漲跌幅驗證需提供參考價" };
+      }
+      const priceLimitDecision = validatePriceLimit(order.market, order.price, order.referencePrice);
+      if (!priceLimitDecision.ok) {
+        // Map codes to stable ones
+        const codeMap = {
+          "PRICE_LIMIT_UP": "PRICE_ABOVE_LIMIT",
+          "PRICE_LIMIT_DOWN": "PRICE_BELOW_LIMIT",
+        };
+        return { ok: false, code: codeMap[priceLimitDecision.code] ?? priceLimitDecision.code, reason: priceLimitDecision.reason };
+      }
+
+      // Session validation for TW only
+      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", order.timestamp ?? Date.now());
+      if (!sessionDecision.ok) {
+        return { ok: false, code: sessionDecision.code === "OUTSIDE_TRADING_HOURS" ? "MARKET_CLOSED" : sessionDecision.code, reason: sessionDecision.reason };
+      }
+    }
+
     const dailyPnl = Number(account?.dailyPnl ?? 0);
     const dailyLossPct = Math.abs(Math.min(0, dailyPnl)) / equity;
     if (dailyLossPct >= this.#config.maxDailyLossPct) {
