@@ -27,7 +27,8 @@ export function orderEstimate({ qty, price, equity, commissionRate = 0.001425 })
 export function statePanel(kind, title, detail) {
   const safeKind = ["empty", "error", "loading", "permission", "success"].includes(kind) ? kind : "empty";
   const role = safeKind === "error" ? "alert" : "status";
-  return `<div class="state-block state-${safeKind}" role="${role}"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
+  const marker = safeKind === "loading" ? '<span class="spinner" aria-hidden="true"></span>' : "";
+  return `<div class="state-block state-${safeKind}" role="${role}">${marker}<strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
 }
 
 export function stateRow(colspan, kind, title, detail) {

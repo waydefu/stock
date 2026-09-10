@@ -50,6 +50,9 @@ jobs:
       - name: Check required static files and module paths
         run: npm run check:static
 
+      - name: Check UI quality gate
+        run: npm run check:ui
+
       - name: Smoke-test static server
         run: |
           python3 -m http.server 4173 --directory . > /tmp/stock-http.log 2>&1 &

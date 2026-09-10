@@ -260,4 +260,12 @@ canvas.chart { width: 100%; height: 220px; min-height: 220px; display: block; bo
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition: none !important; }
+  .spinner, .notice.order-ack { animation: none !important; }
 }
+
+/* P1 狀態：loading 指示器與下單 ack 過渡（reduced-motion 下皆關閉，見上） */
+.state-loading { border-style: solid; }
+.spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--brand-ink); border-radius: 50%; animation: spin var(--motion-slow) linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.notice.order-ack { animation: ack-flash var(--motion-slow) var(--ease-standard) 1; }
+@keyframes ack-flash { from { opacity: 0.35; } to { opacity: 1; } }

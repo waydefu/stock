@@ -37,7 +37,7 @@ function chartBounds(values, top = 18, bottom = 42, height = 300) {
   return { min: min - pad, max: max + pad, top, bottom, plotHeight: height - top - bottom };
 }
 
-export function drawCandles(canvas, bars, { fast = 20, slow = 50, window = 90 } = {}) {
+export function drawCandles(canvas, bars, { fast = 20, slow = 50, window = 90, hover = null } = {}) {
   if (!canvas || !bars?.length) return;
   const { ctx, width, height } = prepare(canvas);
   const data = bars.slice(-window);
@@ -85,6 +85,41 @@ export function drawCandles(canvas, bars, { fast = 20, slow = 50, window = 90 } 
   line(ctx, 40, lastY, width - 8, lastY, lastColor, 1);
   ctx.setLineDash([]);
   text(ctx, lastBar.c.toFixed(2), width - 8, lastY - 4, lastColor, "right");
+  if (Number.isInteger(hover) && hover >= 0 && hover < data.length) drawHover(ctx, data[hover], xAt(hover), yAt, width, candleAreaBottom, bounds.top);
+}
+
+/**
+ * Pointer crosshair + OHLC tooltip for the main price chart.
+ * Pure geometry: candleHoverAt maps a CSS-pixel x to a bar; drawHover renders it.
+ * Keyboard/screen-reader users get the same OHLC from the screener and positions tables.
+ */
+export function candleHoverAt(bars, width, x, { window = 90 } = {}) {
+  if (!bars?.length || !Number.isFinite(x) || !Number.isFinite(width) || width <= 52) return null;
+  const data = bars.slice(-window);
+  const xStep = (width - 52) / data.length;
+  const index = Math.round((x - 42 - xStep / 2) / xStep);
+  if (index < 0 || index >= data.length) return null;
+  return { index, bar: data[index] };
+}
+
+function drawHover(ctx, bar, x, yAt, width, bottom, top) {
+  ctx.setLineDash([3, 3]);
+  line(ctx, x, top, x, bottom, "#8b90a7", 1);
+  const closeY = yAt(bar.c);
+  line(ctx, 40, closeY, width - 8, closeY, "#8b90a7", 1);
+  ctx.setLineDash([]);
+  const lines = [`O ${bar.o.toFixed(2)}  H ${bar.h.toFixed(2)}`, `L ${bar.l.toFixed(2)}  C ${bar.c.toFixed(2)}`];
+  ctx.font = "11px ui-monospace, monospace";
+  const boxWidth = 148, boxHeight = 34;
+  const boxX = Math.min(Math.max(x + 10, 44), Math.max(44, width - boxWidth - 4));
+  const boxY = Math.min(Math.max(closeY - boxHeight - 8, top + 2), bottom - boxHeight - 2);
+  ctx.fillStyle = "#1b1e27";
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+  ctx.strokeStyle = "#3a3f52";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxWidth - 1, boxHeight - 1);
+  text(ctx, lines[0], boxX + 8, boxY + 14);
+  text(ctx, lines[1], boxX + 8, boxY + 28);
 }
 
 function drawSeries(ctx, values, xAt, yAt, color) {
