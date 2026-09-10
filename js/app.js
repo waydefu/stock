@@ -12,6 +12,17 @@ import { escapeHtml } from "./dom.js";
 import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
+import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
+import { fixedFraction, fullNotional } from "./portfolio.js";
+import {
+  evaluatePromotion,
+  parameterSurface,
+  runCostStress,
+  runResearchBacktest,
+  splitIS_OOS,
+  summarizeResearch,
+  walkForward,
+} from "./research.js";
 
 const state = {
   market: "TW",
@@ -29,6 +40,11 @@ const broker = new PaperBroker({ storage });
 const marketData = new SimulatedAdapter();
 const risk = new RiskEngine(DEFAULT_RISK);
 const audit = new AuditLog({ storage });
+const registry = buildDefaultRegistry();
+const PAGE_ORDER = ["dashboard", "chart", "screener", "backtest", "trade", "risk"];
+const isResearchStrategy = (id) => typeof id === "string" && id.startsWith("research:");
+const researchDef = (id) => registry.get(id.slice("research:".length));
+const na = (value, format) => value === null || value === undefined || !Number.isFinite(value) ? "N/A" : format(value);
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const nextClientOrderId = () => globalThis.crypto?.randomUUID?.() ?? `ui-${Date.now()}-${++clientOrderSequence}`;
@@ -147,6 +163,7 @@ function renderDashboard() {
     ["上漲", up, "up"], ["下跌", down, "down"], ["持平", flat, "neutral"],
   ].map(([label, value, cls]) => `<div><span class="muted fs-12">${escapeHtml(label)}</span><div class="kpi ${cls}">${value}</div></div>`).join("");
   renderAudit("#dashboard-audit");
+  a11yOpenSymbols();
 }
 
 function favButton(code, favorites) {
@@ -205,12 +222,21 @@ function renderScreener() {
   $("#screener-table tbody").innerHTML = screenerBody;
   $$("#screener-table [data-open-symbol]").forEach((row) => row.addEventListener("click", () => openSymbol(row.dataset.openSymbol)));
   bindFavButtons("#screener-table", renderScreener);
+  a11yOpenSymbols();
 }
 
 function renderBacktest() {
   const select = $("#backtest-symbol");
   if (select) state.symbol = select.value || state.symbol;
   const strategy = $("#backtest-strategy").value;
+  const research = isResearchStrategy(strategy);
+  $("#backtest-legacy-ma").hidden = research;
+  $("#backtest-legacy-slow").hidden = research;
+  $("#backtest-research-alloc").hidden = !research;
+  if (research) {
+    renderResearchBacktest(strategy);
+    return;
+  }
   const options = {
     initialCapital: Number($("#backtest-capital").value) || 1_000_000,
     fast: Number($("#backtest-fast").value) || 20,
@@ -232,12 +258,139 @@ function renderBacktest() {
   $("#backtest-metrics").innerHTML = [
     ["淨損益", money(m.netProfit, getSymbol(state.symbol).ccy), tone(m.netProfit)],
     ["最大回撤", `${m.maxDrawdownPct.toFixed(2)}%`, "down"],
-    ["勝率／交易數", `${m.winRate.toFixed(1)}% / ${m.tradeCount}`, "neutral"],
+    ["勝率／交易數", m.tradeCount ? `${m.winRate.toFixed(1)}% / ${m.tradeCount}` : "N/A・無交易", "neutral"],
     ["Sharpe", m.sharpeInsufficient ? "樣本不足" : formatMetric(m.sharpe), m.sharpeInsufficient ? "neutral" : m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
   $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K</span></div>`;
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
+}
+
+function researchCosts() {
+  return {
+    commissionRate: (Number($("#backtest-commission").value) || 0) / 100,
+    slippageBps: Number($("#backtest-slippage").value) || 0,
+    initialCapital: Number($("#backtest-capital").value) || 1_000_000,
+  };
+}
+
+function researchAllocate(def, frac) {
+  return def.id === "buyHold" ? fullNotional() : fixedFraction(frac);
+}
+
+/* 分層研究回測渲染：IS／OOS 分開跑、分開顯示；展示用全樣本曲線只加 OOS 分界線。 */
+function renderResearchBacktest(strategyId) {
+  const def = researchDef(strategyId);
+  const costs = researchCosts();
+  const frac = Math.min(1, Math.max(0.01, Number($("#backtest-allocate").value) || 0.25));
+  const bars = marketData.getBars(state.symbol);
+  const ccy = getSymbol(state.symbol).ccy;
+  let split;
+  try {
+    split = splitIS_OOS(bars, 0.4);
+  } catch (error) {
+    $("#backtest-metrics").innerHTML = statePanel("error", "無 OOS 資料", error.message);
+    $("#backtest-assumptions").innerHTML = statePanel("error", "模型假設不可用", "資料不足以切出樣本內／外區間。");
+    $("#backtest-trades tbody").innerHTML = stateRow(7, "error", "沒有成交明細", "先補足研究資料。");
+    return;
+  }
+  const runOpts = { symbol: state.symbol, strategy: def, allocate: researchAllocate(def, frac), ...costs };
+  const isS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.is }), {});
+  const oosS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.oos }), {});
+  const full = runResearchBacktest({ ...runOpts, bars });
+  const bench = {};
+  for (const id of ["cash", "buyHold"]) {
+    const base = registry.get(id);
+    bench[id] = summarizeResearch(runResearchBacktest({ symbol: state.symbol, strategy: base, allocate: researchAllocate(base, frac), bars, ...costs }), {});
+  }
+  $("#backtest-metrics").innerHTML = [
+    ["OOS 淨損益", money(oosS.netProfit, ccy), tone(oosS.netProfit)],
+    ["OOS Sharpe", na(oosS.sharpe, (v) => formatMetric(v)), oosS.sharpe === null ? "neutral" : "neutral"],
+    ["OOS 最大回撤", `${oosS.maxDrawdownPct.toFixed(2)}%`, "down"],
+    ["IS 淨損益（對照）", money(isS.netProfit, ccy), tone(isS.netProfit)],
+  ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
+  const canvas = $("#equity-chart");
+  drawLine(canvas, full.equity, { color: "#855bfb", baseline: costs.initialCapital, oosStart: split.is.length });
+  $("#backtest-assumptions").innerHTML = [
+    ["策略", `${escapeHtml(def.name)} ${escapeHtml(def.version)}`],
+    ["假說", escapeHtml(def.hypothesis)],
+    ["暖機", `${def.warmup} 根（含 warmup 前不交易）`],
+    ["成交", "立即紙上模擬成交（next-bar-open）"],
+    ["配置", def.id === "buyHold" ? "全額 buy&hold 基準" : `固定比例 ${(frac * 100).toFixed(0)}%（Portfolio 層決定，策略不碰股數）`],
+    ["手續費／滑價", `${(costs.commissionRate * 100).toFixed(4)}%／${costs.slippageBps} bp`],
+    ["IS／OOS", `${split.is.length}／${split.oos.length} 根（時序切分，OOS 為後段）`],
+    ["基準比較", `Cash ${money(bench.cash.netProfit, ccy)}・Buy&Hold ${money(bench.buyHold.netProfit, ccy)}（同資金同成本）`],
+    ["費用合計", `手續費 ${money(full.totalFees, ccy)}・滑價 ${money(full.totalSlippage, ccy)}`],
+    ["資料", "固定 250 根模擬日 K"],
+  ].map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join("");
+  const isLen = split.is.length;
+  $("#backtest-trades tbody").innerHTML = full.trades.length ? full.trades.map((trade) => {
+    const tag = trade.entrySignalIndex >= isLen ? "OOS・" : "IS・";
+    return `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${tag}${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`;
+  }).join("") : stateRow(7, "empty", "此策略在全樣本沒有完成交易", "零交易不是低風險；先檢查暖機與訊號。");
+  renderResearchProvenance();
+}
+
+/* 策略中心：基準永遠同場比較；gate 只評研究策略；不自動晉升任何策略。 */
+function runStrategyComparison() {
+  const bars = marketData.getBars(state.symbol);
+  const costs = researchCosts();
+  const ccy = getSymbol(state.symbol).ccy;
+  const tbody = $("#strategy-table tbody");
+  let split;
+  let windows;
+  try {
+    split = splitIS_OOS(bars, 0.4);
+    windows = walkForward(bars, { folds: 3, minWindow: 30 });
+  } catch (error) {
+    tbody.innerHTML = stateRow(10, "error", "策略比較無法執行", error.message);
+    return;
+  }
+  const surfaceCells = [10, 20, 30].map((short) => {
+    const variant = makeTrendStrategy({ id: `trend-s${short}`, short });
+    const result = runResearchBacktest({ symbol: state.symbol, strategy: variant, allocate: fixedFraction(0.25), bars, ...costs });
+    return { params: { short }, value: summarizeResearch(result, {}).netProfit };
+  });
+  const surface = parameterSurface(surfaceCells);
+  const surfaceFlag = surface.overfitRisk ? "OVERFIT_RISK" : "STABLE";
+  const rows = ["cash", "buyHold", "multiHorizonTrend"].map((id) => {
+    const def = registry.get(id);
+    const runOpts = { symbol: state.symbol, strategy: def, allocate: researchAllocate(def, 0.25), ...costs };
+    const isS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.is }), {});
+    const oosS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.oos }), {});
+    const stress = runCostStress({ ...runOpts, bars }, (r) => summarizeResearch(r, {}), id === "multiHorizonTrend" ? [0.5, 1, 2, 3] : [1, 2]);
+    const oosWindows = windows.map((w) => summarizeResearch(runResearchBacktest({ ...runOpts, bars: w.test }), {}));
+    const gate = id === "multiHorizonTrend"
+      ? evaluatePromotion({ strategyId: id, isSummary: isS, oosSummaries: oosWindows, costStress: stress, surfaceFlag, correctnessFindings: [] })
+      : null;
+    return { def, isS, oosS, stress, gate };
+  });
+  tbody.innerHTML = rows.map(({ def, isS, oosS, stress, gate }) => `<tr><td><b>${escapeHtml(def.name)}</b><br><span class="muted fs-11">${escapeHtml(def.hypothesis.slice(0, 28))}…</span></td><td><span class="badge neutral">DRAFT</span></td><td class="n ${tone(isS.netProfit)}">${signed(isS.netProfit)}</td><td class="n ${tone(oosS.netProfit)}">${signed(oosS.netProfit)}</td><td class="n">${na(oosS.sharpe, (v) => v.toFixed(2))}</td><td class="n">${oosS.maxDrawdownPct.toFixed(2)}%</td><td class="n">${(oosS.turnover * 100).toFixed(1)}%</td><td class="n">${oosS.tradeCount}</td><td>${stress.fragile ? '<span class="badge down">EXECUTION_FRAGILE</span>' : '<span class="badge up">成本穩</span>'}</td><td>${gate === null ? '<span class="muted">基準不參評</span>' : gate.pass ? '<span class="badge up">GATE PASS</span>' : '<span class="badge down">GATE FAIL</span>'}</td></tr>`).join("");
+  const trend = rows.find((r) => r.def.id === "multiHorizonTrend");
+  $("#strategy-gate").innerHTML = trend.gate.checks.map((c) => `<div class="row"><span>${c.pass ? "✓" : "✗"} ${escapeHtml(c.id)}</span><span>${escapeHtml(c.detail)}</span></div>`).join("") + `<div class="row"><span>晉升</span><span>需人工決策；本頁不自動啟用 paper</span></div>`;
+  $("#research-robustness").innerHTML = [
+    `<div class="row"><span>參數平面（short 10／20／30）</span><span>${escapeHtml(surface.detail)}</span></div>`,
+    `<div class="row"><span>平面判定</span><span>${surface.flag ?? "STABLE 高原"}</span></div>`,
+    ...trend.stress.runs.map((r) => `<div class="row"><span>成本 ${r.mult}×</span><span>淨損益 ${signed(r.summary.netProfit)}・Sharpe ${na(r.summary.sharpe, (v) => v.toFixed(2))}・MDD ${r.summary.maxDrawdownPct.toFixed(1)}%・${r.summary.tradeCount} 筆</span></div>`),
+  ].join("");
+  renderResearchProvenance();
+  auditEvent("STRATEGY_COMPARE", { symbol: state.symbol, surface: surface.flag ?? "STABLE" });
+}
+
+function renderResearchProvenance() {
+  const element = $("#research-provenance");
+  if (!element) return;
+  const source = marketData.getSource();
+  const timezone = state.market === "TW" ? "Asia/Taipei" : "America/New_York";
+  element.innerHTML = [
+    ["來源", `${source.name}・${source.kind}`],
+    ["資料集", "固定 250 根模擬日 K"],
+    ["週期", "日 K（daily OHLCV）"],
+    ["時區", timezone],
+    ["更新", source.updatedAt],
+    ["新鮮度", "非即時・研究用"],
+    ["公司行動", "未調整（僅 schema contract）"],
+  ].map(([k, v]) => `<div class="row"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
 }
 
 function renderTrade() {
@@ -266,7 +419,7 @@ function updateOrderEstimate() {
   }
   const lot = market === "TW" ? (qty >= 1000 ? "整股" : "零股") : "美股";
   const overCap = estimate.equityPct > 20 ? "・超過單筆 20% 上限，預覽不會通過" : "";
-  box.textContent = `試算：名目 ${fmtPrice(estimate.notional)}・佔權益 ${estimate.equityPct.toFixed(2)}%・${lot}${overCap}（送出前仍須預覽＋二次確認）`;
+  box.textContent = `試算：名目 ${fmtPrice(estimate.notional)}・預估手續費 ${fmtPrice(estimate.estFee)}・佔權益 ${estimate.equityPct.toFixed(2)}%・${lot}・可用 ${money(account.cash, account.currency)}${overCap}（送出前仍須預覽＋二次確認）`;
 }
 
 function updateOrderPrice() {
@@ -286,7 +439,8 @@ function previewOrder(event) {
   const qty = Number($("#order-qty").value);
   const price = Number($("#order-price").value);
   const account = broker.snapshot(market, quoteMap(market));
-  const candidate = { market, symbol, side, qty, price, lot: market === "TW" ? "oddLot" : "regular", clientOrderId: nextClientOrderId() };
+  const lot = $("#order-lot").value || (market === "TW" ? "oddLot" : "regular");
+  const candidate = { market, symbol, side, qty, price, lot, clientOrderId: nextClientOrderId() };
   let decision;
   if (!permissionsFor(state.role).includes("paper:order")) decision = { ok: false, code: "ROLE_DENIED", reason: "目前角色是觀察者；切換 Trader 才能建立紙上訂單" };
   else decision = risk.approveOrder(account, candidate);
@@ -337,33 +491,108 @@ function confirmOrder() {
   renderAll();
 }
 function closeOrderModal() {
-  const modal = $("#order-modal");
+  closeModal($("#order-modal"));
+}
+
+function handleModalKeydown(event) {
+  for (const id of ["#order-modal", "#help-modal"]) {
+    const modal = $(id);
+    if (!modal || modal.hidden || !modal.classList.contains("open")) continue;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (id === "#order-modal") state.pendingOrder = null;
+      closeModal(modal);
+      return;
+    }
+    if (event.key !== "Tab") continue;
+    const focusable = [...modal.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])")];
+    if (!focusable.length) continue;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+}
+
+function closeModal(modal) {
   modal.classList.remove("open");
   modal.hidden = true;
   if (state.modalTrigger instanceof HTMLElement) state.modalTrigger.focus();
   state.modalTrigger = null;
 }
 
-function handleModalKeydown(event) {
-  const modal = $("#order-modal");
-  if (modal.hidden || !modal.classList.contains("open")) return;
-  if (event.key === "Escape") {
+function openHelp() {
+  state.modalTrigger = document.activeElement;
+  const modal = $("#help-modal");
+  modal.hidden = false;
+  modal.classList.add("open");
+  $("#help-close").focus();
+}
+
+function closeHelp() {
+  const modal = $("#help-modal");
+  if (!modal || modal.hidden) return;
+  closeModal(modal);
+}
+
+function openTicket(side) {
+  setPage("trade");
+  $("#order-side").value = side;
+  updateOrderEstimate();
+  $("#order-qty").focus();
+}
+
+/* 鍵盤可達性：div／tr 的 data-open-symbol 補 role＋tabindex；Enter／Space 啟動。 */
+function a11yOpenSymbols() {
+  $$("[data-open-symbol]").forEach((element) => {
+    if (element instanceof HTMLButtonElement || element instanceof HTMLAnchorElement) return;
+    if (!element.hasAttribute("tabindex")) element.setAttribute("tabindex", "0");
+    if (!element.hasAttribute("role")) element.setAttribute("role", "button");
+  });
+}
+
+function handleGlobalKeydown(event) {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.hasAttribute("data-open-symbol")
+    && !(target instanceof HTMLButtonElement) && !(target instanceof HTMLAnchorElement)
+    && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
-    state.pendingOrder = null;
-    closeOrderModal();
+    openSymbol(target.dataset.openSymbol);
     return;
   }
-  if (event.key !== "Tab") return;
-  const focusable = [...modal.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])")];
-  if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable.at(-1);
-  if (event.shiftKey && document.activeElement === first) {
+  const active = document.activeElement;
+  const tag = (active?.tagName || "").toLowerCase();
+  const typing = ["input", "textarea", "select"].includes(tag) || Boolean(active?.isContentEditable);
+  if (typing) return;
+  if (event.key === "/") {
     event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
+    $("#symbol-search").focus();
+  } else if (event.key >= "1" && event.key <= "6") {
+    setPage(PAGE_ORDER[Number(event.key) - 1]);
+  } else if (event.key === "?") {
+    openHelp();
+  } else if (event.key === "b" || event.key === "B") {
+    openTicket("buy");
+  } else if (event.key === "s" || event.key === "S") {
+    openTicket("sell");
+  }
+}
+
+function handleSymbolSearch(event) {
+  if (event.key !== "Enter") return;
+  const query = event.target.value.trim().toLowerCase();
+  if (!query) return;
+  const hit = SYMBOLS.find((item) => item.code.toLowerCase() === query)
+    ?? SYMBOLS.find((item) => item.code.toLowerCase().startsWith(query))
+    ?? SYMBOLS.find((item) => item.name.includes(event.target.value.trim()));
+  if (hit) {
+    event.target.value = "";
+    openSymbol(hit.code);
   }
 }
 
@@ -421,6 +650,15 @@ function initEvents() {
   $("#export-audit").addEventListener("click", downloadAudit);
   $("#order-modal").addEventListener("click", (event) => { if (event.target.id === "order-modal") { state.pendingOrder = null; closeOrderModal(); } });
   $("#order-modal").addEventListener("keydown", handleModalKeydown);
+  $("#help-modal").addEventListener("click", (event) => { if (event.target.id === "help-modal") closeHelp(); });
+  $("#help-modal").addEventListener("keydown", handleModalKeydown);
+  $("#help-close").addEventListener("click", closeHelp);
+  $("#shortcut-help").addEventListener("click", openHelp);
+  $("#symbol-search").addEventListener("keydown", handleSymbolSearch);
+  $("#order-lot").addEventListener("change", updateOrderEstimate);
+  $("#backtest-strategy").addEventListener("change", renderBacktest);
+  $("#strategy-run").addEventListener("click", runStrategyComparison);
+  document.addEventListener("keydown", handleGlobalKeydown);
   window.addEventListener("resize", () => { if (state.page === "chart") renderChart(); if (state.page === "backtest") renderBacktest(); });
 }
 
@@ -431,6 +669,8 @@ function renderDataSource() {
     badge.textContent = source.shortLabel;
     badge.title = `${source.name}：${source.note}（${source.updatedAt}）`;
   }
+  const label = $("#data-source");
+  if (label) label.textContent = `${source.name}・${source.updatedAt}終點・非即時`;
 }
 
 auditEvent("SESSION_OPEN", { app: "Stock Lab" });

@@ -14,13 +14,14 @@ export const avgLast = (values, length) => values.slice(-length).reduce((a, b) =
 
 // 下單票即時試算（純顯示用，不做風控決策；決策只走 preview→RiskEngine）。
 // 回傳 null 表示輸入不足，UI 顯示引導文字而非數字。
-export function orderEstimate({ qty, price, equity }) {
+export function orderEstimate({ qty, price, equity, commissionRate = 0.001425 }) {
   const q = Number(qty);
   const p = Number(price);
   const e = Number(equity);
   if (!Number.isInteger(q) || q <= 0 || !Number.isFinite(p) || p <= 0 || !Number.isFinite(e) || e <= 0) return null;
   const notional = q * p;
-  return { notional, equityPct: (notional / e) * 100 };
+  const comm = Math.max(0, Number(commissionRate) || 0);
+  return { notional, equityPct: (notional / e) * 100, estFee: notional * comm };
 }
 
 export function statePanel(kind, title, detail) {

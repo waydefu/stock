@@ -10,11 +10,17 @@
 <body>
   <header class="topbar">
     <div class="logo"><b>SL</b> Stock Lab</div>
+    <div class="cmdbar">
+      <input id="symbol-search" type="search" placeholder="搜尋代號／名稱…" aria-label="搜尋標的（快速鍵 /）" autocomplete="off">
+    </div>
     <div class="market-switch" aria-label="市場切換">
       <button type="button" data-market="TW" aria-pressed="true">台股 TW</button>
       <button type="button" data-market="US" aria-pressed="false">美股 US</button>
     </div>
     <span id="market-status" class="badge neutral">模擬行情</span>
+    <span class="badge brand" id="paper-badge" title="全站唯一執行模式：紙上模擬，不連真實券商">PAPER 紙上</span>
+    <span id="data-source" class="muted fs-12">本機模擬・2025/12/31 終點</span>
+    <button id="shortcut-help" class="btn sm" type="button" aria-label="快速鍵說明（快速鍵 ?）">?</button>
     <div class="rolebox">
       <span>角色</span>
       <select id="role-select" aria-label="目前角色">
@@ -79,16 +85,23 @@
     <section id="panel-backtest" class="page" role="tabpanel" hidden data-page-panel="backtest" aria-labelledby="backtest-title">
       <div class="toolbar"><div><h1 id="backtest-title" class="title-page">策略回測</h1><span class="muted fs-12">訊號在收盤形成，下一根開盤成交；手續費與滑價不歸零。</span></div></div>
       <div class="notice">回測不是預測。樣本、滑價、流動性、交易時段與資料品質都會讓實盤結果偏離；啟動自動化前先紙上 forward test。</div>
-      <article class="card"><div class="toolbar"><label>標的 <select id="backtest-symbol"></select></label><label>策略 <select id="backtest-strategy"><option value="maCross">均線交叉</option><option value="rsiReversal">RSI 反轉</option><option value="breakout">通道突破</option></select></label><label>初始資金 <input id="backtest-capital" type="number" value="1000000" min="1" step="1000" class="input-w-120"></label><label>MA 快線 <input id="backtest-fast" type="number" value="20" min="2" step="1" class="input-w-62"></label><label>MA 慢線 <input id="backtest-slow" type="number" value="50" min="3" step="1" class="input-w-62"></label><label>手續費 % <input id="backtest-commission" type="number" value="0.1425" min="0" step="0.01" class="input-w-80"></label><label>滑價 bp <input id="backtest-slippage" type="number" value="5" min="0" step="1" class="input-w-62"></label><button id="backtest-run" class="btn primary">執行回測</button></div></article>
+      <article class="card"><div class="toolbar"><label>標的 <select id="backtest-symbol"></select></label><label>策略 <select id="backtest-strategy"><option value="maCross">均線交叉</option><option value="rsiReversal">RSI 反轉</option><option value="breakout">通道突破</option><optgroup label="研究策略（分層引擎）"><option value="research:cash">Cash 現金基準</option><option value="research:buyHold">Buy &amp; Hold 基準</option><option value="research:multiHorizonTrend">多 horizon 趨勢研究</option></optgroup></select></label><label id="backtest-legacy-params">初始資金 <input id="backtest-capital" type="number" value="1000000" min="1" step="1000" class="input-w-120"></label><label id="backtest-legacy-ma">MA 快線 <input id="backtest-fast" type="number" value="20" min="2" step="1" class="input-w-62"></label><label id="backtest-legacy-slow">MA 慢線 <input id="backtest-slow" type="number" value="50" min="3" step="1" class="input-w-62"></label><label>手續費 % <input id="backtest-commission" type="number" value="0.1425" min="0" step="0.01" class="input-w-80"></label><label>滑價 bp <input id="backtest-slippage" type="number" value="5" min="0" step="1" class="input-w-62"></label><label id="backtest-research-alloc" hidden>配置比例 <input id="backtest-allocate" type="number" value="0.25" min="0.01" max="1" step="0.05" class="input-w-62"></label><button id="backtest-run" class="btn primary">執行回測</button></div></article>
+      <div class="grid c2 mt-3"><article class="card"><h2>權益曲線 <span class="muted fs-11">IS 暗段・OOS 亮界</span></h2><canvas id="equity-chart" class="chart" aria-label="回測權益曲線（含 IS／OOS 分界）"></canvas><div class="legend"><span class="is-key">IS 樣本內（對照）</span><span class="oos-key">OOS 樣本外（評分只看這段）</span></div></article><article class="card"><h2>模型假設</h2><div id="backtest-assumptions" class="muted fs-12"></div></article></div>
       <div id="backtest-metrics" class="grid c4 mt-3"></div>
-      <div class="grid c2 mt-3"><article class="card"><h2>權益曲線</h2><canvas id="equity-chart" class="chart" aria-label="回測權益曲線"></canvas></article><article class="card"><h2>模型假設</h2><div id="backtest-assumptions" class="muted fs-12"></div></article></div>
       <article class="card mt-3"><h2>成交明細</h2><div class="overflow-table"><table id="backtest-trades"><thead><tr><th scope="col">進場</th><th scope="col">出場</th><th scope="col" class="n">數量</th><th scope="col" class="n">進場價</th><th scope="col" class="n">出場價</th><th scope="col" class="n">淨損益</th><th scope="col">原因</th></tr></thead><tbody></tbody></table></div></article>
+      <div class="work-grid mt-3">
+        <article class="card"><h2>策略中心・研究比較（IS／OOS 分開，不混成一條曲線）</h2><div class="toolbar"><button id="strategy-run" class="btn primary" type="button">執行策略比較</button><span class="muted fs-12">跑全部基準＋研究策略：IS／OOS、成本壓力、promotion gate；只做研究，不啟用 paper。</span></div><div class="overflow-table"><table id="strategy-table"><thead><tr><th scope="col">策略</th><th scope="col">生命週期</th><th scope="col" class="n">IS 淨損益</th><th scope="col" class="n">OOS 淨損益</th><th scope="col" class="n">OOS Sharpe</th><th scope="col" class="n">OOS MDD%</th><th scope="col" class="n">週轉率</th><th scope="col" class="n">交易數</th><th scope="col">成本體質</th><th scope="col">Gate</th></tr></thead><tbody><tr><td colspan="10"><div class="state-block" role="status"><strong>尚未執行策略比較</strong><span>按「執行策略比較」後，這裡顯示基準＋研究策略的 IS／OOS 與 gate；只做研究，不啟用 paper。</span></div></td></tr></tbody></table></div><div id="strategy-gate" class="muted fs-12"></div></article>
+        <div class="work-side">
+          <article class="card"><h2>資料來源</h2><div id="research-provenance" class="provenance"></div></article>
+          <article class="card"><h2>參數穩健</h2><div id="research-robustness" class="muted fs-12">執行策略比較後顯示參數平面與成本壓力。</div></article>
+        </div>
+      </div>
     </section>
 
     <section id="panel-trade" class="page" role="tabpanel" hidden data-page-panel="trade" aria-labelledby="trade-title">
       <div class="toolbar"><div><h1 id="trade-title" class="title-page">紙上交易</h1><span class="muted fs-12">所有數字只存在本機紙上帳本。</span></div><label class="push-right">帳戶 <select id="trade-market"><option value="TW">TW｜TWD 1,000,000</option><option value="US">US｜USD 100,000</option></select></label></div>
-      <div class="notice info">下單流程：行情 → 風控 → 二次確認 → paper broker。風控拒絕時不會偷偷改用別的數量或價格。</div>
-      <div class="grid c2"><article class="card"><h2>建立紙上訂單</h2><form id="order-form"><div class="grid c2"><label>標的<select id="order-symbol"></select></label><label>方向<select id="order-side"><option value="buy">買進 Buy</option><option value="sell">賣出 Sell</option></select></label><label>數量<input id="order-qty" type="number" min="1" step="1" value="1" required></label><label>模擬價格（立即成交）<input id="order-price" type="number" min="0.01" step="0.01" required></label></div><div id="order-estimate" class="muted fs-12" role="status">輸入數量與價格後顯示試算（僅供參考，不代表風控結果）。</div><div id="order-risk" class="notice mt-3">輸入數量後檢查風控。</div><div class="toolbar toolbar-end m-0"><button type="button" id="order-preview" class="btn primary">預覽並檢查</button><button type="submit" id="order-submit" class="btn buy" disabled>確認送出</button></div></form></article><article class="card"><h2>帳戶狀態</h2><div id="account-summary"></div></article></div>
+      <div class="notice info">下單流程：行情 → 風控 → 二次確認 → paper broker <span class="badge brand">PAPER</span>。風控拒絕時不會偷偷改用別的數量或價格。</div>
+      <div class="grid c2"><article class="card"><h2>建立紙上訂單 <span class="badge brand">PAPER</span></h2><form id="order-form"><div class="grid c2"><label>標的<select id="order-symbol"></select></label><label>方向<select id="order-side"><option value="buy">買進 Buy</option><option value="sell">賣出 Sell</option></select></label><label>數量<input id="order-qty" type="number" min="1" step="1" value="1" required></label><label>模擬價格（立即成交）<input id="order-price" type="number" min="0.01" step="0.01" required></label><label>訂單類型<select id="order-type" disabled><option>立即紙上成交 IMMEDIATE</option></select></label><label>整零股<select id="order-lot"><option value="oddLot">零股（預設）</option><option value="regular">整股（1000 股倍數）</option></select></label></div><div id="order-estimate" class="muted fs-12" role="status">輸入數量與價格後顯示試算（僅供參考，不代表風控結果）。</div><div id="order-freshness" class="muted fs-12">行情時間：本機模擬終點 2025/12/31・非即時</div><div id="order-risk" class="notice mt-3">輸入數量後檢查風控。</div><div class="toolbar toolbar-end m-0"><button type="button" id="order-preview" class="btn primary">預覽並檢查</button><button type="submit" id="order-submit" class="btn buy" disabled>確認送出</button></div></form></article><article class="card"><h2>帳戶狀態</h2><div id="account-summary"></div></article></div>
       <article class="card mt-3"><h2>目前持倉</h2><div class="overflow-table"><table id="positions-table"><thead><tr><th scope="col">標的</th><th scope="col" class="n">數量</th><th scope="col" class="n">均價</th><th scope="col" class="n">現價</th><th scope="col" class="n">未實現損益</th></tr></thead><tbody></tbody></table></div></article>
       <article class="card mt-3"><h2>紙上訂單歷史</h2><div class="overflow-table"><table id="orders-table"><thead><tr><th scope="col">時間</th><th scope="col">標的</th><th scope="col">方向</th><th scope="col" class="n">數量</th><th scope="col" class="n">價格</th><th scope="col">狀態</th></tr></thead><tbody></tbody></table></div></article>
     </section>
@@ -100,10 +113,13 @@
     </section>
   </main>
 
-  <footer class="footer">Stock Lab 原型・教育／研究用途・不構成投資建議・模擬行情與紙上交易，不連真實券商</footer>
+  <footer class="footer">Stock Lab 原型・教育／研究用途・不構成投資建議・<span class="badge brand">PAPER</span> 模擬行情與紙上交易，不連真實券商</footer>
 
   <div id="order-modal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="order-modal-title" aria-describedby="order-modal-body" hidden>
-    <div class="modal"><h2 id="order-modal-title">確認紙上訂單</h2><div id="order-modal-body"></div><div class="actions"><button id="order-cancel" class="btn">取消</button><button id="order-confirm" class="btn buy">確認寫入紙上帳本</button></div></div>
+    <div class="modal"><h2 id="order-modal-title">確認紙上訂單 <span class="badge brand">PAPER</span></h2><div id="order-modal-body"></div><div class="actions"><button id="order-cancel" class="btn">回去修改</button><button id="order-confirm" class="btn buy">確認寫入紙上帳本</button></div></div>
+  </div>
+  <div id="help-modal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="help-modal-title" hidden>
+    <div class="modal"><h2 id="help-modal-title">快速鍵</h2><div id="help-modal-body"><div class="row"><span><span class="kbd">/</span> 搜尋標的</span><span></span></div><div class="row"><span><span class="kbd">1</span>–<span class="kbd">6</span> 切換頁籤</span><span></span></div><div class="row"><span><span class="kbd">B</span>／<span class="kbd">S</span> 開紙上買／賣單</span><span>只開單，不送出</span></div><div class="row"><span><span class="kbd">Esc</span> 關閉彈窗</span><span></span></div><div class="row"><span><span class="kbd">?</span> 本說明</span><span></span></div></div><div class="actions"><button id="help-close" class="btn primary">關閉</button></div></div>
   </div>
   <script type="module" src="js/app.js"></script>
 </body>
