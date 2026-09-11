@@ -13,6 +13,7 @@ import {
   assertTransport,
   classifyBars,
   describeCapability,
+  isLessThanOneCalendarYear,
   isRetryableCode,
   mapTransportStatus,
   normalizeBars,
@@ -180,6 +181,9 @@ function assertSymbol(symbol) {
 function assertRange(from, to) {
   if (typeof from !== "string" || typeof to !== "string" || !DATE_PATTERN.test(from) || !DATE_PATTERN.test(to) || from > to) {
     throw new MarketDataError(DATA_ERROR_CODE.DATA_INVALID, `歷史區間不合法：${from} ~ ${to}`);
+  }
+  if (!isLessThanOneCalendarYear(from, to)) {
+    throw new MarketDataError(DATA_ERROR_CODE.DATA_INVALID, "歷史區間需小於 1 日曆年（恰滿 1 年亦拒絕）");
   }
   return { from, to };
 }

@@ -14,6 +14,8 @@ import {
   DATA_KINDS,
   NORMALIZATION_VERSION,
   MarketDataError,
+  evaluateFreshness,
+  isLessThanOneCalendarYear,
   isRetryableCode,
   mapTransportStatus,
   normalizeBars,
@@ -35,7 +37,6 @@ const ALLOWED_ORIGINS = Object.freeze([
 
 const SYMBOL_PATTERN = /^[A-Za-z0-9]{4,6}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_RANGE_DAYS = 366;
 
 export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImpl = null, clock = () => Date.now(), timeoutMs = DEFAULT_TIMEOUT_MS, maxAttempts = DEFAULT_MAX_ATTEMPTS, sleep = null, logger = null } = {}) {
   const state = {
@@ -125,9 +126,8 @@ function assertRange(from, to) {
   if (typeof from !== "string" || typeof to !== "string" || !DATE_PATTERN.test(from) || !DATE_PATTERN.test(to) || from > to) {
     throw inputError(400, "DATA_INVALID", `歷史區間不合法：${from} ~ ${to}`);
   }
-  const days = (Date.parse(`${to}T00:00:00+08:00`) - Date.parse(`${from}T00:00:00+08:00`)) / 86_400_000;
-  if (!Number.isFinite(days) || days >= MAX_RANGE_DAYS) {
-    throw inputError(400, "DATA_INVALID", "歷史區間需小於 1 年（Fugle 官方限制）");
+  if (!isLessThanOneCalendarYear(from, to)) {
+    throw inputError(400, "DATA_INVALID", "歷史區間需小於 1 日曆年（Fugle 官方限制：恰滿 1 年亦拒絕）");
   }
   return { from, to };
 }
@@ -179,9 +179,11 @@ async function serveBars(state, cors, req, res, symbol, range, requestId, starte
 
 function metaFor(state, { symbol, market, dataKind, providerTimestamp, source, requestId, pointInTime, adjustmentMode }) {
   const receivedAt = state.clock();
+  const freshness = evaluateFreshness({ providerTimestamp, receivedAt, now: receivedAt, dataKind });
   return {
     provider: FUGLE_PROVIDER_ID, market, symbol, dataKind, providerTimestamp: providerTimestamp ?? null,
-    receivedAt, freshnessMs: null, stale: false, freshnessStatus: "UNKNOWN", source, requestId,
+    receivedAt, freshnessMs: freshness.ageMs, stale: freshness.status === "STALE", freshnessStatus: freshness.status,
+    source, requestId,
     cached: false, normalizationVersion: NORMALIZATION_VERSION, pointInTime, adjustmentMode,
   };
 }

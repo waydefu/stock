@@ -40,6 +40,7 @@ test("browser adapter fetches quote through the proxy without secrets", async ()
   assert.equal(quote.data.symbol, "2330");
   assert.equal(quote.meta.provider, "FUGLE");
   assert.equal(quote.meta.requestId, "req-1");
+  assert.equal(quote.meta.freshnessStatus, "FRESH");
   assert.ok(seen[0][0].startsWith("https://proxy.invalid/api/market/quote?"));
   assert.ok(!seen[0][0].includes("api.fugle.tw"));
   assert.equal(adapter.getStatus().state, ADAPTER_STATUS.READY);
@@ -87,6 +88,14 @@ test("browser adapter validates bars range client-side and returns issues", asyn
   assert.deepEqual(issues, []);
   assert.equal(envelope.meta.adjustmentMode, "unadjusted");
   await assert.rejects(adapter.getBarsAsync("0050", { from: "2023-02-08", to: "2023-02-01" }), (e) => e.code === DATA_ERROR_CODE.DATA_INVALID);
+  let fetched = false;
+  const guarded = new FugleProxyAdapter({
+    baseUrl: "https://proxy.invalid",
+    fetchImpl: async () => { fetched = true; throw new Error("must not fetch"); },
+    clock: () => 0,
+  });
+  await assert.rejects(guarded.getBarsAsync("0050", { from: "2023-01-01", to: "2024-01-01" }), (e) => e.code === DATA_ERROR_CODE.DATA_INVALID);
+  assert.equal(fetched, false);
 });
 
 test("browser adapter honors Retry-After through the full chain", async () => {

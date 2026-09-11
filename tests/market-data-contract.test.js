@@ -12,6 +12,7 @@ import {
   describeCapability,
   describeRateLimit,
   evaluateFreshness,
+  isLessThanOneCalendarYear,
   isRetryableCode,
   mapTransportStatus,
   normalizeBars,
@@ -96,6 +97,14 @@ test("freshness policy returns FRESH STALE UNKNOWN, never bare boolean", () => {
   assert.equal(evaluateFreshness({ providerTimestamp: now - 10_000_000, receivedAt: now, now, dataKind: DATA_KINDS.HISTORICAL }).status, FRESHNESS.UNKNOWN);
   assert.equal(evaluateFreshness({ providerTimestamp: null, receivedAt: now, now, dataKind: DATA_KINDS.SIMULATION }).status, FRESHNESS.UNKNOWN);
   assert.equal(evaluateFreshness({ providerTimestamp: now - 3_600_000, receivedAt: now - 3_600_000, now, dataKind: DATA_KINDS.SIMULATION }).status, FRESHNESS.FRESH);
+});
+
+test("calendar-year range comparison follows exchange semantics", () => {
+  assert.equal(isLessThanOneCalendarYear("2024-01-01", "2024-12-31"), true);
+  assert.equal(isLessThanOneCalendarYear("2023-12-31", "2024-12-31"), false);
+  assert.equal(isLessThanOneCalendarYear("2025-01-01", "2026-01-01"), false);
+  assert.equal(isLessThanOneCalendarYear("2024-06-01", "2025-05-31"), true);
+  assert.equal(isLessThanOneCalendarYear("2024-02-29", "2025-02-28"), true);
 });
 
 test("transport failures map to stable domain errors, never raw HTTP", () => {
