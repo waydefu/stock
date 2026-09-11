@@ -9,7 +9,7 @@
 - Runtime：Node.js 24 local；GitHub Actions `Quality` latest observed success on the same HEAD
 - Product boundary：research／education／paper-only prototype；no live broker path
 
-## Current checkpoint
+## Current checkpoint（歷史快照；現況以 `docs/PROJECT_STATUS.md` 為準）
 
 - HEAD：`604fbba60882a0c79062443ecbca864a97a5ca7b`
 - Branch：`main`；working tree was clean after PR#9 squash-merge

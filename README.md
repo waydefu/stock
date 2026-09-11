@@ -81,7 +81,8 @@ npm test
 - `docs/UI_UX.md` — 設計代幣與頁面規格
 - `docs/UI_UX_BENCHMARK.md` — 全球網頁設計／股票產品 benchmark、目前評分與 P0/P1/P2 改造路線
 - `docs/DELIVERY_REPORT.md` — 交付、驗證、工時、成本與來源
-- `docs/PROJECT_AUDIT.md` — current HEAD 全專案 evidence audit
+- `docs/PROJECT_STATUS.md` — 唯一 current truth（HEAD／tests／gates／open PR／缺口）
+- `docs/PROJECT_AUDIT.md` — baseline＋歷史快照 audit
 - `docs/PROJECT_ROADMAP.md` — correctness-first 長程路線
 - `docs/RISK_REGISTER.md` — P0/P1/P2 風險、證據與修復驗證
 - `docs/RESEARCH_LEDGER.md` — 外部規則／設計／API claim 的來源索引
