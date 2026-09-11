@@ -27,5 +27,8 @@ Proposed（2026-09-11；待維護者 infra 決策。本輪 proxy 保持 deploy-n
 ## Consequences
 
 - 決定前：proxy 只能跑在本機／可信內網；Pages 的 Fugle 模式顯示不可用（誠實狀態）。
+- CORS allowlist 不是存取控制：evil origin 拿不到 ACAO header，但 request 仍會打到
+ proxy，curl 也能直呼。正式公開部署前必須加 anti-abuse／quota protection
+ （速率配額、來源審計、必要時 API key 前門），不能把 CORS 當 API key 的替代品。
 - 若選 B：需把 `server/market-proxy.js` 的 `node:http` 層換成 fetch-handler
  （路由／映射／契約測試不動，只換 transport 外殼）。
