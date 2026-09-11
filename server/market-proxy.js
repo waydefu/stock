@@ -8,7 +8,6 @@
    - Logs carry requestId/route/symbol/status/domainCode/latency/attempts only. */
 import http from "node:http";
 import crypto from "node:crypto";
-import { fileURLToPath } from "node:url";
 import {
   DATA_ERROR_CODE,
   DATA_KINDS,
@@ -94,6 +93,11 @@ export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImp
       }
       if (req.method !== "GET") return send(req, res, cors, 405, "UNSUPPORTED_CAPABILITY", "只支援 GET", requestId, started);
       const url = new URL(req.url ?? "/", "http://proxy.local");
+      if (url.pathname === "/healthz") {
+        res.writeHead(200, { "content-type": "application/json", ...cors });
+        res.end(JSON.stringify({ status: "ok", service: "market-proxy" }));
+        return;
+      }
       if (url.pathname === "/api/market/quote") {
         const symbol = assertSymbol(url.searchParams.get("symbol"));
         const shed = shedLoad(state);
@@ -331,14 +335,4 @@ function state_log(req, res, { requestId, http, code, started, attempts }) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT ?? 8787);
-  const { start } = createProxy({
-    logger: (entry) => {
-      console.log(JSON.stringify({ ...entry, at: new Date().toISOString() }));
-    },
-  });
-  start(port).then(({ url }) => {
-    console.log(`market-proxy listening on ${url} (FUGLE_API_KEY ${process.env.FUGLE_API_KEY ? "set" : "MISSING"})`);
-  });
-}
+/* Entrypoint moved to server/start-market-proxy.js (fail-fast config + graceful shutdown). */

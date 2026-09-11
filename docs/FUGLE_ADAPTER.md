@@ -69,10 +69,16 @@ proxy 與 browser 各做一次 7A `normalize`（縱深驗證，皆冪等）。
  維持 Fugle 模式，永不切回模擬。下單票價格仍為模擬，執行永遠 PAPER。
 
 ## Smoke（7B2）
-
 - `npm run smoke:fugle`：本機 proxy＋key 的只讀 smoke（無 key → BLOCKED_BY_CREDENTIAL exit 2）。
 - `npm run smoke:fugle:remote`：已部署 proxy 的 quote smoke（需 `MARKET_DATA_PROXY_URL`，無則 BLOCKED_BY_PROXY exit 2）。
 - `npm run smoke:research:fugle`：真 bars → 全研究鏈，stdout `REAL_RESEARCH_SMOKE PASS …`（invariants only；無 key → BLOCKED_BY_CREDENTIAL exit 2）。
+
+## Cache 決策（7B2：不做）
+
+本輪不加任何 cache：quote/bar 的 `providerTimestamp`／`receivedAt`／freshness
+必須每次反映真實上游往返，加了 TTL 就會模糊 freshness 語義。
+Fugle 配額保護靠 proxy 速率限制＋Retry-After，而非法外 cache。
+部署手冊見 `docs/DEPLOY_FUGLE_PROXY.md`。
 
 ## Real smoke procedure
 

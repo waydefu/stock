@@ -1,0 +1,16 @@
+# Never bake secrets or local state into the proxy image.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*credential*
+node_modules/
+.git/
+.github/
+tests/
+coverage/
+*.log
+.DS_Store

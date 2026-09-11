@@ -515,6 +515,19 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("fugle-ui", problems.join("；"));
 }
 
+// 29. 公開 runtime-config 邊界：只許 proxy URL 與公開 flags，見秘密字樣即 fail
+{
+  const problems = [];
+  const runtimeConfig = readFileSync("runtime-config.js", "utf8");
+  if (!/runtime-config\.js/.test(html)) problems.push("index.html 缺 runtime-config 注入點");
+  if (!/__MARKET_DATA_PROXY_URL__/.test(runtimeConfig)) problems.push("runtime-config 缺 proxy URL 注入契約");
+  for (const m of runtimeConfig.matchAll(/apiKey|secret|token|password|authorization|bearer|FUGLE_API_KEY/gi)) {
+    problems.push(`runtime-config 出現秘密字樣：${m[0]}`);
+  }
+  if (problems.length === 0) ok("runtime-config-boundary");
+  else fail("runtime-config-boundary", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
