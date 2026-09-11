@@ -7,12 +7,13 @@
 
 ## Current（verified 2026-09-11）
 
-- HEAD：`f07b8d3bad15f2f182dfe7f64251350cf4c3a2aa`（PR#16 Phase 7A squash-merge）
+- HEAD：`48424a6f3f24d8451aff0703c29f9130c3b897a0`（PR#17 Phase 7B1 squash-merge）
 - Branch：`main`；working tree clean
-- Tests：142/142；`check:static` 27 files；`check:ui` 28/28 WARN 0 FAIL 0
-- Quality：run `34569060956`，同 SHA，success；Pages run `34569060973` success
-- Open PR：#17（7B1 Fugle REST＋proxy，待審；head `7d4b908`）
+- Tests：168/168；`check:static` 27 files；`check:ui` 29/29 WARN 0 FAIL 0
+- Quality：run `34573082375`，同 SHA，success；Pages run `34573082349` success
+- Open PR：none
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）
+- Phase 7B1：MERGED（Fugle REST adapter boundary＋trusted proxy；proxy 未部署）
 
 ## Scope
 
@@ -23,7 +24,8 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 1. 真 exchange calendar／corporate-action 調整資料（simplified-weekday 現狀）
 2. matching＋reconciliation（立即成交模型現狀，見 R-003）
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
-4. provider real-data runtime（7B1 在審；proxy 部署待 ADR-006 決策）
+4. provider real-data runtime：Fugle REST adapter boundary 已 merge；
+   trusted proxy 尚未部署，real smoke 仍待 credential／runtime（見 ADR-006）
 5. browser E2E＋完整 WCAG audit＋viewport 幾何實測
 6. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
 
