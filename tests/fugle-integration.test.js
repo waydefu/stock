@@ -48,6 +48,8 @@ test("integration: quote flows browser to proxy to fake upstream", async () => {
   assert.equal(quote.meta.provider, "FUGLE");
   assert.equal(quote.meta.market, "TW");
   assert.equal(typeof quote.meta.requestId, "string");
+  assert.equal(quote.meta.freshnessStatus, "STALE");
+  assert.equal(quote.meta.stale, true);
 });
 
 test("integration: bars flow with historical semantics", async () => {

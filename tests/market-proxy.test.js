@@ -78,6 +78,8 @@ test("quote success returns envelope with requestId", async () => {
   assert.equal(r.json.meta.market, "TW");
   assert.equal(r.json.meta.dataKind, "realtime");
   assert.equal(r.json.meta.cached, false);
+  assert.equal(r.json.meta.freshnessStatus, "FRESH");
+  assert.equal(r.json.meta.stale, false);
   assert.equal(typeof r.json.meta.requestId, "string");
   assert.ok(seen[0][0].startsWith("https://api.fugle.tw/marketdata/v1.0/stock/intraday/quote/2330"));
   assert.equal(logs.length, 1);
@@ -97,6 +99,28 @@ test("bars success validates range and maps ascending bars", async () => {
   assert.equal(badRange.json.error.code, "DATA_INVALID");
   const badSymbol = await call(proxy, "GET", "/api/market/quote?symbol=bad!!");
   assert.equal(badSymbol.status, 400);
+});
+
+test("realtime quote freshness follows the 7A policy, not a constant", async () => {
+  const late = testProxy(async () => okJson(QUOTE_UPSTREAM), { clock: () => 1685338201000 + 120_000 });
+  const stale = await call(late.proxy, "GET", "/api/market/quote?symbol=2330");
+  assert.equal(stale.status, 200);
+  assert.equal(stale.json.meta.freshnessStatus, "STALE");
+  assert.equal(stale.json.meta.stale, true);
+  assert.ok(stale.json.meta.freshnessMs > 30_000);
+});
+
+test("calendar-year range rejects exactly-one-year spans", async () => {
+  const { proxy } = testProxy(async () => okJson(BARS_UPSTREAM));
+  for (const [from, to, status] of [
+    ["2024-01-01", "2024-12-31", 200],
+    ["2023-12-31", "2024-12-31", 400],
+    ["2025-01-01", "2026-01-01", 400],
+  ]) {
+    const r = await call(proxy, "GET", `/api/market/bars?symbol=0050&from=${from}&to=${to}`);
+    assert.equal(r.status, status, `${from}~${to}`);
+    if (status === 400) assert.equal(r.json.error.code, "DATA_INVALID");
+  }
 });
 
 test("upstream failures map to stable codes without leaking", async () => {
