@@ -24,6 +24,11 @@
 || TWSE trading sessions: pre-market call auction 08:30-09:00, continuous 09:00-13:25, pre-close call auction 13:25-13:30 | [95] | TWSE official rules | MarketRules contract | Stable | Order type restrictions per session enforced (limit only in call auctions)。 |
 || TWSE 2026-12-07 odd-lot regression: 盤中零股交易開盤時間提前至 09:00 | [98] | TWSE official news | MarketRules contract | Highly time-sensitive | SimplifiedWeekdayCalendar remains simplified; no session change in prototype。 |
 | QuantConnect Algorithm Framework 五層分工（Universe／Alpha／Portfolio Construction／Execution／Risk Management、可互換模組） | [12]＋次級整理 [98][99] | Primary：QC official docs；Secondary：community guides（不得覆蓋 primary） | Strategy／Signal／Portfolio／Execution 分層設計 | Framework guidance evolves | 只取「分層＋可互換」工程概念；本 repo 不依賴其程式碼或 API；legacy 融合迴圈見 R-021。 |
+| Provider capability／envelope／freshness／retry／transport 邊界契約 | [109][110][111][112][113][114][115][116][117][118] | Provider official docs（Fugle／Shioaji／Alpaca／IBKR） | MarketDataAdapter contract | Highly time-sensitive（verified 2026-09-11） | 官方未給數字的欄位標 UNVERIFIED 不猜；秘密永遠放 trusted proxy，Pages 不持 key。 |
+| Fugle 行情 API v1.0：REST（日內／快照／歷史）＋WS 即時；交易 API 已 sunset | [109][30] | Fugle official docs | Provider readiness | Highly time-sensitive（verified 2026-09-11） | FIRST CANDIDATE（TW）；成交值量不含零股／鉅額；單帳號政策。 |
+| Shioaji v1.7.5 simulation／限流語義 | [110][111][112] | Sinotrade official docs＋releases | Provider readiness | Highly time-sensitive（verified 2026-09-11） | sim 單禁興櫃／零股；超流回空值；憑證制→本機可信 process。 |
+| Alpaca Market Data 與 Trading API 分離；Basic IEX／Plus SIP；paper 獨立 key | [113][114][115] | Alpaca official docs | Provider readiness | Highly time-sensitive（verified 2026-09-11） | US-only；429＋backoff 官方指引已收錄進 retry 契約。 |
+| IBKR pacing／paper 限制／L1 訂閱制 | [116][117][118] | IBKR official docs | Provider readiness | Highly time-sensitive（verified 2026-09-11） | 重量級 deferred；50 req/s pacing 與 soft throttle 已收錄。 |
 | Volatility-managed portfolios：波動高時降險可提高 Sharpe；受限版本測試 leverage cap 1／1.5 | [100][101] | Primary：Journal of Finance＋NBER working paper | VolatilityTargetingOverlay（capped leverage） | Published research，stable | 低波動不變無限槓桿：maxLeverage 必須有限；本 repo 只做單標的 overlay，未做多因子。 |
 | 時間序列動量／橫截面動量／價值動量／配對交易／data-snooping 的 canonical 引用（本輪未重讀全文，只記研究假說出處） | [102][103][104][105][106][107][108] | Journals（JFE／JF／RFS／Econometrica）＋AQR 白皮書 | multi-horizon trend hypothesis；pairs／regime／White 檢驗留待後續 | Canonical references，需實作前重查 | 多 horizon 組合只為穩健高原，不宣稱機構級；pairs／regime 未達資料門檻不實作。 |
 | GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
@@ -85,3 +90,13 @@
 [106] https://doi.org/10.1111/1468-0262.00152
 [107] https://www.aqr.com/Insights/Research/White-Papers/A-Century-of-Evidence-on-Trend-Following-Investing
 [108] https://www.aqr.com/Insights/Research/Journal-Article/Value-and-Momentum-Everywhere
+[109] https://developer.fugle.tw/docs/data/intro
+[110] https://sinotrade.github.io/tutor/simulation
+[111] https://github.com/Sinotrade/Shioaji/releases/tag/v1.7.5
+[112] https://github.com/Sinotrade/Shioaji/blob/master/plugins/shioaji/skills/shioaji/references/TROUBLESHOOTING.md
+[113] https://docs.alpaca.markets/us/docs/about-market-data-api
+[114] https://docs.alpaca.markets/us/docs/paper-trading
+[115] https://docs.alpaca.markets/docs/market-data-faq
+[116] https://www.interactivebrokers.com/docs/tws-api/doc/pacing-limitations/introduction
+[117] https://www.interactivebrokers.com/campus/glossary-terms/paper-trading-account/
+[118] https://www.interactivebrokers.com/docs/general/market-data-subscriptions/introduction
