@@ -144,7 +144,7 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 ## Phase 7 — Adapter readiness（P1/P2）
 
-Phase 7A（`feat/adapter-readiness`，本輪）：boundary 先行，不接真 API。
+Phase 7A（已 merge，PR#16）：boundary 先行，不接真 API。
 
 - provider-neutral contracts（`js/market-data-contract.js`）：capability、envelope、quote/bars 正規化、freshness（FRESH／STALE／UNKNOWN）、MarketDataError 穩定碼、bounded retry＋backoff、Retry-After 優先、injected transport。
 - deterministic fixture（`js/fixture-provider.js`）：401／429／500／timeout／重複／亂序／stale／缺欄／schema drift 全劇本；`selectAdapter` 無靜默退回；`assertBrowserSafeConfig` 鎖瀏覽器側秘密。
@@ -159,6 +159,10 @@ Phase 7A（`feat/adapter-readiness`，本輪）：boundary 先行，不接真 AP
 - IBKR：paper semantics、order status、reconciliation。
 
 仍不得自動進 live trading。
+
+Phase 7B1（`feat/fugle-rest-adapter`，本輪，未 merge）：Fugle REST 真資料＋trusted proxy；
+intraday quote＋historical candles、微秒戳 sourced conversion、Retry-After 全鏈路、
+CORS allowlist＋GET-only＋固定上游；WebSocket 留 7C；proxy 部署見 ADR-006（Proposed）。
 
 ## Phase 8 — Performance／observability（performance baseline complete；observability remains P2）
 

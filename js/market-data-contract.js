@@ -212,6 +212,19 @@ export function classifyBars(bars) {
   return issues;
 }
 
+/* Calendar-year range rule (exchange semantics, e.g. Fugle historical < 1 year):
+   2024-01-01~2024-12-31 is inside; exactly-one-year spans like
+   2023-12-31~2024-12-31 or 2025-01-01~2026-01-01 are NOT.
+   Assumes validated yyyy-MM-dd inputs with from <= to. */
+export function isLessThanOneCalendarYear(from, to) {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  if (ty - fy > 1) return false;
+  if (ty - fy < 1) return true;
+  if (tm !== fm) return tm < fm;
+  return td < fd;
+}
+
 /* Deliverable 7 — transport failures map to stable domain errors. */
 export function mapTransportStatus({ httpStatus = null, timeout = false, networkError = false, detail = null, retryAfterMs = null } = {}) {
   if (timeout === true) return new MarketDataError(DATA_ERROR_CODE.TIMEOUT, "provider 請求逾時", { detail });

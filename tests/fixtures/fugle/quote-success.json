@@ -1,0 +1,51 @@
+{
+  "date": "2023-05-29",
+  "type": "EQUITY",
+  "exchange": "TWSE",
+  "market": "TSE",
+  "symbol": "2330",
+  "name": "台積電",
+  "referencePrice": 566,
+  "previousClose": 566,
+  "openPrice": 574,
+  "openTime": 1685322000049353,
+  "highPrice": 574,
+  "highTime": 1685322000049353,
+  "lowPrice": 564,
+  "lowTime": 1685327142152580,
+  "closePrice": 568,
+  "closeTime": 1685338200000000,
+  "avgPrice": 568.77,
+  "change": 2,
+  "changePercent": 0.35,
+  "amplitude": 1.77,
+  "lastPrice": 568,
+  "lastSize": 4778,
+  "bids": [
+    { "price": 567, "size": 87 },
+    { "price": 566, "size": 2454 },
+    { "price": 565, "size": 611 },
+    { "price": 564, "size": 609 },
+    { "price": 563, "size": 636 }
+  ],
+  "asks": [
+    { "price": 568, "size": 800 },
+    { "price": 569, "size": 806 },
+    { "price": 570, "size": 3643 },
+    { "price": 571, "size": 1041 },
+    { "price": 572, "size": 2052 }
+  ],
+  "total": {
+    "tradeValue": 31019803000,
+    "tradeVolume": 54538,
+    "tradeVolumeAtBid": 19853,
+    "tradeVolumeAtAsk": 27900,
+    "transaction": 9530,
+    "time": 1685338200000000
+  },
+  "lastTrade": { "bid": 567, "ask": 568, "price": 568, "size": 4778, "time": 1685338200000000, "serial": 6652422 },
+  "lastTrial": { "bid": 567, "ask": 568, "price": 568, "size": 4772, "time": 1685338196400347, "serial": 6651941 },
+  "isClose": true,
+  "serial": 6652422,
+  "lastUpdated": 1685338200000000
+}
