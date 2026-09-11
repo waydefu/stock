@@ -121,6 +121,8 @@ test("backoff is bounded exponential with injectable jitter", () => {
   const noJitter = { baseDelayMs: 1000, maxDelayMs: 8000, jitterMs: 0, random: () => 0 };
   assert.deepEqual([1, 2, 3, 4, 5].map((a) => computeBackoff(a, noJitter)), [1000, 2000, 4000, 8000, 8000]);
   assert.equal(computeBackoff(1, { ...noJitter, jitterMs: 500, random: () => 0.5 }), 1250);
+  assert.equal(computeBackoff(5, { baseDelayMs: 1000, maxDelayMs: 8000, jitterMs: 500, random: () => 1 }), 8000);
+  assert.ok(computeBackoff(4, { baseDelayMs: 1000, maxDelayMs: 8000, jitterMs: 9999, random: () => 1 }) <= 8000);
 });
 
 test("retryOperation is bounded and records sleeps without real timers", async () => {
@@ -140,6 +142,26 @@ test("retryOperation is bounded and records sleeps without real timers", async (
     (e) => e.code === DATA_ERROR_CODE.AUTH_FAILED,
   );
   assert.equal(authCalls, 1);
+});
+
+test("retryOperation prefers server Retry-After over computed backoff", async () => {
+  const sleeps = [];
+  let calls = 0;
+  const result = await retryOperation(async () => {
+    calls += 1;
+    if (calls === 1) throw new MarketDataError(DATA_ERROR_CODE.RATE_LIMITED, "limited", { retryAfterMs: 2500 });
+    return "ok";
+  }, { baseDelayMs: 1000, maxDelayMs: 8000, random: () => 0, sleep: async (ms) => { sleeps.push(ms); } });
+  assert.equal(result.value, "ok");
+  assert.deepEqual(sleeps, [2500]);
+  const capped = [];
+  let cappedCalls = 0;
+  await retryOperation(async () => {
+    cappedCalls += 1;
+    if (cappedCalls === 1) throw new MarketDataError(DATA_ERROR_CODE.RATE_LIMITED, "limited", { retryAfterMs: 60_000 });
+    return "ok";
+  }, { baseDelayMs: 1000, maxDelayMs: 8000, random: () => 0, sleep: async (ms) => { capped.push(ms); } });
+  assert.deepEqual(capped, [8000]);
 });
 
 test("rate-limit descriptor prefers Retry-After and marks unknowns", () => {

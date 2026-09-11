@@ -213,10 +213,10 @@ export function classifyBars(bars) {
 }
 
 /* Deliverable 7 — transport failures map to stable domain errors. */
-export function mapTransportStatus({ httpStatus = null, timeout = false, networkError = false, detail = null } = {}) {
+export function mapTransportStatus({ httpStatus = null, timeout = false, networkError = false, detail = null, retryAfterMs = null } = {}) {
   if (timeout === true) return new MarketDataError(DATA_ERROR_CODE.TIMEOUT, "provider 請求逾時", { detail });
   if (httpStatus === 401 || httpStatus === 403) return new MarketDataError(DATA_ERROR_CODE.AUTH_FAILED, `provider 認證失敗（HTTP ${httpStatus}）`, { httpStatus });
-  if (httpStatus === 429) return new MarketDataError(DATA_ERROR_CODE.RATE_LIMITED, "provider 限流（HTTP 429）", { httpStatus });
+  if (httpStatus === 429) return new MarketDataError(DATA_ERROR_CODE.RATE_LIMITED, "provider 限流（HTTP 429）", { httpStatus, retryAfterMs: Number.isFinite(retryAfterMs) && retryAfterMs >= 0 ? Math.floor(retryAfterMs) : null });
   if (Number.isInteger(httpStatus) && httpStatus >= 500) return new MarketDataError(DATA_ERROR_CODE.PROVIDER_UNAVAILABLE, `provider 暫時不可用（HTTP ${httpStatus}）`, { httpStatus });
   if (networkError === true) return new MarketDataError(DATA_ERROR_CODE.PROVIDER_UNAVAILABLE, "provider 網路異常", { detail });
   if (Number.isInteger(httpStatus)) return new MarketDataError(DATA_ERROR_CODE.DATA_INVALID, `provider 回應異常（HTTP ${httpStatus}）`, { httpStatus });
@@ -233,14 +233,15 @@ export function isRetryableCode(code) {
 export function computeBackoff(attempt, { baseDelayMs = 1000, maxDelayMs = 30_000, jitterMs = 0, random = Math.random } = {}) {
   const step = Math.max(1, Math.floor(attempt));
   const grown = baseDelayMs * 2 ** (step - 1);
-  const capped = Math.min(Math.max(0, grown), Math.max(0, maxDelayMs));
-  return Math.floor(capped + random() * Math.max(0, jitterMs));
+  const ceiling = Math.max(0, maxDelayMs);
+  return Math.floor(Math.min(Math.max(0, grown) + random() * Math.max(0, jitterMs), ceiling));
 }
 
 const MAX_ATTEMPTS_CEILING = 10;
 
 export async function retryOperation(operation, { maxAttempts = 3, baseDelayMs = 1000, maxDelayMs = 30_000, jitterMs = 0, random = Math.random, sleep = () => Promise.resolve(), shouldRetry = (error) => isRetryableCode(error?.code) } = {}) {
   const attempts = Math.min(Math.max(1, Math.floor(maxAttempts)), MAX_ATTEMPTS_CEILING);
+  const ceiling = Math.max(0, maxDelayMs);
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
@@ -249,7 +250,12 @@ export async function retryOperation(operation, { maxAttempts = 3, baseDelayMs =
     } catch (error) {
       lastError = error;
       if (attempt >= attempts || !shouldRetry(error)) throw error;
-      await sleep(computeBackoff(attempt, { baseDelayMs, maxDelayMs, jitterMs, random }));
+      // Server Retry-After wins over computed backoff, still under our hard ceiling.
+      const serverHint = Number(error?.details?.retryAfterMs);
+      const delay = Number.isFinite(serverHint) && serverHint >= 0
+        ? Math.floor(Math.min(serverHint, ceiling))
+        : computeBackoff(attempt, { baseDelayMs, maxDelayMs: ceiling, jitterMs, random });
+      await sleep(delay);
     }
   }
   throw lastError;
