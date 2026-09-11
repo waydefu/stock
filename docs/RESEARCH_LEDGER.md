@@ -47,6 +47,10 @@
 - Fugle／Shioaji／Alpaca／IBKR 當前 adapter limits 與 paper 行為。
 - GitHub Actions secret scanning、code scanning、dependency review policy（immutable SHA pin＋Dependabot 已於 v7 落地並綠燈）。
 - AQR 白皮書 URL（[103]／[107]）為記憶重建、本輪未能開啟驗證；任何實作引用前必須重查官方頁，不得直接採用。
+- Fugle WebSocket（[123]／[124]）已於 2026-09-11 以真瀏覽器實讀驗證：
+  upstream `wss://api.fugle.tw/marketdata/v1.0/stock/streaming`、連線後送 `{event:"auth"}`
+  認證、30s heartbeat、subscribe→subscribed（含 server id）、trades data 含 number 型
+  `time`／`serial`／`isTrial`；頁面標示 Last updated Jan 9, 2026。Phase 7C contract 以此為準。
 
 ## Sources
 
@@ -106,3 +110,5 @@
 [120] https://developer.fugle.tw/docs/data/http-api/historical/candles
 [121] https://developer.fugle.tw/docs/data/error_codes
 [122] https://developer.fugle.tw/docs/pricing
+[123] https://developer.fugle.tw/docs/data/websocket-api/getting-started
+[124] https://developer.fugle.tw/docs/data/websocket-api/market-data-channels/trades
