@@ -25,9 +25,9 @@
 ### 邊界
 
 - `js/data.js`：資料與純技術指標；目前只提供固定模擬資料。
-- `js/market-data.js`：行情入口；UI／回測只經 adapter 取數，live adapter 照同介面替換。
+- `js/market-data.js`：行情入口；UI／回測只經 adapter 取數。7A 起附 capability／envelope／provenance／freshness 契約（`js/market-data-contract.js`）；live adapter 照同介面替換。
 - `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。**backtest slippage（`slippageBps`）是歷史模擬假設；paper fees（`FeeModel`）是執行模型。兩者名稱相似但實作分開、互不干涉。**
-- `js/market-rules.js`：TW／US market rules contract；目前 TW partial sourced、US simplified，尚未強制到 broker。
+- `js/market-rules.js`：TW／US market rules contract；TW sourced tick／limit／session 由 RiskEngine 在 commit boundary 強制驗證（PR#12 起）；US 維持 simplified，不套 TW 規則。
 - `js/session-clock.js`：market-local timezone session key；calendar policy 是 `simplified-weekday`，不是 exchange holiday calendar。
 - `js/trading-calendar.js`：明確命名的 simplified weekday calendar，供 deterministic data layer 使用。
 - `js/corporate-actions.js`：SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING schema contract；尚未取得或套用調整資料。

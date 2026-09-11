@@ -2,7 +2,8 @@
 
 ## Status
 
-Current checkpoint `604fbba` has 107 tests green, `check:ui` 21 green, `score:ui` 100/100 PASS, and Quality green. Baseline and current evidence are kept separately in `docs/PROJECT_AUDIT.md`; remaining work is explicitly scoped below.
+Current 狀態唯一來源：`docs/PROJECT_STATUS.md`（HEAD／tests／gates／open PR／缺口）。
+本文件只管路線與範圍，不再重複 current 數字。
 
 ## Phase 0 — Baseline（完成）
 
