@@ -9,9 +9,8 @@ COPY package.json ./
 COPY js/ ./js/
 COPY server/ ./server/
 
-RUN useradd --create-home --shell /usr/sbin/nologin proxy \
-  && chown -R proxy:proxy /srv/market-proxy
-USER proxy
+RUN chown -R node:node /srv/market-proxy
+USER node
 
 ENV PORT=8787
 ENV HOST=0.0.0.0
