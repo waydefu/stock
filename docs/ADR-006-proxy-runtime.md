@@ -24,7 +24,7 @@ Accepted（2026-09-11；維護者已部署並以真 smoke 驗證，見 Decision�
   `promotion=FAIL` 是研究 gate 結果（策略 OOS 落後 benchmark），不是 smoke failure，
   不得宣稱為策略獲利或可 promotion。
 - **殘留限制：** 免費／共享 runtime 可能冷啟動與休眠；Pages 端 browser acceptance
-  仍待本 ADR 接受後的 Pages 接線 PR 合併後執行。
+  已於 2026-09-11 PASS（真瀏覽器：Fugle quote＋232 bars 研究＋GATE FAIL＋provenance FUGLE＋無秘密外洩）。
 
 ## Context
 
@@ -49,8 +49,9 @@ Accepted（2026-09-11；維護者已部署並以真 smoke 驗證，見 Decision�
 ## Consequences
 
 - 決定前：proxy 只能跑在本機／可信內網；Pages 的 Fugle 模式顯示不可用（誠實狀態）。
-- 7B2 構建環境驗證：無公開 HTTPS 主機、無部署憑證可用 → 本 ADR 維持 Proposed；
+- （歷史，7B2 當時）7B2 構建環境驗證：無公開 HTTPS 主機、無部署憑證可用 → 本 ADR 維持 Proposed；
   接受條件＝已備妥主機＋key custody＋anti-abuse 後由維護者改 Accepted 並部署。
+  （已發生：2026-09-11 維護者部署 Render 並以真 smoke 驗證，狀態見上 Decision。）
 - CORS allowlist 不是存取控制：evil origin 拿不到 ACAO header，但 request 仍會打到
  proxy，curl 也能直呼。正式公開部署前必須加 anti-abuse／quota protection
  （速率配額、來源審計、必要時 API key 前門），不能把 CORS 當 API key 的替代品。
