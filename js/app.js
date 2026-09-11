@@ -6,6 +6,7 @@ import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getSymbol, rsi, volumeRatio } from 
 import { selectAdapter } from "./fixture-provider.js";
 import { drawCandles, drawLine, candleHoverAt } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
+import { evaluateWindow } from "./research.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
 import { escapeHtml } from "./dom.js";
@@ -346,6 +347,13 @@ function renderResearchBacktest(strategyId) {
   renderResearchProvenance();
 }
 
+/* Warmup context：評估窗之前的最近 N 根（策略宣告的記憶長度），只供指標歷史，不計績效。 */
+function warmupTail(bars, warmup) {
+  const n = Math.max(0, Math.floor(warmup) || 0);
+  if (!n || !Array.isArray(bars)) return [];
+  return bars.slice(-Math.min(n, bars.length));
+}
+
 /* 策略中心：基準永遠同場比較；gate 只評研究策略；不自動晉升任何策略。 */
 function runStrategyComparison() {
   const bars = marketData.getBars(state.symbol);
@@ -371,10 +379,10 @@ function runStrategyComparison() {
   const rows = ["cash", "buyHold", "multiHorizonTrend"].map((id) => {
     const def = registry.get(id);
     const runOpts = { symbol: state.symbol, strategy: def, allocate: researchAllocate(def, 0.25), ...costs };
-    const isS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.is }), {});
-    const oosS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.oos }), {});
+    const isS = summarizeResearch(evaluateWindow({ ...runOpts, contextBars: [], evalBars: split.is }), {});
+    const oosS = summarizeResearch(evaluateWindow({ ...runOpts, contextBars: warmupTail(split.is, def.warmup), evalBars: split.oos }), {});
     const stress = runCostStress({ ...runOpts, bars }, (r) => summarizeResearch(r, {}), id === "multiHorizonTrend" ? [0.5, 1, 2, 3] : [1, 2]);
-    const oosWindows = windows.map((w) => summarizeResearch(runResearchBacktest({ ...runOpts, bars: w.test }), {}));
+    const oosWindows = windows.map((w) => summarizeResearch(evaluateWindow({ ...runOpts, contextBars: warmupTail(w.train, def.warmup), evalBars: w.test }), {}));
     const gate = id === "multiHorizonTrend"
       ? evaluatePromotion({ strategyId: id, isSummary: isS, oosSummaries: oosWindows, costStress: stress, surfaceFlag, correctnessFindings: [] })
       : null;

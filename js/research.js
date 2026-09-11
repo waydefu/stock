@@ -46,6 +46,36 @@ export function runResearchBacktest({
   assertResearchBars(bars);
   if (typeof allocate !== "function") throw new Error("需要 Portfolio allocator（策略不得自己決定股數）");
   if (!(initialCapital > 0)) throw new Error("初始資金必須大於 0");
+  return evaluateWindow({ symbol, strategy, allocate, contextBars: [], evalBars: bars, commissionRate, slippageBps, initialCapital, entryThreshold, exitThreshold });
+}
+
+/**
+ * 正式 evaluation contract：[warmup context][evaluation window]。
+ * context 只供指標歷史（OOS 第一根即可產生 signal，不再永遠 WARMUP），
+ * 永不計入 PnL／trades／metrics；評估永遠 starting flat；index 皆為絕對位置。
+ */
+export function evaluateWindow({
+  symbol,
+  strategy,
+  allocate,
+  contextBars = [],
+  evalBars,
+  commissionRate = 0.001425,
+  slippageBps = 5,
+  initialCapital = 1_000_000,
+  entryThreshold = 0.5,
+  exitThreshold = -0.5,
+}) {
+  if (typeof symbol !== "string" || !symbol) throw new Error("需要 symbol");
+  validateStrategy(strategy);
+  if (!Array.isArray(evalBars) || evalBars.length < 1) throw new Error("evaluation window 至少需要一根 K 線");
+  assertResearchBars(evalBars);
+  const evals = evalBars;
+  const context = contextBars ?? [];
+  if (!Array.isArray(context)) throw new Error("contextBars 必須是陣列");
+  if (context.length) assertResearchBars(context);
+  if (typeof allocate !== "function") throw new Error("需要 Portfolio allocator（策略不得自己決定股數）");
+  if (!(initialCapital > 0)) throw new Error("初始資金必須大於 0");
   const comm = Math.max(0, finite(commissionRate, 0.001425));
   const slip = Math.max(0, finite(slippageBps, 5)) / 10_000;
 
@@ -112,23 +142,25 @@ export function runResearchBacktest({
   };
 
   const warmup = strategy.warmup;
-  for (let i = 0; i < bars.length; i++) {
-    if (i >= warmup && i < bars.length - 1) {
-      const history = bars.slice(0, i + 1);
-      const raw = strategy.generateSignal({ bars: history, index: i, symbol });
-      const signal = normalizeSignal(raw, { symbol, timestamp: bars[i].t });
+  const base = context.length;
+  for (let j = 0; j < evals.length; j++) {
+    const absolute = base + j;
+    if (absolute >= warmup && j < evals.length - 1) {
+      const history = context.concat(evals.slice(0, j + 1));
+      const raw = strategy.generateSignal({ bars: history, index: absolute, symbol });
+      const signal = normalizeSignal(raw, { symbol, timestamp: evals[j].t });
       const next = signalToTargetWeight(signal, target, { entryThreshold, exitThreshold });
-      if (next === 1 && target === 0) buyAt(bars[i + 1], i, signal);
-      if (next === 0 && target === 1) sellAt(bars[i + 1], i, "signal");
+      if (next === 1 && target === 0) buyAt(evals[j + 1], absolute, signal);
+      if (next === 0 && target === 1) sellAt(evals[j + 1], absolute, "signal");
       target = next;
     }
-    const positionValue = shares * bars[i].c;
+    const positionValue = shares * evals[j].c;
     const total = cash + positionValue;
     equity.push(total);
     exposure.push(total > 0 ? positionValue / total : 0);
   }
   if (shares > 0) {
-    const bar = bars.at(-1);
+    const bar = evals.at(-1);
     const price = bar.c * (1 - slip);
     const proceeds = price * shares;
     const fees = proceeds * comm;
@@ -139,7 +171,7 @@ export function runResearchBacktest({
       entryTime, exitTime: bar.t, entryPrice, exitPrice: price,
       qty: shares, grossPnl, fees: entryFees + fees, slippage: entrySlip + slipCost,
       netPnl: grossPnl - entryFees - fees,
-      entrySignalIndex, exitSignalIndex: bars.length - 1, exitReason: "end",
+      entrySignalIndex, exitSignalIndex: base + evals.length - 1, exitReason: "end",
     });
     totalFees += entryFees + fees;
     totalSlippage += entrySlip + slipCost;
@@ -151,6 +183,7 @@ export function runResearchBacktest({
     trades, equity, exposure, turnoverNotional, totalFees, totalSlippage,
     assumptions: {
       strategyId: strategy.id, strategyVersion: strategy.version, warmup,
+      warmupContextBars: base, evaluationBars: evals.length,
       fill: "next_bar_open", forceClose: "last_close",
       commissionRate: comm, slippageBps: slip * 10_000,
       entryThreshold, exitThreshold,
