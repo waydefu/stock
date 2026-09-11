@@ -27,6 +27,11 @@
 
 `.github/workflows/quality.yml` 只執行語法、單元測試、靜態檔案與本機靜態伺服器 smoke test，不使用券商秘密。PR 範本要求根本原因、驗收標準、命令與 exit code、CI、風險、文件影響與後續工作。
 
+**STATUS 同步門禁**：改到 `js/`、`tests/`、`server/`、`scripts/`、`package.json`、
+`index.html`、`css/` 或 `.github/workflows/` 的 PR，必須同步 `docs/PROJECT_STATUS.md`
+（HEAD／tests／gates／open PR／缺口），否則 `npm run check:status` 失敗；
+純文件 PR 豁免。`PROJECT_STATUS.md` 是唯一 current truth，不得另立現況數字。
+
 ## 尚未宣稱完成的 production 治理
 
 - 服務端 authentication／authorization、MFA、秘密管理、session binding。
