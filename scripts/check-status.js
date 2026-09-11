@@ -21,7 +21,7 @@ function changedFiles(base, head) {
     return null;
   }
   try {
-    const out = sh(`git diff --name-only ${base}..${head}`);
+    const out = sh(`git diff --name-only origin/${base}..${head}`);
     return out ? out.split("\n").map((line) => line.trim()).filter(Boolean) : [];
   } catch {
     console.log("CHECK-STATUS SKIP：無法計算 diff，改由人工確認 STATUS");
