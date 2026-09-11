@@ -143,6 +143,14 @@ Acceptance：非法 transition 拒絕；duplicate intent 不重複改帳；rejec
 
 ## Phase 7 — Adapter readiness（P1/P2）
 
+Phase 7A（`feat/adapter-readiness`，本輪）：boundary 先行，不接真 API。
+
+- provider-neutral contracts（`js/market-data-contract.js`）：capability、envelope、quote/bars 正規化、freshness（FRESH／STALE／UNKNOWN）、MarketDataError 穩定碼、bounded retry＋backoff、Retry-After 優先、injected transport。
+- deterministic fixture（`js/fixture-provider.js`）：401／429／500／timeout／重複／亂序／stale／缺欄／schema drift 全劇本；`selectAdapter` 無靜默退回；`assertBrowserSafeConfig` 鎖瀏覽器側秘密。
+- SimulatedAdapter legacy 形狀零變更，另附 envelopes／describe／capabilities／status。
+- UI 最小接線：machine-readable dataKind／status、研究假設來源標籤、point-in-time／adjustment unknown 誠實標記。
+- readiness matrix＋首選 Fugle（trusted proxy 架構）：`docs/PROVIDER_READINESS.md`（官方來源，2026-09-11 查驗）。
+
 先 fake contract，再考慮 paper provider：
 
 - Fugle／Shioaji：TW data／simulation assumptions、rate limit、corporate actions。
