@@ -528,6 +528,14 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("runtime-config-boundary", problems.join("；"));
 }
 
+// 32. favicon 存在（內嵌 data URI；避免瀏覽器 console 出現 favicon 404）
+{
+  const problems = [];
+  if (!/<link rel="icon"/.test(html)) problems.push("index.html 缺 favicon（console 會出現 404）");
+  if (problems.length === 0) ok("favicon");
+  else fail("favicon", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
