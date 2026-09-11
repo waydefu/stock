@@ -8,10 +8,10 @@
 ## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
 
 - Last verified main checkpoint：`44966df`（PR#19 status gate squash-merge）
-- 本分支：`feat/proxy-deploy-ready`（stacked on #20 分支，#20 merge 後 rebase 到 main），working tree 見下述提交後為 clean
+- 本分支：`feat/proxy-deploy-ready`，working tree 見下述提交後為 clean
 - Tests：183/183；`check:static` 27 files；`check:ui` 31/31 WARN 0 FAIL 0
 - Quality：見本 PR required check「Quality」（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
-- Open PR：#21（本分支；stacked on #20，待 #20 merge 後 rebase）
+- Open PR：#21（本分支；base main，已 rebase 到 d3086cd）
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）
 - Phase 7B1：MERGED；Phase 7B2：分支驗證中（見下）
 
