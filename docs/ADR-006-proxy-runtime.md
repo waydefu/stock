@@ -27,6 +27,8 @@ Proposed（2026-09-11；待維護者 infra 決策。本輪 proxy 保持 deploy-n
 ## Consequences
 
 - 決定前：proxy 只能跑在本機／可信內網；Pages 的 Fugle 模式顯示不可用（誠實狀態）。
+- 7B2 構建環境驗證：無公開 HTTPS 主機、無部署憑證可用 → 本 ADR 維持 Proposed；
+  接受條件＝已備妥主機＋key custody＋anti-abuse 後由維護者改 Accepted 並部署。
 - CORS allowlist 不是存取控制：evil origin 拿不到 ACAO header，但 request 仍會打到
  proxy，curl 也能直呼。正式公開部署前必須加 anti-abuse／quota protection
  （速率配額、來源審計、必要時 API key 前門），不能把 CORS 當 API key 的替代品。

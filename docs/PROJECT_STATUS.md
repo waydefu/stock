@@ -5,15 +5,15 @@
 > Authority hierarchy：Runtime＋tests ＞ main HEAD ＞ ADR ＞ RISK_REGISTER ＞
 > RESEARCH_LEDGER ＞ PROJECT_ROADMAP ＞ PROJECT_AUDIT（歷史）。
 
-## Current（verified 2026-09-11）
+## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
 
-- HEAD：`48424a6f3f24d8451aff0703c29f9130c3b897a0`（PR#17 Phase 7B1 squash-merge）
-- Branch：`main`；working tree clean
-- Tests：168/168；`check:static` 27 files；`check:ui` 29/29 WARN 0 FAIL 0
-- Quality：run `34573082375`，同 SHA，success；Pages run `34573082349` success
-- Open PR：none
+- Last verified main checkpoint：`44966df`（PR#19 status gate squash-merge）
+- 本分支：`feat/real-data-research-e2e`，working tree 見下述提交後為 clean
+- Tests：174/174；`check:static` 27 files；`check:ui` 30/30 WARN 0 FAIL 0
+- Quality／Pages run：待本 PR CI（見 PR 頁）
+- Open PR：7B2（本分支 PR，號碼見推送後）
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）
-- Phase 7B1：MERGED（Fugle REST adapter boundary＋trusted proxy；proxy 未部署）
+- Phase 7B1：MERGED；Phase 7B2：分支驗證中（見下）
 
 ## Scope
 
@@ -25,7 +25,8 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 2. matching＋reconciliation（立即成交模型現狀，見 R-003）
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. provider real-data runtime：Fugle REST adapter boundary 已 merge；
-   trusted proxy 尚未部署，real smoke 仍待 credential／runtime（見 ADR-006）
+   trusted proxy 程式完成但尚未部署，real smoke 仍待 credential／runtime
+   （見 ADR-006 Proposed；構建環境無公開主機／部署憑證）；UI Fugle 模式＋研究 runner 已就緒待真後端
 5. browser E2E＋完整 WCAG audit＋viewport 幾何實測
 6. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
 
