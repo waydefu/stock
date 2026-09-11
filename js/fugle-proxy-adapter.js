@@ -128,11 +128,24 @@ export class FugleProxyAdapter {
   async #fetchOnce(path) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
+    timer.unref?.();
+    const timeoutRace = new Promise((_, reject) => {
+      const t = setTimeout(() => {
+        controller.abort();
+        const error = new Error("timeout");
+        error.name = "TimeoutError";
+        reject(error);
+      }, this.#timeoutMs);
+      t.unref?.();
+    });
     try {
-      const response = await this.#fetchImpl(`${this.#baseUrl}${path}`, {
-        method: "GET",
-        signal: controller.signal,
-      });
+      const response = await Promise.race([
+        this.#fetchImpl(`${this.#baseUrl}${path}`, {
+          method: "GET",
+          signal: controller.signal,
+        }),
+        timeoutRace,
+      ]);
       const retryAfterMs = parseRetryAfterMs({ "retry-after": response.headers?.get?.("retry-after") }, this.#clock());
       if (!response.ok) {
         const body = await safeJson(response);
@@ -148,7 +161,7 @@ export class FugleProxyAdapter {
       }
       return body;
     } catch (error) {
-      if (error?.name === "AbortError") throw new MarketDataError(DATA_ERROR_CODE.TIMEOUT, `proxy 請求逾時（${this.#timeoutMs}ms）`);
+      if (error?.name === "AbortError" || error?.name === "TimeoutError") throw new MarketDataError(DATA_ERROR_CODE.TIMEOUT, `proxy 請求逾時（${this.#timeoutMs}ms）`);
       if (error instanceof MarketDataError) throw error;
       throw new MarketDataError(DATA_ERROR_CODE.PROVIDER_UNAVAILABLE, `proxy 傳輸失敗：${error?.message ?? "unknown"}`);
     } finally {
