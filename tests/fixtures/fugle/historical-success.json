@@ -1,0 +1,13 @@
+{
+  "symbol": "0050",
+  "type": "EQUITY",
+  "exchange": "TWSE",
+  "market": "TSE",
+  "timeframe": "D",
+  "data": [
+    { "date": "2023-02-06", "open": 119.1, "high": 120.2, "low": 118.9, "close": 119.0, "volume": 8123456, "change": -0.1 },
+    { "date": "2023-02-07", "open": 119.1, "high": 120.5, "low": 119.0, "close": 119.0, "volume": 7654321, "change": 0.0 },
+    { "date": "2023-02-08", "open": 120.1, "high": 120.95, "low": 120.0, "close": 120.85, "volume": 9239321, "change": 1.85 }
+  ],
+  "sort": "asc"
+}
