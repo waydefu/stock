@@ -224,3 +224,12 @@ test("per-process rate limiter sheds load with 429 instead of hitting upstream",
   assert.equal(shed.json.error.code, "RATE_LIMITED");
   assert.equal(upstreamCalls, 2);
 });
+
+test("health endpoint reports liveness without secrets or internals", async () => {
+  const { proxy } = testProxy(async () => okJson(QUOTE_UPSTREAM));
+  const r = await call(proxy, "GET", "/healthz");
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json, { status: "ok", service: "market-proxy" });
+  const text = JSON.stringify(r.json).toLowerCase();
+  assert.ok(!text.includes("api_key") && !text.includes("env") && !text.includes("secret"));
+});
