@@ -277,7 +277,7 @@ function renderBacktest() {
     ["Sharpe", m.sharpeInsufficient ? "樣本不足" : formatMetric(m.sharpe), m.sharpeInsufficient ? "neutral" : m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
-  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K</span></div>`;
+  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
@@ -336,7 +336,7 @@ function renderResearchBacktest(strategyId) {
     ["IS／OOS", `${split.is.length}／${split.oos.length} 根（時序切分，OOS 為後段）`],
     ["基準比較", `Cash ${money(bench.cash.netProfit, ccy)}・Buy&Hold ${money(bench.buyHold.netProfit, ccy)}（同資金同成本）`],
     ["費用合計", `手續費 ${money(full.totalFees, ccy)}・滑價 ${money(full.totalSlippage, ccy)}`],
-    ["資料", "固定 250 根模擬日 K"],
+    ["資料", `固定 250 根模擬日 K・${dataProvenanceTag()}`],
   ].map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join("");
   const isLen = split.is.length;
   $("#backtest-trades tbody").innerHTML = full.trades.length ? full.trades.map((trade) => {
@@ -396,16 +396,28 @@ function renderResearchProvenance() {
   const element = $("#research-provenance");
   if (!element) return;
   const source = marketData.getSource();
+  const described = typeof marketData.describe === "function" ? marketData.describe() : null;
   const timezone = state.market === "TW" ? "Asia/Taipei" : "America/New_York";
   element.innerHTML = [
     ["來源", `${source.name}・${source.kind}`],
-    ["資料集", "固定 250 根模擬日 K"],
+    ["數據種類", described?.dataKind ?? "simulation"],
+    ["狀態", described?.status ?? "READY"],
+    ["正規化", `v${described?.normalizationVersion ?? 1}`],
+    ["資料集", `固定 250 根模擬日 K・${dataProvenanceTag()}`],
     ["週期", "日 K（daily OHLCV）"],
     ["時區", timezone],
     ["更新", source.updatedAt],
     ["新鮮度", "非即時・研究用"],
-    ["公司行動", "未調整（僅 schema contract）"],
+    ["point-in-time", described?.pointInTime ?? "unknown"],
+    ["公司行動調整", "unknown（未標記，不假裝已調整）"],
   ].map(([k, v]) => `<div class="row"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
+}
+
+/* 研究假設用的機器可讀來源標籤：兩次不同 provenance 的回測不再看起來相同。 */
+function dataProvenanceTag() {
+  const described = typeof marketData.describe === "function" ? marketData.describe() : null;
+  if (!described) return "simulation";
+  return `${described.provider}・${described.dataKind}・norm-v${described.normalizationVersion}`;
 }
 
 function renderTrade() {
@@ -687,13 +699,15 @@ function initEvents() {
 
 function renderDataSource() {
   const source = marketData.getSource();
+  const described = typeof marketData.describe === "function" ? marketData.describe() : null;
+  const state = described?.status ?? "READY";
   const badge = $("#market-status");
   if (badge) {
-    badge.textContent = source.shortLabel;
+    badge.textContent = state === "READY" ? source.shortLabel : `${source.shortLabel}・${state}`;
     badge.title = `${source.name}：${source.note}（${source.updatedAt}）`;
   }
   const label = $("#data-source");
-  if (label) label.textContent = `${source.name}・${source.updatedAt}終點・非即時`;
+  if (label) label.textContent = `${source.name}・${source.updatedAt}終點・非即時` + (described ? `・${described.dataKind}・${state}` : "");
 }
 
 auditEvent("SESSION_OPEN", { app: "Stock Lab" });

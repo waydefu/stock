@@ -462,6 +462,29 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("mobile-layout", problems.join("；"));
 }
 
+// 25. 資料來源最小呈現：機器可讀 dataKind／status，不只靠中文字與顏色
+{
+  const problems = [];
+  if (!/marketData\.describe\(\)/.test(app)) problems.push("app.js 未讀取 adapter describe()");
+  if (!/dataProvenanceTag\(\)/.test(app)) problems.push("研究假設缺 machine-readable 來源標籤");
+  if (!/pointInTime|point-in-time/.test(app)) problems.push("研究來源缺 point-in-time 標記");
+  if (problems.length === 0) ok("data-provenance-ui");
+  else fail("data-provenance-ui", problems.join("；"));
+}
+
+// 26. Adapter 秘密邊界：新資料層不得出現憑證賦值形狀
+{
+  const problems = [];
+  const adapterFiles = ["js/market-data.js", "js/market-data-contract.js", "js/fixture-provider.js"]
+    .map((f) => readFileSync(f, "utf8")).join("\n");
+  for (const m of adapterFiles.matchAll(/api[_-]?key\s*=\s*["'][^"']+["']|secret\s*=\s*["'][^"']+["']|-----BEGIN [A-Z ]*PRIVATE KEY-----/gi)) {
+    problems.push(`憑證形狀：${m[0].slice(0, 40)}`);
+  }
+  if (!/assertBrowserSafeConfig/.test(adapterFiles)) problems.push("缺瀏覽器側秘密守則 assertBrowserSafeConfig");
+  if (problems.length === 0) ok("no-adapter-secrets");
+  else fail("no-adapter-secrets", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
