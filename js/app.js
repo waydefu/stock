@@ -21,6 +21,7 @@ import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
 import { fixedFraction, fullNotional } from "./portfolio.js";
 import {
   evaluatePromotion,
+  evaluateTrendSurface,
   parameterSurface,
   runCostStress,
   runResearchBacktest,
@@ -543,13 +544,7 @@ async function runFugleResearch() {
     const buy = registry.get("buyHold");
     const buyOOS = summarizeResearch(evaluateWindow({ symbol, strategy: buy, allocate: researchAllocate(buy, 0.25), contextBars: [], evalBars: split.oos, ...costs }), {});
     const stress = runCostStress({ ...base, bars }, (r) => summarizeResearch(r, {}), [1, 2]);
-    const surfaceCells = [10, 20, 30].map((short) => {
-      const variant = makeTrendStrategy({ id: `trend-s${short}`, short });
-      const tail = bars.slice(-60);
-      const beforeTail = bars.slice(0, -60);
-      const result = evaluateWindow({ symbol, strategy: variant, allocate: fixedFraction(0.25), contextBars: warmupTail(beforeTail, variant.warmup), evalBars: tail, ...costs });
-      return { params: { short }, value: summarizeResearch(result, {}).netProfit };
-    });
+    const surfaceCells = evaluateTrendSurface({ symbol, bars, shorts: [10, 20, 30], evalLength: 60, makeVariant: (short) => makeTrendStrategy({ id: `trend-s${short}`, short }), allocate: fixedFraction(0.25), ...costs });
     const surface = parameterSurface(surfaceCells);
     const gate = evaluatePromotion({ strategyId: def.id, isSummary: isS, oosSummaries: oosWindows, costStress: stress, surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE", correctnessFindings: [] });
     const last = def.generateSignal({ bars, index: bars.length - 1, symbol });

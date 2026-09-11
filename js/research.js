@@ -191,6 +191,26 @@ export function evaluateWindow({
   };
 }
 
+/** 參數平面共用 helper：UI／smoke／tests 同一語義。
+ * 每個 variant 拿「評估窗之前」的完整 warmup context（variant.warmup，
+ * 非 short 本身），評估窗為末段 evalLength 根；回傳 [{ params, value, trades }]。
+ * 任一格不得因 context 不足退化成全零 WARMUP——由測試鎖死，不在這裡靜默。 */
+export function evaluateTrendSurface({ symbol, bars, shorts = [10, 20, 30], evalLength = 60, makeVariant, allocate, commissionRate = 0.001425, slippageBps = 5, initialCapital = 1_000_000 } = {}) {
+  if (!Array.isArray(bars) || bars.length <= evalLength) {
+    throw new Error("surface 需要多於評估窗的歷史 K 線");
+  }
+  if (typeof makeVariant !== "function") throw new Error("surface 需要 makeVariant(short) 工廠");
+  const tail = bars.slice(-evalLength);
+  const beforeTail = bars.slice(0, -evalLength);
+  return shorts.map((short) => {
+    const variant = makeVariant(short);
+    const warmup = Number.isFinite(variant?.warmup) ? variant.warmup : 0;
+    const contextBars = warmup > 0 ? beforeTail.slice(-Math.min(warmup, beforeTail.length)) : [];
+    const result = evaluateWindow({ symbol, strategy: variant, allocate, contextBars, evalBars: tail, commissionRate, slippageBps, initialCapital });
+    return { params: { short }, value: summarizeResearch(result, {}).netProfit, trades: result.trades.length };
+  });
+}
+
 /** 專業回測摘要：樣本不足的欄位回 null（UI 顯示 N/A），不硬算。 */
 export function summarizeResearch(result, { periodsPerYear = 252, riskFreeRate = 0, minSamples = 3 } = {}) {
   const { equity, trades } = result;

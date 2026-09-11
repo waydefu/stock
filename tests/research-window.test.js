@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateWindow, parameterSurface, runResearchBacktest } from "../js/research.js";
+import { evaluateWindow, evaluateTrendSurface, parameterSurface, runResearchBacktest } from "../js/research.js";
 import { makeTrendStrategy } from "../js/alpha.js";
 import { fixedFraction } from "../js/portfolio.js";
 
@@ -77,4 +77,15 @@ test("surface cells get full warmup context instead of flat-zero STABLE", () => 
   assert.ok(cells.some((c) => c.value !== 0), "surface must not be degenerate all-zero");
   const surface = parameterSurface(cells.map(({ params, value }) => ({ params, value })));
   assert.equal(typeof surface.overfitRisk, "boolean");
+});
+
+test("shared surface helper gives every variant full warmup context", () => {
+  const bars = trendBars(300, 100, 0.4, 1_000_000);
+  const makeVariant = (short) => makeTrendStrategy({ id: `h${short}`, short });
+  const cells = evaluateTrendSurface({ symbol: "2330", bars, shorts: [10, 20, 30], evalLength: 60, makeVariant, allocate: fixedFraction(0.25) });
+  assert.equal(cells.length, 3);
+  assert.ok(cells.every((c) => c.trades > 0), "no cell may stay in WARMUP silence");
+  assert.ok(cells.some((c) => c.value !== 0), "surface must not be degenerate all-zero");
+  assert.throws(() => evaluateTrendSurface({ symbol: "2330", bars: bars.slice(-30), shorts: [10], evalLength: 60, makeVariant, allocate: fixedFraction(0.25) }), /評估窗/);
+  assert.throws(() => evaluateTrendSurface({ symbol: "2330", bars, shorts: [10], evalLength: 60, allocate: fixedFraction(0.25) }), /makeVariant/);
 });

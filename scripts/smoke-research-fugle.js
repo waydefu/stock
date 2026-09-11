@@ -3,7 +3,7 @@
    Without key: BLOCKED_BY_CREDENTIAL (exit 2). Invariants only, no prices recorded. */
 import { createProxy } from "../server/market-proxy.js";
 import { FugleProxyAdapter } from "../js/fugle-proxy-adapter.js";
-import { evaluateWindow, runCostStress, splitIS_OOS, summarizeResearch, walkForward, parameterSurface, evaluatePromotion } from "../js/research.js";
+import { evaluateWindow, runCostStress, splitIS_OOS, summarizeResearch, walkForward, parameterSurface, evaluatePromotion, evaluateTrendSurface } from "../js/research.js";
 import { fugleResearchRange } from "../js/research-range.js";
 import { makeTrendStrategy, BUY_HOLD_STRATEGY } from "../js/alpha.js";
 import { fixedFraction } from "../js/portfolio.js";
@@ -47,12 +47,8 @@ try {
     if (!wf.length) failures.push("walk-forward windows");
     const oosWindows = wf.map((w) => summarizeResearch(evaluateWindow({ ...base, contextBars: warmupTail(w.train, def.warmup), evalBars: w.test }), {}));
     const stress = runCostStress({ ...base, bars }, (r) => summarizeResearch(r, {}), [1, 2]);
-    const surface = parameterSurface([10, 20, 30].map((short) => {
-      const v = makeTrendStrategy({ id: `t${short}`, short });
-      const tail = bars.slice(-60);
-      const r = evaluateWindow({ ...base, strategy: v, allocate: fixedFraction(0.25), contextBars: bars.slice(-60 - short, -60), evalBars: tail });
-      return { params: { short }, value: summarizeResearch(r, {}).netProfit };
-    }));
+    const surfaceCells = evaluateTrendSurface({ symbol, bars, shorts: [10, 20, 30], evalLength: 60, makeVariant: (short) => makeTrendStrategy({ id: `t${short}`, short }), allocate: fixedFraction(0.25), commissionRate: 0.001425, slippageBps: 5, initialCapital: 1_000_000 });
+    const surface = parameterSurface(surfaceCells.map(({ params, value }) => ({ params, value })));
     const gate = evaluatePromotion({ strategyId: def.id, isSummary: summarizeResearch(evaluateWindow({ ...base, contextBars: [], evalBars: split.is }), {}), oosSummaries: oosWindows, costStress: stress, surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE", correctnessFindings: [] });
     const last = def.generateSignal({ bars, index: bars.length - 1, symbol });
     Object.assign(out, {
