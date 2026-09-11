@@ -208,3 +208,19 @@ test("loopback integration serves real HTTP without external network", async () 
     await running.close();
   }
 });
+
+test("per-process rate limiter sheds load with 429 instead of hitting upstream", async () => {
+  let upstreamCalls = 0;
+  const { proxy } = testProxy(async () => {
+    upstreamCalls += 1;
+    return okJson(QUOTE_UPSTREAM);
+  }, { rateLimit: { maxRequests: 2, windowMs: 60_000 }, clock: () => 1000 });
+  const first = await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  const second = await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  const shed = await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  assert.equal(shed.status, 429);
+  assert.equal(shed.json.error.code, "RATE_LIMITED");
+  assert.equal(upstreamCalls, 2);
+});

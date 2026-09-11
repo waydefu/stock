@@ -501,6 +501,20 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("fugle-boundary", problems.join("；"));
 }
 
+// 28. Fugle 真實模式 UI：明確切換＋失敗顯性＋PAPER 不消失
+{
+  const problems = [];
+  if (!/id="data-mode"/.test(html)) problems.push("缺資料模式切換 #data-mode");
+  if (!/value="simulation" selected/.test(html)) problems.push("資料模式預設必須是 simulation");
+  if (!/id="fugle-quote-btn"/.test(html) || !/id="fugle-research-btn"/.test(html)) problems.push("缺 Fugle 查詢／研究按鈕");
+  if (!/id="fugle-quote"/.test(html) || !/id="fugle-research"/.test(html)) problems.push("缺 Fugle 結果容器");
+  if (!/INSUFFICIENT_RESEARCH_HISTORY/.test(app)) problems.push("app 缺研究歷史不足的明確錯誤");
+  if (!/PAPER EXECUTION/.test(html)) problems.push("Fugle 卡缺 PAPER EXECUTION 標示");
+  if (!/不切回模擬/.test(app)) problems.push("Fugle 失敗路徑未承諾不 fallback");
+  if (problems.length === 0) ok("fugle-ui");
+  else fail("fugle-ui", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);

@@ -13,6 +13,9 @@ import { escapeHtml } from "./dom.js";
 import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
+import { FugleProxyAdapter } from "./fugle-proxy-adapter.js";
+import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
+import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
 import { fixedFraction, fullNotional } from "./portfolio.js";
 import {
@@ -33,6 +36,7 @@ const state = {
   chartWindow: 90,
   pendingOrder: null,
   modalTrigger: null,
+  dataMode: "simulation",
 };
 let clientOrderSequence = 0;
 
@@ -428,6 +432,155 @@ function dataProvenanceTag() {
   return `${described.provider}・${described.dataKind}・norm-v${described.normalizationVersion}`;
 }
 
+/* Fugle 真實行情（7B2）：明確模式＋async 查詢＋失敗顯性，永不 fallback 模擬。 */
+const FUGLE_ERROR_TEXT = {
+  AUTH_REQUIRED: "proxy 未設定金鑰（fail closed），請部署者檢查 server env",
+  AUTH_FAILED: "Fugle 認證失敗（key 無效或方案不足）",
+  RATE_LIMITED: "觸發限流，稍後再試",
+  TIMEOUT: "請求逾時（10s 硬上限）",
+  PROVIDER_UNAVAILABLE: "Fugle 或 proxy 暫時不可用",
+  INVALID_SYMBOL: "商品代碼不正確（Fugle 查無）",
+  DATA_INVALID: "Fugle 回應結構異常（schema drift 可能）",
+  DATA_STALE: "報價已 stale，不採用",
+  UNSUPPORTED_CAPABILITY: "不支援的操作",
+  INSUFFICIENT_RESEARCH_HISTORY: "真實 K 棒不足（需 ≥150 根），不補模擬資料",
+  FUGLE_MODE_OFF: "目前是模擬模式",
+  PROXY_NOT_CONFIGURED: "Fugle mode unavailable：尚未設定 proxy URL",
+};
+
+function requireFugleAdapter() {
+  if (state.dataMode !== "fugle-proxy") {
+    throw Object.assign(new Error("切換「Fugle 真實行情」後再查詢"), { code: "FUGLE_MODE_OFF" });
+  }
+  if (!MARKET_DATA_PROXY_URL) {
+    throw Object.assign(new Error("部署時注入 proxy URL 後可用"), { code: "PROXY_NOT_CONFIGURED" });
+  }
+  return new FugleProxyAdapter({ baseUrl: MARKET_DATA_PROXY_URL });
+}
+
+function renderFugleError(box, error) {
+  const code = typeof error?.code === "string" ? error.code : "UNKNOWN";
+  const hint = FUGLE_ERROR_TEXT[code] ?? "未知錯誤";
+  const extra = error && error.message ? `（${error.message}）` : "";
+  box.innerHTML = statePanel("error", `Fugle 查詢失敗［${code}］`, `${hint}${extra}維持 Fugle 模式，不切回模擬。`);
+}
+
+function fmtTaipeiTime(ts) {
+  if (!Number.isFinite(ts)) return "未知";
+  return new Date(ts).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+function taipeiYMD(date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+function addDaysYMD(ymd, days) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+async function renderFugleQuote() {
+  const box = $("#fugle-quote");
+  const show = $("#fugle-symbol").value.trim() || "2330";
+  box.innerHTML = statePanel("loading", "查詢真實報價…", `${show}・Fugle intraday quote`);
+  try {
+    const adapter = requireFugleAdapter();
+    const envelope = await adapter.quoteAsync(show);
+    const q = envelope.data;
+    const m = envelope.meta;
+    const session = getCurrentSession("TW", q.timestamp ?? Date.now());
+    const freshBadge = m.stale
+      ? `<span class="badge down">STALE</span>`
+      : m.freshnessStatus === "FRESH" ? `<span class="badge up">FRESH</span>` : `<span class="badge neutral">UNKNOWN</span>`;
+    const rows = [
+      ["標的", `${escapeHtml(q.symbol)}・TW・<span class="badge brand">REAL DATA</span>`],
+      ["最新價", `<span class="mono">${fmtPrice(q.price)}</span>`],
+      ["前收", `<span class="mono">${q.previousClose === null ? "N/A" : fmtPrice(q.previousClose)}</span>`],
+      ["漲跌", `<span class="mono">${q.change === null ? "N/A" : signed(q.change)}</span>`],
+      ["漲跌幅", `<span class="mono">${q.changePct === null ? "N/A" : pct(q.changePct)}</span>`],
+      ["成交量", `<span class="mono">${q.volume === null ? "N/A" : fmtInt(q.volume)}</span>`],
+      ["Provider 時間", fmtTaipeiTime(q.timestamp)],
+      ["收到時間", fmtTaipeiTime(m.receivedAt)],
+      ["Freshness", `${m.freshnessStatus} ${freshBadge}`],
+      ["交易時段", session ? session.name : "休市"],
+      ["Provider 狀態", adapter.getStatus().state],
+    ];
+    box.innerHTML = `<div class="notice info">真實報價僅供研究參考；下單票價格仍為模擬，執行永遠是 PAPER。</div>` +
+      rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join("");
+    auditEvent("FUGLE_QUOTE", { symbol: q.symbol, freshness: m.freshnessStatus });
+  } catch (error) {
+    renderFugleError(box, error);
+  }
+}
+
+async function runFugleResearch() {
+  const box = $("#fugle-research");
+  box.innerHTML = statePanel("loading", "抓取真實日 K…", "Fugle historical candles（<1 日曆年）→ Multi-Horizon Trend");
+  try {
+    const adapter = requireFugleAdapter();
+    const symbol = $("#fugle-symbol").value.trim() || "2330";
+    const to = taipeiYMD(new Date());
+    const from = addDaysYMD(to, -400);
+    const { envelope } = await adapter.getBarsAsync(symbol, { from, to });
+    if (envelope.meta.provider !== "FUGLE") throw Object.assign(new Error("provenance 非 FUGLE，拒絕混用"), { code: "DATA_INVALID" });
+    const bars = envelope.data;
+    if (!Array.isArray(bars) || bars.length < 150) {
+      box.innerHTML = statePanel("error", "INSUFFICIENT_RESEARCH_HISTORY", `真實 K 棒僅 ${Array.isArray(bars) ? bars.length : 0} 根（需 ≥150 根），不補模擬資料。`);
+      return;
+    }
+    const def = registry.get("multiHorizonTrend");
+    const costs = researchCosts();
+    const base = { symbol, strategy: def, allocate: researchAllocate(def, 0.25), ...costs };
+    const split = splitIS_OOS(bars, 0.4);
+    const isR = evaluateWindow({ ...base, contextBars: [], evalBars: split.is });
+    const oosR = evaluateWindow({ ...base, contextBars: warmupTail(split.is, def.warmup), evalBars: split.oos });
+    const isS = summarizeResearch(isR, {});
+    const oosS = summarizeResearch(oosR, {});
+    const windows = walkForward(bars, { folds: 3, minWindow: 30 })
+      .map((w) => ({ ...w, start: w.train.length }))
+      .filter((w) => w.start >= def.warmup);
+    if (!windows.length) {
+      box.innerHTML = statePanel("error", "INSUFFICIENT_RESEARCH_HISTORY", "walk-forward 無可用窗口（context 不足 warmup），不硬算。");
+      return;
+    }
+    const oosWindows = windows.map((w) => summarizeResearch(evaluateWindow({ ...base, contextBars: warmupTail(w.train, def.warmup), evalBars: w.test }), {}));
+    const buy = registry.get("buyHold");
+    const buyOOS = summarizeResearch(evaluateWindow({ symbol, strategy: buy, allocate: researchAllocate(buy, 0.25), contextBars: [], evalBars: split.oos, ...costs }), {});
+    const stress = runCostStress({ ...base, bars }, (r) => summarizeResearch(r, {}), [1, 2]);
+    const surfaceCells = [10, 20, 30].map((short) => {
+      const variant = makeTrendStrategy({ id: `trend-s${short}`, short });
+      const tail = bars.slice(-60);
+      const result = evaluateWindow({ symbol, strategy: variant, allocate: fixedFraction(0.25), contextBars: bars.slice(-60 - short, -60), evalBars: tail, ...costs });
+      return { params: { short }, value: summarizeResearch(result, {}).netProfit };
+    });
+    const surface = parameterSurface(surfaceCells);
+    const gate = evaluatePromotion({ strategyId: def.id, isSummary: isS, oosSummaries: oosWindows, costStress: stress, surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE", correctnessFindings: [] });
+    const last = def.generateSignal({ bars, index: bars.length - 1, symbol });
+    const m = envelope.meta;
+    const provenance = `${m.provider}・${m.dataKind}・norm-v${m.normalizationVersion}・${m.adjustmentMode}・${m.pointInTime}`;
+    const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
+    box.innerHTML = `<div class="notice info">真實資料研究 <span class="badge brand">FUGLE HISTORICAL</span> <span class="badge neutral">PAPER EXECUTION</span></div>` +
+      row("資料", `${escapeHtml(symbol)}・${m.dataKind}・${bars.length} 根`) +
+      row("區間", `${escapeHtml(String(bars[0].t ? fmtDay(bars[0].t) : "?"))} → ${escapeHtml(fmtDay(bars.at(-1).t))}`) +
+      row("策略", "Multi-Horizon Trend 20/60/120") +
+      row("最新 score", na(last.score, (v) => v.toFixed(3))) +
+      row("最新 confidence", na(last.confidence, (v) => v.toFixed(3))) +
+      row("最新 reason", escapeHtml(last.reasonCodes?.[0] ?? "未知")) +
+      row("診斷 S/M/L", escapeHtml([last.diagnostics?.short, last.diagnostics?.medium, last.diagnostics?.long].map((v) => v ?? "?").join(" / "))) +
+      row("IS 報酬／Sharpe／MDD／筆數", `${signed(isS.netProfit)}／${na(isS.sharpe, (v) => v.toFixed(2))}／${isS.maxDrawdownPct.toFixed(2)}%／${isS.tradeCount}`) +
+      row("OOS 報酬／Sharpe／MDD／筆數", `${signed(oosS.netProfit)}／${na(oosS.sharpe, (v) => v.toFixed(2))}／${oosS.maxDrawdownPct.toFixed(2)}%／${oosS.tradeCount}`) +
+      row("Buy&Hold OOS", `${signed(buyOOS.netProfit)}（同資料同區間）`) +
+      row("Walk-forward", oosWindows.map((s, i) => `W${i + 1} ${signed(s.netProfit)}`).join("・") || "無可用窗口") +
+      row("成本壓力", stress.fragile ? "EXECUTION_FRAGILE" : "成本穩") +
+      row("參數穩健", surface.overfitRisk ? "OVERFIT_RISK" : "STABLE 高原") +
+      row("Promotion Gate", gate.pass ? "GATE PASS" : "GATE FAIL") +
+      row("Provenance", escapeHtml(`${provenance}・${from}→${to}`));
+    auditEvent("FUGLE_RESEARCH", { symbol, bars: bars.length, range: `${from}→${to}`, gate: gate.pass ? "PASS" : "FAIL" });
+  } catch (error) {
+    renderFugleError(box, error);
+  }
+}
+
 function renderTrade() {
   const market = $("#trade-market").value || state.market;
   if (market !== state.market) state.market = market;
@@ -699,6 +852,16 @@ function initEvents() {
   $("#shortcut-help").addEventListener("click", openHelp);
   $("#symbol-search").addEventListener("keydown", handleSymbolSearch);
   $("#order-lot").addEventListener("change", updateOrderEstimate);
+  $("#data-mode").addEventListener("change", (event) => {
+    state.dataMode = event.target.value;
+    auditEvent("DATA_MODE_CHANGED", { mode: state.dataMode });
+    if (state.dataMode !== "fugle-proxy") {
+      $("#fugle-quote").innerHTML = "切換「Fugle 真實行情」後可查詢；模擬模式不連外網。真實報價僅供研究參考，下單票價格仍為模擬。";
+      $("#fugle-research").innerHTML = "";
+    }
+  });
+  $("#fugle-quote-btn").addEventListener("click", renderFugleQuote);
+  $("#fugle-research-btn").addEventListener("click", runFugleResearch);
   $("#backtest-strategy").addEventListener("change", renderBacktest);
   $("#strategy-run").addEventListener("click", runStrategyComparison);
   document.addEventListener("keydown", handleGlobalKeydown);
