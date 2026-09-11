@@ -29,6 +29,7 @@
 | Shioaji v1.7.5 simulation／限流語義 | [110][111][112] | Sinotrade official docs＋releases | Provider readiness | Highly time-sensitive（verified 2026-09-11） | sim 單禁興櫃／零股；超流回空值；憑證制→本機可信 process。 |
 | Alpaca Market Data 與 Trading API 分離；Basic IEX／Plus SIP；paper 獨立 key | [113][114][115] | Alpaca official docs | Provider readiness | Highly time-sensitive（verified 2026-09-11） | US-only；429＋backoff 官方指引已收錄進 retry 契約。 |
 | IBKR pacing／paper 限制／L1 訂閱制 | [116][117][118] | IBKR official docs | Provider readiness | Highly time-sensitive（verified 2026-09-11） | 重量級 deferred；最大 req/s＝lines÷2（100 lines→50/s）與 soft throttle 已收錄。 |
+| Fugle REST 規格重查（7B1）：intraday quote／historical candles／錯誤碼／分級限流 | [119][120][121][122] | Fugle official docs | Fugle adapter | Highly time-sensitive（verified 2026-09-11） | 微秒戳 sourced conversion；區間<1年／404查無／429限流；日內 60-2000/min、歷史 60/min。 |
 | Volatility-managed portfolios：波動高時降險可提高 Sharpe；受限版本測試 leverage cap 1／1.5 | [100][101] | Primary：Journal of Finance＋NBER working paper | VolatilityTargetingOverlay（capped leverage） | Published research，stable | 低波動不變無限槓桿：maxLeverage 必須有限；本 repo 只做單標的 overlay，未做多因子。 |
 | 時間序列動量／橫截面動量／價值動量／配對交易／data-snooping 的 canonical 引用（本輪未重讀全文，只記研究假說出處） | [102][103][104][105][106][107][108] | Journals（JFE／JF／RFS／Econometrica）＋AQR 白皮書 | multi-horizon trend hypothesis；pairs／regime／White 檢驗留待後續 | Canonical references，需實作前重查 | 多 horizon 組合只為穩健高原，不宣稱機構級；pairs／regime 未達資料門檻不實作。 |
 | GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
@@ -100,3 +101,7 @@
 [116] https://www.interactivebrokers.com/docs/tws-api/doc/pacing-limitations/introduction
 [117] https://www.interactivebrokers.com/campus/glossary-terms/paper-trading-account/
 [118] https://www.interactivebrokers.com/docs/general/market-data-subscriptions/introduction
+[119] https://developer.fugle.tw/docs/data/http-api/intraday/quote
+[120] https://developer.fugle.tw/docs/data/http-api/historical/candles
+[121] https://developer.fugle.tw/docs/data/error_codes
+[122] https://developer.fugle.tw/docs/pricing

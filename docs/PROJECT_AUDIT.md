@@ -11,9 +11,11 @@
 
 ## Current checkpoint
 
-- HEAD：`604fbba60882a0c79062443ecbca864a97a5ca7b`
-- Branch：`main`；working tree was clean after PR#9 squash-merge
-- Local verification：`check:static` 27 files、`check:syntax` exit 0、`check:ui` 21 passed／0 failed、`score:ui` 100/100 PASS、`npm test` 107 passed／0 failed、`git diff --check` exit 0
+- HEAD：`f07b8d3bad15f2f182dfe7f64251350cf4c3a2aa`
+- Branch：`main`；working tree clean；PR#16（Phase 7A）已 squash-merge
+- Local verification：`check:static` 27 files、`check:syntax` exit 0、`check:ui` 28 passed／0 failed、`npm test` 142 passed／0 failed、`git diff --check` exit 0
+- Merged since `604fbba`（摘要）：PR#10 docs 對齊、PR#11 FeeModel、PR#12 MarketRules（tick／limit／session＋RiskEngine 接線）、PR#13 ADR-005、PR#14 UI P1（benchmark 7.9/10）＋Pages 上線、PR#15 手機版、PR#16 7A adapter boundary
+- Phase 7B1（Fugle REST＋proxy）進行中，分支 `feat/fugle-rest-adapter`，未 merge
 - Remote Quality：run `34447357364`，same SHA，success
 - Merged since `df0366a`：PR#9 quant research engine＋professional trading workstation（7 原子提交：strategy/signal contract、research baselines＋multi-horizon trend、portfolio allocators＋vol overlay＋hard limits、IS/OOS＋walk-forward＋cost stress＋promotion gate、workstation visual contract、strategy research workspace、anti-template gates＋ui-score；2026-09-10 UTC squash-merge）
 - Baseline scores below are historical；本輪尚未重新執行 UI／engineering rubric，因此不把修復直接換算成新分數。

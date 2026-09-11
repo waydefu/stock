@@ -9,6 +9,7 @@
     "check:syntax": "find js tests scripts -type f -name '*.js' -print0 | xargs -0 -r -n1 node --check",
     "check:static": "node scripts/check-static.js",
     "check:ui": "node scripts/check-ui.js",
+    "smoke:fugle": "node scripts/smoke-fugle.js",
     "score:ui": "node scripts/ui-score.js"
   },
   "engines": {
