@@ -15,13 +15,13 @@ function sh(command) {
 
 function changedFiles(base, head) {
   try {
-    sh(`git fetch --no-tags --depth=200 origin ${base}`);
+    sh(`git fetch --no-tags --depth=1 origin ${base}`);
   } catch {
     console.log(`CHECK-STATUS SKIP：抓不到 base ${base}（非標準 PR 環境），改由人工確認 STATUS`);
     return null;
   }
   try {
-    const out = sh(`git diff --name-only origin/${base}...${head}`);
+    const out = sh(`git diff --name-only origin/${base}..${head}`);
     return out ? out.split("\n").map((line) => line.trim()).filter(Boolean) : [];
   } catch {
     console.log("CHECK-STATUS SKIP：無法計算 diff，改由人工確認 STATUS");

@@ -11,6 +11,8 @@
     "check:ui": "node scripts/check-ui.js",
     "check:status": "node scripts/check-status.js",
     "smoke:fugle": "node scripts/smoke-fugle.js",
+    "smoke:fugle:remote": "node scripts/smoke-fugle-remote.js",
+    "smoke:research:fugle": "node scripts/smoke-research-fugle.js",
     "score:ui": "node scripts/ui-score.js"
   },
   "engines": {

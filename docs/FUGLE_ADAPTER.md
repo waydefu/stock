@@ -60,6 +60,20 @@ proxy 與 browser 各做一次 7A `normalize`（縱深驗證，皆冪等）。
 - Pages 不持憑證；proxy 未部署時 Fugle 模式明確不可用，不偽裝成功。
 - WebSocket realtime streaming 未實作（7C）。
 
+## UI 模式（7B2）
+
+- 紙上交易頁 `資料來源` 切換：模擬行情（預設）／Fugle 真實行情，需明確切換。
+- 真實行情卡：報價查詢（symbol／last／prev／change／pct／volume／provider＋收到時間／freshness／時段／provider 狀態）與「抓真實日 K 跑研究」
+ （Multi-Horizon Trend 20/60/120、IS／OOS、walk-forward、cost stress、Buy&Hold 同資料基準、promotion gate），全標 REAL DATA＋PAPER EXECUTION。
+- 失敗（未切模式／未設 proxy／AUTH／限流／逾時／資料不足）皆為明確 error state，
+ 維持 Fugle 模式，永不切回模擬。下單票價格仍為模擬，執行永遠 PAPER。
+
+## Smoke（7B2）
+
+- `npm run smoke:fugle`：本機 proxy＋key 的只讀 smoke（無 key → BLOCKED_BY_CREDENTIAL exit 2）。
+- `npm run smoke:fugle:remote`：已部署 proxy 的 quote smoke（需 `MARKET_DATA_PROXY_URL`，無則 BLOCKED_BY_PROXY exit 2）。
+- `npm run smoke:research:fugle`：真 bars → 全研究鏈，stdout `REAL_RESEARCH_SMOKE PASS …`（invariants only；無 key → BLOCKED_BY_CREDENTIAL exit 2）。
+
 ## Real smoke procedure
 
 ```bash

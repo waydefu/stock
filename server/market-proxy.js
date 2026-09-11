@@ -38,7 +38,32 @@ const ALLOWED_ORIGINS = Object.freeze([
 const SYMBOL_PATTERN = /^[A-Za-z0-9]{4,6}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImpl = null, clock = () => Date.now(), timeoutMs = DEFAULT_TIMEOUT_MS, maxAttempts = DEFAULT_MAX_ATTEMPTS, sleep = null, logger = null } = {}) {
+/* Prototype-grade anti-abuse: per-process sliding window (NOT distributed,
+   NOT production-grade — see ADR-006). Default on with a conservative budget;
+   pass rateLimit: false only in tests or behind platform protection. */
+const DEFAULT_RATE_LIMIT = Object.freeze({ maxRequests: 120, windowMs: 60_000 });
+
+function normalizeRateLimit(opt) {
+  if (opt === false) return null;
+  if (opt === undefined || opt === null) return { ...DEFAULT_RATE_LIMIT };
+  return {
+    maxRequests: Number.isInteger(opt.maxRequests) && opt.maxRequests > 0 ? opt.maxRequests : DEFAULT_RATE_LIMIT.maxRequests,
+    windowMs: Number.isFinite(opt.windowMs) && opt.windowMs > 0 ? opt.windowMs : DEFAULT_RATE_LIMIT.windowMs,
+  };
+}
+
+/* Returns retry-after seconds when shedding, null when allowed. */
+function shedLoad(state) {
+  const rl = state.rateLimit;
+  if (!rl) return null;
+  const now = state.clock();
+  state.hits = state.hits.filter((t) => now - t < rl.windowMs);
+  if (state.hits.length >= rl.maxRequests) return Math.max(1, Math.ceil(rl.windowMs / 1000));
+  state.hits.push(now);
+  return null;
+}
+
+export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImpl = null, clock = () => Date.now(), timeoutMs = DEFAULT_TIMEOUT_MS, maxAttempts = DEFAULT_MAX_ATTEMPTS, sleep = null, logger = null, rateLimit = null } = {}) {
   const state = {
     apiKey,
     fetchImpl: fetchImpl ?? globalThis.fetch?.bind(globalThis) ?? null,
@@ -47,6 +72,8 @@ export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImp
     maxAttempts,
     sleep: sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
     log: logger ?? (() => {}),
+    rateLimit: normalizeRateLimit(rateLimit),
+    hits: [],
   };
 
   async function handler(req, res) {
@@ -69,11 +96,15 @@ export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImp
       const url = new URL(req.url ?? "/", "http://proxy.local");
       if (url.pathname === "/api/market/quote") {
         const symbol = assertSymbol(url.searchParams.get("symbol"));
+        const shed = shedLoad(state);
+        if (shed) return send(req, res, cors, 429, "RATE_LIMITED", "proxy 繁忙，請稍後再試（prototype 級保護）", requestId, started, 0, { "retry-after": shed });
         return await serveQuote(state, cors, req, res, symbol, requestId, started);
       }
       if (url.pathname === "/api/market/bars") {
         const symbol = assertSymbol(url.searchParams.get("symbol"));
         const range = assertRange(url.searchParams.get("from"), url.searchParams.get("to"));
+        const shed = shedLoad(state);
+        if (shed) return send(req, res, cors, 429, "RATE_LIMITED", "proxy 繁忙，請稍後再試（prototype 級保護）", requestId, started, 0, { "retry-after": shed });
         return await serveBars(state, cors, req, res, symbol, range, requestId, started);
       }
       return send(req, res, cors, 404, "UNSUPPORTED_CAPABILITY", "未知路由（open proxy 不存在）", requestId, started);
@@ -271,9 +302,9 @@ async function safeJson(response) {
   }
 }
 
-function send(req, res, cors, http, code, message, requestId, started, attempts = 0) {
+function send(req, res, cors, http, code, message, requestId, started, attempts = 0, extraHeaders = {}) {
   state_log(req, res, { requestId, http, code, started, attempts });
-  res.writeHead(http, { "content-type": "application/json", ...cors });
+  res.writeHead(http, { "content-type": "application/json", ...cors, ...extraHeaders });
   res.end(JSON.stringify({ error: { code, message, requestId } }));
 }
 
