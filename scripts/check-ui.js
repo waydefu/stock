@@ -475,7 +475,7 @@ const count = (text, re) => (text.match(re) ?? []).length;
 // 26. Adapter 秘密邊界：新資料層不得出現憑證賦值形狀
 {
   const problems = [];
-  const adapterFiles = ["js/market-data.js", "js/market-data-contract.js", "js/fixture-provider.js"]
+  const adapterFiles = ["js/market-data.js", "js/market-data-contract.js", "js/fixture-provider.js", "js/fugle-proxy-adapter.js", "js/providers/fugle-mapper.js", "server/market-proxy.js"]
     .map((f) => readFileSync(f, "utf8")).join("\n");
   for (const m of adapterFiles.matchAll(/api[_-]?key\s*=\s*["'][^"']+["']|secret\s*=\s*["'][^"']+["']|-----BEGIN [A-Z ]*PRIVATE KEY-----/gi)) {
     problems.push(`憑證形狀：${m[0].slice(0, 40)}`);
@@ -483,6 +483,22 @@ const count = (text, re) => (text.match(re) ?? []).length;
   if (!/assertBrowserSafeConfig/.test(adapterFiles)) problems.push("缺瀏覽器側秘密守則 assertBrowserSafeConfig");
   if (problems.length === 0) ok("no-adapter-secrets");
   else fail("no-adapter-secrets", problems.join("；"));
+}
+
+// 27. Fugle 邊界：provider 細節集中在 mapper／proxy，UI 不得直連上游
+{
+  const problems = [];
+  const proxy = readFileSync("server/market-proxy.js", "utf8");
+  if (!/api\.fugle\.tw/.test(proxy)) problems.push("proxy 缺固定上游 host");
+  if (!/405/.test(proxy)) problems.push("proxy 缺非 GET 405");
+  if (!/AbortController/.test(proxy)) problems.push("proxy 缺 AbortController 硬超時");
+  if (!/crypto\.randomUUID/.test(proxy)) problems.push("proxy 缺 requestId");
+  if (/access-control-allow-origin["']?\s*:\s*["']\*["']/.test(proxy)) problems.push("proxy 出現 wildcard CORS");
+  if (/rawFugle|api\.fugle\.tw|FUGLE_API_KEY/.test(app)) problems.push("app.js 直連 Fugle 上游或 key（必須經 proxy）");
+  if (/fugle-mapper/.test(app)) problems.push("app.js 不得直引 mapper（映射集中在 adapter／proxy 層）");
+  if (!/selectAdapter\(/.test(app)) problems.push("app.js 未用 selectAdapter 選模式");
+  if (problems.length === 0) ok("fugle-boundary");
+  else fail("fugle-boundary", problems.join("；"));
 }
 
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);

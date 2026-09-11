@@ -3,7 +3,7 @@
 "use strict";
 
 import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getSymbol, rsi, volumeRatio } from "./data.js";
-import { SimulatedAdapter } from "./market-data.js";
+import { selectAdapter } from "./fixture-provider.js";
 import { drawCandles, drawLine, candleHoverAt } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
@@ -37,7 +37,7 @@ let clientOrderSequence = 0;
 
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
-const marketData = new SimulatedAdapter();
+const marketData = selectAdapter("simulation");
 const risk = new RiskEngine(DEFAULT_RISK);
 const audit = new AuditLog({ storage });
 const registry = buildDefaultRegistry();
