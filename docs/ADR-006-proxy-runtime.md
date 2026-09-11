@@ -2,7 +2,29 @@
 
 ## Status
 
-Proposed（2026-09-11；待維護者 infra 決策。本輪 proxy 保持 deploy-neutral，不綁任何一家。）
+Accepted（2026-09-11；維護者已部署並以真 smoke 驗證，見 Decision。）
+
+## Decision（實際採用）
+
+- **Chosen runtime：Render HTTPS Web Service**（`https://stock-fugle-proxy.onrender.com`），
+  跑 `server/Dockerfile`（Node 24-bookworm-slim、非 root `node` 使用者、`HEALTHCHECK /healthz`）。
+  原 Options A／B／C 評估保留作歷史；Render 即「受管 Node hosting」一類，
+  程式仍 deploy-neutral（標準 `node:http` 語義，搬家成本低）。
+- **Secret custody：`FUGLE_API_KEY` 只存在 Render runtime secret／env**，
+  永不進 repo／Pages artifact／browser bundle／CI log／chat。
+- **Anti-abuse（prototype 級，誠實範圍）：**
+  per-process sliding-window rate limiter（120 req／60s，超限回 `RATE_LIMITED`＋`Retry-After`）。
+  **非分散式、非 production-grade**；
+  CORS allowlist 只是瀏覽器 sharing 政策，**不是存取控制**（curl 仍可直呼公開 proxy），
+  不得把 CORS 說成 auth。若需對外限縮，後續加前門 key／quota（另案）。
+- **Verification（已實際執行，非 fixture）：**
+  `REMOTE_QUOTE_SMOKE=PASS`（2330、provider=FUGLE）、
+  `REAL_HISTORY=PASS`（historical bars、provider=FUGLE）、
+  `REAL_RESEARCH_SMOKE=PASS`（bars=232、OOS 已跑）。
+  `promotion=FAIL` 是研究 gate 結果（策略 OOS 落後 benchmark），不是 smoke failure，
+  不得宣稱為策略獲利或可 promotion。
+- **殘留限制：** 免費／共享 runtime 可能冷啟動與休眠；Pages 端 browser acceptance
+  仍待本 ADR 接受後的 Pages 接線 PR 合併後執行。
 
 ## Context
 

@@ -63,6 +63,6 @@ npm run smoke:research:fugle 2330
 
 ## 9. 收尾
 
-- ADR-006：Proposed → Accepted（填 chosen runtime＋key custody＋anti-abuse）。
+- ADR-006：已 Accepted（2026-09-11；chosen runtime＝Render，見 ADR-006 Decision）。
 - `docs/PROJECT_STATUS.md`：real smoke PASS＋部署 URL（URL 本身非秘密）。
 - REAL smokes 三項改 PASS 後，才可談 7C。
