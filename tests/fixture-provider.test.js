@@ -86,6 +86,14 @@ test("browser-facing adapter config rejects secret-like keys", () => {
   assert.doesNotThrow(() => assertBrowserSafeConfig({ apiKey: "" }));
 });
 
+test("secret guard scans nested configs without hanging on cycles", () => {
+  assert.throws(() => assertBrowserSafeConfig({ auth: { apiKey: "secret" } }), (e) => e.code === DATA_ERROR_CODE.DATA_INVALID);
+  assert.throws(() => assertBrowserSafeConfig({ list: [{ token: "abc" }] }), (e) => e.code === DATA_ERROR_CODE.DATA_INVALID);
+  const cyclic = { name: "ok" };
+  cyclic.self = cyclic;
+  assert.doesNotThrow(() => assertBrowserSafeConfig(cyclic));
+});
+
 test("selectAdapter never silently falls back to simulation", () => {
   const sim = selectAdapter("simulation");
   assert.ok(sim instanceof SimulatedAdapter);

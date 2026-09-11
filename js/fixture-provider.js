@@ -27,11 +27,18 @@ import { SimulatedAdapter } from "./market-data.js";
 const SECRET_KEY_PATTERN = /api[_-]?key|secret|token|password|passwd|credential|certificate|private[_-]?key/i;
 
 export function assertBrowserSafeConfig(config) {
-  for (const [key, value] of Object.entries(config ?? {})) {
-    if (SECRET_KEY_PATTERN.test(key) && value !== "" && value !== null && value !== undefined && value !== false) {
-      throw new MarketDataError(DATA_ERROR_CODE.DATA_INVALID, `browser-facing adapter config 不得攜帶秘密：${key}`);
+  const seen = new Set();
+  const visit = (value) => {
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    for (const [key, entry] of Object.entries(value)) {
+      if (SECRET_KEY_PATTERN.test(key) && entry !== "" && entry !== null && entry !== undefined && entry !== false) {
+        throw new MarketDataError(DATA_ERROR_CODE.DATA_INVALID, `browser-facing adapter config 不得攜帶秘密：${key}`);
+      }
+      visit(entry);
     }
-  }
+  };
+  visit(config);
 }
 
 export function createScriptTransport(steps = []) {

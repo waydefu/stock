@@ -10,7 +10,7 @@
 | Fugle 行情 API v1.0 | TW（TWSE／TPEx／TAIFEX） | REST 日內行情＋快照 [109] | REST 歷史行情 [109] | WebSocket 即時行情 [109] | 無 paper（行情 API 非交易；交易 API 已於 2025/11 sunset，轉合作券商 SDK [30]） | API key 必須放 trusted proxy，Pages 不可持 key（單帳號政策 [109]） | 部分：免費額度存在但速率數字 UNVERIFIED | **FIRST CANDIDATE（TW）** |
 | Shioaji v1.7.5（2026-09-10）[111] | TW | quote.subscribe（tick／bidask）[110] | ticks／kbars／snapshots [110] | socket／SSE（heartbeat 診斷 [112]） | simulation mode ✓；sim 單不支援興櫃／零股 [110] | API key＋secret＋憑證，必須本機可信 process／server [110] | 部分：超流回空值 [112]；數字配額 UNVERIFIED | 次選（需本機可信環境，不適合純靜態起手） |
 | Alpaca Market Data API | US（IEX／SIP） | REST＋WS [113] | 自 2016 [113] | WS（Basic 30 symbols／Plus unlimited）[113] | paper 環境 ✓（獨立 key＋endpoint；paper-only 限 IEX）[114] | key／secret headers，server-side [113][115] | 已驗證：Basic IEX 200/min、Plus SIP 10k/min、429＋exponential backoff 官方指引 [113][115] | US-only，無 TW；TW 需求下不選 |
-| IBKR TWS API | US／global | 需 L1 top-of-book 訂閱 [118] | 有（soft throttle；BID_ASK 雙計）[116] | TWS／Gateway session | paper ✓（top-of-book 模擬成交；無 VWAP／auction／RFQ 等）[117] | credentials＋TWS session，server-side | 已驗證：pacing 預設 50 req/s [116] | 重量級，deferred |
+| IBKR TWS API | US／global | 需 L1 top-of-book 訂閱 [118] | 有（soft throttle；BID_ASK 雙計）[116] | TWS／Gateway session | paper ✓（top-of-book 模擬成交；無 VWAP／auction／RFQ 等）[117] | credentials＋TWS session，server-side | 已驗證：最大 requests/sec＝Market Data Lines÷2（100 lines 時為 50/s）[116] | 重量級，deferred |
 
 ## Recommendation
 
