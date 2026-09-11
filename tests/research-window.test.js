@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateWindow, runResearchBacktest } from "../js/research.js";
+import { evaluateWindow, parameterSurface, runResearchBacktest } from "../js/research.js";
 import { makeTrendStrategy } from "../js/alpha.js";
 import { fixedFraction } from "../js/portfolio.js";
 
@@ -59,4 +59,22 @@ test("window rejects malformed inputs fail-closed", () => {
   const bars = trendBars(150, 100, 0.2, 1_000_000);
   assert.throws(() => evaluateWindow({ ...args(bars.slice(0, 100), bars.slice(100)), evalBars: [] }), /evaluation window/);
   assert.throws(() => evaluateWindow({ ...args(bars.slice(0, 100), bars.slice(100)), strategy: null }), /strategy/);
+});
+
+test("surface cells get full warmup context instead of flat-zero STABLE", () => {
+  const bars = trendBars(300, 100, 0.4, 1_000_000);
+  const beforeTail = bars.slice(0, -60);
+  const tail = bars.slice(-60);
+  const cells = [10, 20, 30].map((short) => {
+    const variant = makeTrendStrategy({ id: `t${short}`, short });
+    const result = evaluateWindow({
+      symbol: "2330", strategy: variant, allocate: fixedFraction(0.25),
+      contextBars: beforeTail.slice(-variant.warmup), evalBars: tail,
+    });
+    return { params: { short }, value: result.trades.reduce((a, t) => a + t.netPnl, 0), trades: result.trades.length };
+  });
+  assert.ok(cells.every((c) => c.trades > 0), "each surface cell must leave WARMUP on trending data");
+  assert.ok(cells.some((c) => c.value !== 0), "surface must not be degenerate all-zero");
+  const surface = parameterSurface(cells.map(({ params, value }) => ({ params, value })));
+  assert.equal(typeof surface.overfitRisk, "boolean");
 });

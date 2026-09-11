@@ -4,6 +4,7 @@
 import { createProxy } from "../server/market-proxy.js";
 import { FugleProxyAdapter } from "../js/fugle-proxy-adapter.js";
 import { evaluateWindow, runCostStress, splitIS_OOS, summarizeResearch, walkForward, parameterSurface, evaluatePromotion } from "../js/research.js";
+import { fugleResearchRange } from "../js/research-range.js";
 import { makeTrendStrategy, BUY_HOLD_STRATEGY } from "../js/alpha.js";
 import { fixedFraction } from "../js/portfolio.js";
 
@@ -21,8 +22,7 @@ if (!key) {
 
 const symbol = process.argv[2] ?? "2330";
 const to = new Date().toISOString().slice(0, 10);
-const fromDate = new Date(Date.now() - 400 * 86_400_000);
-const from = fromDate.toISOString().slice(0, 10);
+const { from } = fugleResearchRange({ to });
 const failures = [];
 const out = {};
 try {

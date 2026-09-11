@@ -14,6 +14,7 @@ import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 import { FugleProxyAdapter } from "./fugle-proxy-adapter.js";
+import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
@@ -315,8 +316,8 @@ function renderResearchBacktest(strategyId) {
     return;
   }
   const runOpts = { symbol: state.symbol, strategy: def, allocate: researchAllocate(def, frac), ...costs };
-  const isS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.is }), {});
-  const oosS = summarizeResearch(runResearchBacktest({ ...runOpts, bars: split.oos }), {});
+  const isS = summarizeResearch(evaluateWindow({ ...runOpts, contextBars: [], evalBars: split.is }), {});
+  const oosS = summarizeResearch(evaluateWindow({ ...runOpts, contextBars: warmupTail(split.is, def.warmup), evalBars: split.oos }), {});
   const full = runResearchBacktest({ ...runOpts, bars });
   const bench = {};
   for (const id of ["cash", "buyHold"]) {
@@ -474,11 +475,6 @@ function taipeiYMD(date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-function addDaysYMD(ymd, days) {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d) + days * 86_400_000).toISOString().slice(0, 10);
-}
-
 async function renderFugleQuote() {
   const box = $("#fugle-quote");
   const show = $("#fugle-symbol").value.trim() || "2330";
@@ -488,7 +484,7 @@ async function renderFugleQuote() {
     const envelope = await adapter.quoteAsync(show);
     const q = envelope.data;
     const m = envelope.meta;
-    const session = getCurrentSession("TW", q.timestamp ?? Date.now());
+    const session = getCurrentSession("TW", Date.now());
     const freshBadge = m.stale
       ? `<span class="badge down">STALE</span>`
       : m.freshnessStatus === "FRESH" ? `<span class="badge up">FRESH</span>` : `<span class="badge neutral">UNKNOWN</span>`;
@@ -520,7 +516,7 @@ async function runFugleResearch() {
     const adapter = requireFugleAdapter();
     const symbol = $("#fugle-symbol").value.trim() || "2330";
     const to = taipeiYMD(new Date());
-    const from = addDaysYMD(to, -400);
+    const { from } = fugleResearchRange({ to });
     const { envelope } = await adapter.getBarsAsync(symbol, { from, to });
     if (envelope.meta.provider !== "FUGLE") throw Object.assign(new Error("provenance 非 FUGLE，拒絕混用"), { code: "DATA_INVALID" });
     const bars = envelope.data;
@@ -550,7 +546,8 @@ async function runFugleResearch() {
     const surfaceCells = [10, 20, 30].map((short) => {
       const variant = makeTrendStrategy({ id: `trend-s${short}`, short });
       const tail = bars.slice(-60);
-      const result = evaluateWindow({ symbol, strategy: variant, allocate: fixedFraction(0.25), contextBars: bars.slice(-60 - short, -60), evalBars: tail, ...costs });
+      const beforeTail = bars.slice(0, -60);
+      const result = evaluateWindow({ symbol, strategy: variant, allocate: fixedFraction(0.25), contextBars: warmupTail(beforeTail, variant.warmup), evalBars: tail, ...costs });
       return { params: { short }, value: summarizeResearch(result, {}).netProfit };
     });
     const surface = parameterSurface(surfaceCells);
