@@ -7,14 +7,14 @@
 
 ## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
 
-- Last verified main checkpoint：`b8ff423`（PR#23 Pages→Render proxy 接線 squash-merge）
-- 本分支：`chore/post-23-convergence`，working tree 見下述提交後為 clean
-- Tests：183/183；`check:static` 27 files；`check:ui` 32/32 WARN 0 FAIL 0
+- Last verified main checkpoint：`a4f63ac`（PR#24 post-23 convergence squash-merge）
+- 本分支：`feat/phase7c-stream-contract`，working tree 見下述提交後為 clean
+- Tests：205/205；`check:static` 27 files；`check:ui` 32/32 WARN 0 FAIL 0
 - Quality：見本 PR required check「Quality」（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
-- Open PR：本分支 `chore/post-23-convergence`（base main；編號與 CI 以 GitHub 為準）
+- Open PR：本分支 `feat/phase7c-stream-contract`（base main；編號與 CI 以 GitHub 為準）
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）
-- Phase 7B1：MERGED；Phase 7B2（#20）＋proxy deploy-ready（#21）＋Docker runtime fix（#22）＋Pages 接線（#23）：MERGED
-- Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate，不影響 smoke）；Pages deployed artifact 已驗注入 URL（2026-09-11 curl 實證）；真瀏覽器 acceptance PASS（2026-09-11：Fugle quote＋232 bars 研究＋GATE FAIL＋provenance FUGLE，見本 PR body）
+- Phase 7B1：MERGED；Phase 7B2（#20）＋proxy deploy-ready（#21）＋Docker runtime fix（#22）＋Pages 接線（#23）＋post-23 收斂（#24）：MERGED；Phase 7C streaming contract 本分支驗證中（ADR-007 Accepted，SSE 決策）
+- Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate，不影響 smoke）；Pages deployed artifact 已驗注入 URL（2026-09-11 curl 實證）；真瀏覽器 acceptance PASS（2026-09-11：Fugle quote＋232 bars 研究＋GATE FAIL＋provenance FUGLE，見 PR#24）
 
 ## Scope
 

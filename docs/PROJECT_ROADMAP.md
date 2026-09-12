@@ -162,7 +162,7 @@ Phase 7A（已 merge，PR#16）：boundary 先行，不接真 API。
 
 Phase 7B1（`feat/fugle-rest-adapter`，本輪，未 merge）：Fugle REST 真資料＋trusted proxy；
 intraday quote＋historical candles、微秒戳 sourced conversion、Retry-After 全鏈路、
-CORS allowlist＋GET-only＋固定上游；WebSocket 留 7C；proxy 部署見 ADR-006（Proposed）。
+CORS allowlist＋GET-only＋固定上游；WebSocket 留 7C；proxy 部署見 ADR-006（Accepted）。
 
 ## Phase 8 — Performance／observability（performance baseline complete；observability remains P2）
 
