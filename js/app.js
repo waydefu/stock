@@ -14,6 +14,7 @@ import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 import { FugleProxyAdapter } from "./fugle-proxy-adapter.js";
+import { SEARCH_ACTIONS, describeSearchAction, resolveSearchQuery, validateRemoteSymbol } from "./symbol-search.js";
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { getCurrentSession } from "./market-rules.js";
@@ -39,8 +40,10 @@ const state = {
   pendingOrder: null,
   modalTrigger: null,
   dataMode: "simulation",
+  runtimeSymbol: null, // 遠端驗證過的非內建標的 {code, market, source}；永不寫回 SYMBOLS／下單票
 };
 let clientOrderSequence = 0;
+let searchPending = false; // 遠端驗證中再按 Enter：忽略，不重複爆請求
 
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
@@ -770,16 +773,64 @@ function handleGlobalKeydown(event) {
   }
 }
 
-function handleSymbolSearch(event) {
+function showSearchNotice(kind, text) {
+  const box = $("#search-notice");
+  if (!box) return;
+  box.dataset.kind = kind;
+  box.textContent = text;
+}
+
+async function handleSymbolSearch(event) {
   if (event.key !== "Enter") return;
-  const query = event.target.value.trim().toLowerCase();
-  if (!query) return;
-  const hit = SYMBOLS.find((item) => item.code.toLowerCase() === query)
-    ?? SYMBOLS.find((item) => item.code.toLowerCase().startsWith(query))
-    ?? SYMBOLS.find((item) => item.name.includes(event.target.value.trim()));
-  if (hit) {
-    event.target.value = "";
-    openSymbol(hit.code);
+  const input = event.target;
+  const raw = input.value;
+  const decision = resolveSearchQuery(raw, {
+    dataMode: state.dataMode,
+    localFind: (query, original) => {
+      const hit = SYMBOLS.find((item) => item.code.toLowerCase() === query)
+        ?? SYMBOLS.find((item) => item.code.toLowerCase().startsWith(query))
+        ?? SYMBOLS.find((item) => item.name.includes(original.trim()));
+      return hit ? hit.code : null;
+    },
+  });
+  if (decision.action === SEARCH_ACTIONS.NOOP) return;
+  if (decision.action === SEARCH_ACTIONS.OPEN_LOCAL) {
+    input.value = "";
+    showSearchNotice("none", "");
+    openSymbol(decision.code);
+    return;
+  }
+  if (decision.action === SEARCH_ACTIONS.NEEDS_FUGLE_MODE || decision.action === SEARCH_ACTIONS.NOT_FOUND) {
+    showSearchNotice(describeSearchAction(decision).kind, describeSearchAction(decision).text);
+    auditEvent("SYMBOL_SEARCH_UNRESOLVED", { query: raw.trim(), reason: decision.action });
+    return;
+  }
+  // VALIDATE_REMOTE：Fugle mode 才會到這裡；simulation 永不連外，不改 dataMode。
+  if (searchPending) return;
+  searchPending = true;
+  showSearchNotice("loading", describeSearchAction(decision).text);
+  try {
+    const adapter = requireFugleAdapter();
+    const result = await validateRemoteSymbol(decision.code, { quoteFn: (code) => adapter.quoteAsync(code) });
+    if (!result.ok) {
+      const hint = FUGLE_ERROR_TEXT[result.code] ?? "未知錯誤";
+      showSearchNotice("error", `遠端驗證「${decision.code}」失敗［${result.code}］：${hint}維持 Fugle 模式，不切回模擬。`);
+      auditEvent("SYMBOL_SEARCH_REMOTE_FAILED", { query: decision.code, code: result.code });
+      return;
+    }
+    state.runtimeSymbol = { code: result.symbol, market: "TW", source: "FUGLE" };
+    input.value = "";
+    showSearchNotice("ok", `已驗證「${result.symbol}」為 Fugle 有效標的；下方為真實報價（僅供研究，下單票不受影響）。`);
+    $("#fugle-symbol").value = result.symbol;
+    auditEvent("SYMBOL_SEARCH_REMOTE_OK", { symbol: result.symbol });
+    setPage("trade");
+    await renderFugleQuote();
+  } catch (error) {
+    const code = typeof error?.code === "string" ? error.code : "UNKNOWN";
+    showSearchNotice("error", `遠端驗證「${decision.code}」失敗［${code}］，維持 Fugle 模式，不切回模擬。`);
+    auditEvent("SYMBOL_SEARCH_REMOTE_FAILED", { query: decision.code, code });
+  } finally {
+    searchPending = false;
   }
 }
 
