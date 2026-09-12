@@ -186,14 +186,20 @@ export function createStreamManager({
     const ws = webSocketFactory(url);
     socket = ws;
     ws.onopen = () => {
+      if (socket !== ws) return; // zombie socket: closed/detached, ignore late open
       setState(STREAM_STATES.AUTHENTICATING);
-      sendSocket({ event: "auth", data: { apikey: apiKey } });
+      if (!sendSocket({ event: "auth", data: { apikey: apiKey } })) {
+        // Socket died between open and auth: fail fast into the reconnect
+        // cycle instead of idling until the watchdog fires.
+        try { ws.close?.(); } catch { /* already gone */ }
+        return;
+      }
       redactedLog({ state: upstreamState, note: "auth-sent" });
       armWatchdog();
     };
-    ws.onmessage = (message) => onUpstreamFrame(message?.data ?? message);
+    ws.onmessage = (message) => { if (socket !== ws) return; onUpstreamFrame(message?.data ?? message); };
     ws.onerror = () => { /* close event carries the verdict; error itself is transport noise */ };
-    ws.onclose = () => onUpstreamClose();
+    ws.onclose = () => { if (socket !== ws && socket !== null) return; onUpstreamClose(); };
   }
 
   function onUpstreamFrame(raw) {
@@ -219,7 +225,13 @@ export function createStreamManager({
         sub.acked = false;
         sendSocket({ event: "subscribe", data: { channel: sub.channel, symbol: sub.symbol } });
       }
-      if (subs.size === 0) setState(STREAM_STATES.LIVE);
+      if (subs.size === 0) {
+        // Authenticated but nobody left to serve: don't idle a billed
+        // upstream socket; close it and park at CLOSED (next subscribe
+        // starts a brand-new lifecycle from IDLE).
+        teardownSocket();
+        setState(STREAM_STATES.CLOSED);
+      }
       return;
     }
     if (kind === "auth-error") {

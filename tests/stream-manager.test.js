@@ -364,6 +364,30 @@ test("sentinel secret appears in no log and no client event", () => {
   assert.ok(!text.includes(SENTINEL));
 });
 
+test("auth send failure fails fast into reconnect", () => {
+  const ctx = setup();
+  const sink = makeSink();
+  ctx.mgr.subscribe("2330", "trades", sink);
+  const ws = ctx.sockets[0];
+  ws.readyState = 3; // died between TCP open and auth write
+  ws.open();
+  assert.equal(ws.closed, true);
+  assert.equal(ctx.mgr.debug().state, STREAM_STATES.RECONNECTING);
+});
+
+test("authenticated with zero subscribers parks at CLOSED, no idle socket", () => {
+  const ctx = setup();
+  const sink = makeSink();
+  ctx.mgr.subscribe("2330", "trades", sink);
+  ctx.mgr.detach(sink); // all gone before upstream opens
+  const ws = ctx.sockets[0];
+  ws.open();
+  ws.receive({ event: "authenticated", data: {} });
+  assert.equal(ws.closed, true);
+  assert.equal(ctx.mgr.debug().state, STREAM_STATES.CLOSED);
+  assert.equal(ctx.timers.pendingCount(), 0);
+});
+
 test("stale wording comes from events, not outage claims", () => {
   const ctx = setup();
   goLive(ctx, makeSink());

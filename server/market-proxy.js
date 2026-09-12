@@ -24,7 +24,7 @@ import {
 } from "../js/market-data-contract.js";
 import { FUGLE_MARKET_MAP, FUGLE_PROVIDER_ID, mapFugleBars, mapFugleQuote } from "../js/providers/fugle-mapper.js";
 import { STREAM_CHANNELS } from "../js/stream-contract.js";
-import { DEFAULT_SSE_KEEPALIVE_MS, SSE_HEADERS, createSseSink } from "./stream-sse.js";
+import { DEFAULT_SSE_KEEPALIVE_MS, SSE_HEADERS, createSseSink, formatRetryHint } from "./stream-sse.js";
 
 const FUGLE_BASE = "https://api.fugle.tw";
 const FUGLE_REST = `${FUGLE_BASE}/marketdata/v1.0/stock`;
@@ -231,6 +231,7 @@ function serveStream(state, cors, req, res, symbol, requestId, started) {
     return send(req, res, cors, 503, "PROVIDER_UNAVAILABLE", "stream bridge 未啟用", requestId, started);
   }
   res.writeHead(200, { ...SSE_HEADERS, ...cors });
+  res.write(formatRetryHint());
   let client = null;
   let keepalive = null;
   const stopKeepalive = () => {

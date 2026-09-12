@@ -9,7 +9,7 @@
 
 - Last verified main checkpoint：`ca6a554`（PR#26 全域搜尋修復 squash-merge）
 - 本分支：`feat/phase7c-server-bridge`，working tree 見下述提交後為 clean
-- Tests：258/258；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
+- Tests：260/260；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
 - Quality：見本 PR required check「Quality」（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
 - Open PR：本分支 `feat/phase7c-server-bridge`（base main；編號與 CI 以 GitHub 為準）
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）

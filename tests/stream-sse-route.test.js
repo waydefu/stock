@@ -11,6 +11,7 @@ import {
   createSseSink,
   errorPayload,
   formatKeepalive,
+  formatRetryHint,
   formatSseEvent,
   statePayload,
   tradePayload,
@@ -114,6 +115,7 @@ test("SSE headers are correct and never wildcard CORS", () => {
 test("SSE event and keepalive wire format", () => {
   assert.equal(formatSseEvent("state", { a: 1 }), 'event: state\ndata: {"a":1}\n\n');
   assert.equal(formatKeepalive(), ": keepalive\n\n");
+  assert.equal(formatRetryHint(), "retry: 5000\n\n");
   assert.deepEqual(Object.keys(statePayload({ state: "LIVE" })).sort(), ["at", "key", "sessionId", "state"]);
   const err = errorPayload({ code: "X", message: "m" });
   assert.ok(!JSON.stringify(err).includes("apikey"));
@@ -154,6 +156,7 @@ test("stream route attaches SSE with correct headers and state event", async () 
   assert.equal(res.headers["content-type"], "text/event-stream");
   assert.equal(res.headers["access-control-allow-origin"], "https://waydefu.github.io");
   assert.ok(res.body.includes("event: state"));
+  assert.ok(res.body.startsWith("retry: 5000\n\n"), "retry hint 必須是 preamble 第一行");
   assert.equal(sockets.length, 1);
   res.fireClose();
   assert.equal(mgr.debug().totalClients, 0);

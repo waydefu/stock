@@ -13,6 +13,14 @@ export const SSE_HEADERS = Object.freeze({
   connection: "keep-alive",
   "x-accel-buffering": "no",
 });
+/* Browser reconnect hint (PR3 UI uses native EventSource auto-reconnect):
+   a dropped SSE stream retries after 5s instead of the ~3s default. Sent as
+   the preamble right after headers, before any event. */
+export const SSE_RETRY_MS = 5000;
+
+export function formatRetryHint() {
+  return `retry: ${SSE_RETRY_MS}\n\n`;
+}
 
 export const SSE_KEEPALIVE_COMMENT = ": keepalive";
 export const DEFAULT_SSE_KEEPALIVE_MS = 20_000;
