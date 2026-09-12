@@ -3,6 +3,7 @@
    Missing FUGLE_API_KEY fails startup (fail-fast); per-request AUTH_REQUIRED
    semantics in createProxy() remain for tests. Startup logs never echo secrets. */
 import { createProxy } from "./market-proxy.js";
+import { createStreamManager } from "./fugle-stream-manager.js";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_HOST = "0.0.0.0";
@@ -29,7 +30,15 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  const streams = createStreamManager({
+    apiKey: process.env.FUGLE_API_KEY ?? "",
+    webSocketFactory: (url) => new WebSocket(url),
+    logger: (entry) => {
+      console.log(JSON.stringify({ ...entry, at: new Date().toISOString() }));
+    },
+  });
   const { start } = createProxy({
+    streamManager: streams,
     logger: (entry) => {
       console.log(JSON.stringify({ ...entry, at: new Date().toISOString() }));
     },
@@ -37,6 +46,7 @@ async function main() {
   const running = await start(config.port, config.host);
   console.log(`market-proxy listening on ${running.url}`);
   const shutdown = async () => {
+    streams.shutdown();
     await running.close();
     process.exitCode = 0;
   };

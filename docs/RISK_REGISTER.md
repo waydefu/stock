@@ -28,6 +28,7 @@
 | R-019 | P1 | Confirmed by PR#9 evidence; framework mitigates | 研究引擎輸出（IS 淨損益、Sharpe、gate）在模擬資料上可能為負或 FAIL；使用者可能誤把「策略中心有數字」當成交易訊號。 | 模擬績效被誤讀為 edge，導致錯誤信心。 | Evidence：2330 上 trend IS −11,888／OOS 零交易→gate FAIL；buyHold IS +206k／OOS −20k。 | 緩解：benchmark 永遠同場、OOS 分段顯示、gate FAIL 明示、不自動晉升、UI 保留「回測不是預測」notice；仍待使用者教育與 paper forward-test 流程。 |
 | R-020 | P2 | Confirmed; environment limitation | 本機 Chromium（playwright 1228／headless_shell）GPU 行程必崩（`GPU process isn't usable`），4 viewport 截圖與瀏覽器幾何閘目前跑不出來。 | 視覺迴歸無截圖證據；只能靠靜態閘門。 | 試過 `--disable-gpu`／swiftshader／`--no-zygote`／`--single-process`／user-data-dir 組合皆 FATAL；foreground 可短暫綁定、background 從不綁定。 | 替代證據：真實資料端到端＋id-crossref＋ui-score 100/100；截圖待 Chromium 環境修復後補（Slice H）。 |
 | R-021 | P2 | Confirmed; compat path retained | legacy `runBacktest()` 仍是 signal＋sizing＋fill 融合迴圈（Slice A/B 審計）；新策略若誤用舊路徑，分層保證失效。 | 新程式碼繞過 Strategy／Portfolio 契約。 | `js/backtest.js:75-225` 融合迴圈仍在；現有 UI  legacy 三策略仍走舊路徑。 | 現狀：舊路徑標為相容保留，新研究一律走 `runResearchBacktest`；將來舊路徑只修 correctness bug，不加新策略。 |
+| R-022 | P2 | Needs verification on Render free tier | SSE 長連線在免費／共享 runtime 可能被平台 idle-timeout／休眠／部署重啟切斷；browser 若無重連會靜默停在舊畫面。 | 使用者誤以為仍在 live stream。 | `server/stream-sse.js` keepalive 20s、`server/fugle-stream-manager.js` watchdog 75s；Render 免費層行為尚未實測。 | 緩解：state 事件＋STALE 語義＋PR3 browser 重連；待 PR3 REAL_STREAM_SMOKE 在 Render 實測長連線存活。 |
 
 ## Immediate priority
 

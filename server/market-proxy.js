@@ -23,6 +23,8 @@ import {
   retryOperation,
 } from "../js/market-data-contract.js";
 import { FUGLE_MARKET_MAP, FUGLE_PROVIDER_ID, mapFugleBars, mapFugleQuote } from "../js/providers/fugle-mapper.js";
+import { STREAM_CHANNELS } from "../js/stream-contract.js";
+import { DEFAULT_SSE_KEEPALIVE_MS, SSE_HEADERS, createSseSink, formatRetryHint } from "./stream-sse.js";
 
 const FUGLE_BASE = "https://api.fugle.tw";
 const FUGLE_REST = `${FUGLE_BASE}/marketdata/v1.0/stock`;
@@ -62,7 +64,7 @@ function shedLoad(state) {
   return null;
 }
 
-export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImpl = null, clock = () => Date.now(), timeoutMs = DEFAULT_TIMEOUT_MS, maxAttempts = DEFAULT_MAX_ATTEMPTS, sleep = null, logger = null, rateLimit = null } = {}) {
+export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImpl = null, clock = () => Date.now(), timeoutMs = DEFAULT_TIMEOUT_MS, maxAttempts = DEFAULT_MAX_ATTEMPTS, sleep = null, logger = null, rateLimit = null, streamManager = null, sseKeepaliveMs = DEFAULT_SSE_KEEPALIVE_MS } = {}) {
   const state = {
     apiKey,
     fetchImpl: fetchImpl ?? globalThis.fetch?.bind(globalThis) ?? null,
@@ -73,6 +75,8 @@ export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImp
     log: logger ?? (() => {}),
     rateLimit: normalizeRateLimit(rateLimit),
     hits: [],
+    streamManager,
+    sseKeepaliveMs,
   };
 
   async function handler(req, res) {
@@ -110,6 +114,12 @@ export function createProxy({ apiKey = process.env.FUGLE_API_KEY ?? "", fetchImp
         const shed = shedLoad(state);
         if (shed) return send(req, res, cors, 429, "RATE_LIMITED", "proxy 繁忙，請稍後再試（prototype 級保護）", requestId, started, 0, { "retry-after": shed });
         return await serveBars(state, cors, req, res, symbol, range, requestId, started);
+      }
+      if (url.pathname === "/api/market/stream") {
+        const symbol = assertSymbol(url.searchParams.get("symbol"));
+        const shed = shedLoad(state);
+        if (shed) return send(req, res, cors, 429, "RATE_LIMITED", "proxy 繁忙，請稍後再試（prototype 級保護）", requestId, started, 0, { "retry-after": shed });
+        return serveStream(state, cors, req, res, symbol, requestId, started);
       }
       return send(req, res, cors, 404, "UNSUPPORTED_CAPABILITY", "未知路由（open proxy 不存在）", requestId, started);
     } catch (error) {
@@ -210,6 +220,67 @@ async function serveBars(state, cors, req, res, symbol, range, requestId, starte
     }),
   };
   return sendOk(req, res, cors, envelope, requestId, started, outcome.attempts);
+}
+
+/* SSE stream route: one long-lived response per browser client, fanned out
+   from a single shared upstream per subscription key (see
+   server/fugle-stream-manager.js). v1 fixes channel=trades server-side;
+   symbol accepts any Fugle-resolvable TW code (incl. PR #26 runtimeSymbol). */
+function serveStream(state, cors, req, res, symbol, requestId, started) {
+  if (!state.streamManager) {
+    return send(req, res, cors, 503, "PROVIDER_UNAVAILABLE", "stream bridge 未啟用", requestId, started);
+  }
+  res.writeHead(200, { ...SSE_HEADERS, ...cors });
+  res.write(formatRetryHint());
+  let client = null;
+  let keepalive = null;
+  const stopKeepalive = () => {
+    if (keepalive !== null) {
+      try { clearInterval(keepalive); } catch { /* already cleared */ }
+      keepalive = null;
+    }
+  };
+  const sink = createSseSink(res, {
+    onGone: () => {
+      stopKeepalive();
+      if (client) state.streamManager.detach(client);
+      state.log({ requestId, route: "/api/market/stream", symbol, status: "gone", domainCode: "SSE_CLIENT_GONE", latencyMs: state.clock() - started, attempts: 0 });
+    },
+  });
+  client = {
+    sendState: (s) => sink.sendState(s),
+    sendTrade: (envelope, sequenceStatus) => {
+      const ok = sink.sendTrade(envelope, sequenceStatus);
+      if (!ok) {
+        // Slow-client policy: drop this client only; fan-out continues.
+        state.log({ requestId, route: "/api/market/stream", symbol, status: "dropped", domainCode: "SSE_SLOW_CLIENT", latencyMs: state.clock() - started, attempts: 0 });
+        state.streamManager.detach(client);
+        sink.close();
+      }
+      return ok;
+    },
+    sendError: (code, message) => sink.sendError(code, message),
+    close: () => sink.close(),
+  };
+  try {
+    state.streamManager.subscribe(symbol, STREAM_CHANNELS.TRADES, client);
+  } catch (error) {
+    stopKeepalive();
+    const code = error?.code ?? "PROVIDER_UNAVAILABLE";
+    const http = code === "STREAM_RATE_LIMITED" ? 429 : code === "INVALID_SYMBOL" ? 404 : 502;
+    try { sink.sendError(code, error?.message ?? code); } catch { /* sink dead */ }
+    state.log({ requestId, route: "/api/market/stream", symbol, status: http, domainCode: code, latencyMs: state.clock() - started, attempts: 0 });
+    return;
+  }
+  state.log({ requestId, route: "/api/market/stream", symbol, status: 200, domainCode: "SSE_ATTACHED", latencyMs: state.clock() - started, attempts: 0 });
+  keepalive = setInterval(() => {
+    if (!sink.keepalive()) {
+      stopKeepalive();
+      state.streamManager.detach(client);
+      sink.close();
+    }
+  }, state.sseKeepaliveMs);
+  keepalive.unref?.();
 }
 
 function metaFor(state, { symbol, market, dataKind, providerTimestamp, source, requestId, pointInTime, adjustmentMode }) {
