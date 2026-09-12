@@ -40,6 +40,22 @@ Accepted（2026-09-11；PR1 只做 contract＋fake，本決策約束後續 bridg
 - **Browser 直連 Fugle WS：** 違反 secret boundary（key 必進前端），永久否決，
   即使官方提供 browser example 亦然。
 
+## Bridge update（PR2b，2026-09-12）
+
+- 實作：`server/fugle-stream-manager.js`（單一 upstream＋registry fan-out）＋
+  `server/stream-sse.js`（`text/event-stream`、keepalive comment、slow-client 摘除）＋
+  `GET /api/market/stream?symbol=`（channel 固定 trades、symbol 接受 PR#26 runtimeSymbol 類任意碼）。
+- Fan-out：subscription key `FUGLE:TW:{symbol}:trades`；同 key 一條 upstream→N SSE clients；
+  最後 client 離開即 `unsubscribe(id)`＋關 socket＋清 timers（測鎖）。
+- Keepalive／heartbeat／freshness 三分離：SSE `: keepalive`（20s）≠ upstream 30s heartbeat ≠
+  envelope market freshness；watchdog 75s 無 frame 即重連。
+- Reconnect：沿用 contract（5次／1s退避／30s cap→FAILED）；重連必 re-auth＋resubscribe；
+  auth 失敗 fail-closed 不重試；零 clients 時不重連。
+- Anti-abuse：沿用 REST 120/min 計數＋max 50 SSE clients＋max 20 keys，超限 429 STREAM_RATE_LIMITED。
+- Backpressure：write false→只摘除該慢 client（測鎖），不斷 fan-out。
+- time 單位：官方 trades 例 `time:1685338200000000` 為微秒→轉 ms（測鎖，非猜測）。
+- realtimeStream 維持 false（待 PR3 REAL_STREAM_SMOKE＋browser acceptance）。
+
 ## Consequences
 
 - PR1（本支）：`js/stream-contract.js`（9 states、envelope、heartbeat≠freshness、

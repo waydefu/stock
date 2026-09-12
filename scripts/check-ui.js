@@ -548,6 +548,20 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("global-search", problems.join("；"));
 }
 
+// 34. stream bridge 邊界：SSE 只傳 normalized envelope，browser 永不直連 upstream
+{
+  const problems = [];
+  const proxy = readFileSync("server/market-proxy.js", "utf8");
+  const manager = readFileSync("server/fugle-stream-manager.js", "utf8");
+  if (!/\/api\/market\/stream/.test(proxy)) problems.push("proxy 缺 SSE route");
+  if (!/text\/event-stream/.test(readFileSync("server/stream-sse.js", "utf8"))) problems.push("SSE 缺正確 content-type");
+  if (!/normalizeFugleTrade/.test(manager)) problems.push("bridge 未經 normalization 就轉發（禁 raw forward）");
+  if (/new WebSocket\(/.test(app)) problems.push("browser 端出現 new WebSocket（禁止直連 upstream）");
+  if (/FUGLE_API_KEY|apikey/.test(app)) problems.push("browser bundle 出現 key 字樣");
+  if (problems.length === 0) ok("stream-bridge-boundary");
+  else fail("stream-bridge-boundary", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
