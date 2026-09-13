@@ -66,3 +66,20 @@ Accepted（2026-09-11；PR1 只做 contract＋fake，本決策約束後續 bridg
 - PR3（real smoke＋最小 UI）：trusted env 跑 REAL_STREAM_SMOKE，CI 無 key 則 BLOCKED_BY_CREDENTIAL。
 - REST／stream 降級必須顯式標 `source`（如 `FUGLE_REST_SNAPSHOT`），禁 mixed provenance 不標示。
 - Stream data 永遠 ≠ trading trigger（不接 PaperBroker／OrderService）。
+
+## PR3 update（browser client＋最小 Live UI，2026-09-13）
+
+- 實作：`js/sse-stream-client.js`（provider-neutral EventSource client：transport≠upstream≠freshness
+  三態分離、generation guard、終端碼手動關閉防重連風暴、可重試碼留給原生 auto-reconnect、
+  50 筆 trades／diagnostics 有界、拒收秘密形狀參數與 upstream host）＋
+  `scripts/smoke-stream-remote.js`（REAL_STREAM_TRANSPORT／REAL_STREAM_TRADE 機器可讀 verdict）＋
+  trade tab 最小 Live 卡片（start／stop／symbol、state badge、aria-live 只報 state 變化、
+  逐筆 targeted DOM 更新上限 10 列、audit 只記 START／STOP／ERROR）。
+- 整合：`#stream-symbol` 預設跟隨 `#fugle-symbol`／runtimeSymbol 遠端驗證結果；
+  切回 simulation 模式即停流（不留 silent stale）；trade handler 只碰 `#stream-*`
+ （`check-ui` gate 34 鎖 PAPER 隔離迴歸）。
+- Capability：`FugleProxyAdapter` `realtimeStream` false→true（transport＋失敗語義已實證；
+  trade PASS 待開盤時段）。
+- 實測（2026-09-13 週日，Render）：TRANSPORT=PASS（多連皆 200＋retry＋state 序列）；
+  TRADE=BLOCKED_BY_MARKET_CLOSED；5-min soak 另見 R-022（260s 健康後 upstream 抖動，
+  bounded 重連→FAILED→顯式錯誤全程符合設計）。

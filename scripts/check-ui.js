@@ -558,6 +558,13 @@ const count = (text, re) => (text.match(re) ?? []).length;
   if (!/normalizeFugleTrade/.test(manager)) problems.push("bridge 未經 normalization 就轉發（禁 raw forward）");
   if (/new WebSocket\(/.test(app)) problems.push("browser 端出現 new WebSocket（禁止直連 upstream）");
   if (/FUGLE_API_KEY|apikey/.test(app)) problems.push("browser bundle 出現 key 字樣");
+  // PR3: browser stream client 隔離 — 不碰下單／broker／風控／mapper，不自帶網路字面
+  const sseClient = readFileSync("js/sse-stream-client.js", "utf8");
+  if (!/class SseStreamClient/.test(sseClient)) problems.push("缺 provider-neutral browser stream client");
+  if (/PaperBroker|order-service|executePaperOrder|paper\.js|risk\.js|fugle-mapper/.test(sseClient)) problems.push("stream client 接觸下單／風控／mapper（PAPER 隔離破裂）");
+  if (/new WebSocket\(|fetch\s*\(|https?:\/\//.test(sseClient)) problems.push("stream client 出現禁用網路形狀（只許經 proxy 的 EventSource）");
+  if (!/generation/.test(sseClient)) problems.push("stream client 缺 generation guard（切 symbol 會污染）");
+  if (!/STREAM_STARTED/.test(app) || !/#stream-symbol/.test(app)) problems.push("app 未接 Live UI 啟動／標的（runtimeSymbol 整合缺）");
   if (problems.length === 0) ok("stream-bridge-boundary");
   else fail("stream-bridge-boundary", problems.join("；"));
 }

@@ -7,14 +7,16 @@
 
 ## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
 
-- Last verified main checkpoint：`ca6a554`（PR#26 全域搜尋修復 squash-merge）
-- 本分支：`feat/phase7c-server-bridge`，working tree 見下述提交後為 clean
-- Tests：260/260；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
+- Last verified main checkpoint：`1d36fe5`（PR#27 server bridge squash-merge；main CI Quality＋Pages 全綠）
+- 本分支：`feat/phase7c-live-ui`，working tree 見下述提交後為 clean
+- Tests：276/276；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
 - Quality：見本 PR required check「Quality」（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
-- Open PR：本分支 `feat/phase7c-server-bridge`（base main；編號與 CI 以 GitHub 為準）
+- Open PR：本分支 `feat/phase7c-live-ui`（base main；編號與 CI 以 GitHub 為準）
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）
-- Phase 7B1：MERGED；Phase 7B2（#20）＋proxy deploy-ready（#21）＋Docker runtime fix（#22）＋Pages 接線（#23）＋post-23 收斂（#24）＋7C streaming contract（#25）＋全域搜尋（#26）：MERGED；server bridge 本分支驗證中（PR2b，realtimeStream=false 維持）
-- Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate，不影響 smoke）；Pages deployed artifact 已驗注入 URL（2026-09-11 curl 實證）；真瀏覽器 acceptance PASS（2026-09-11：Fugle quote＋232 bars 研究＋GATE FAIL＋provenance FUGLE，見 PR#24）
+- Phase 7B1：MERGED；Phase 7B2（#20）＋proxy deploy-ready（#21）＋Docker runtime fix（#22）＋Pages 接線（#23）＋post-23 收斂（#24）＋7C streaming contract（#25）＋全域搜尋（#26）＋server bridge（#27）：MERGED；PR3（REAL_STREAM_SMOKE＋browser stream client＋最小 Live UI＋runtimeSymbol 整合＋PAPER 隔離）本分支驗證中，`realtimeStream=true` 已翻（transport＋失敗語義實證，trade 待開盤）
+- Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate，不影響 smoke）；Pages deployed artifact 已驗注入 URL（2026-09-11 curl 實證）；真瀏覽器 acceptance PASS（2026-09-11：Fugle quote＋232 bars 研究＋GATE FAIL＋provenance FUGLE，見 PR#24）；
+   串流（2026-09-13 週日）：REAL_STREAM_TRANSPORT=PASS（healthz 冷啟動 12.5s 後 200；SSE 200＋retry:5000＋state 序列＋keepalive，多連重現）；
+   REAL_STREAM_TRADE=BLOCKED_BY_MARKET_CLOSED（休市無逐筆屬正常）；5-min soak 見 R-022（260s 健康後 upstream 抖動，bounded 重連→FAILED 全程顯式，無 silent stale；REST 同期 200，成因 UNKNOWN 不硬猜）
 
 ## Scope
 
