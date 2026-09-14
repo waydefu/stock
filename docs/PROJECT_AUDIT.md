@@ -25,6 +25,74 @@
 - 本輪誠實結果：multi-horizon trend 在 2330 模擬資料上 IS −11,888／OOS 零交易→promotion gate FAIL（OOS 期望為負）；buyHold IS +206k／OOS −20k。框架正確拒絕弱證據，不自動晉升任何策略。
 - 本輪未做（deferred with reason）：瀏覽器 4 viewport 截圖——本機 Chromium GPU 行程必崩（`GPU process isn't usable`），改以真實資料端到端＋ID 交叉引用＋ui-score 靜態證據替代；value／quality（缺 point-in-time fundamentals，只缺 interface 未建）、pairs／regime、多標的 universe、TWAP／VWAP execution（缺 intraday granularity）；legacy `runBacktest` 融合迴圈保留為相容路徑（見 R-021）。
 
+## Audit snapshot 2026-09-14（`1d36fe5`，全案稽核；現況以 `docs/PROJECT_STATUS.md` 為準）
+
+- HEAD：`1d36fe5cdd70dc27380931dca91377225e1db3a9`（PR#27 squash-merge）；open PR：#28（`feat/phase7c-live-ui`）
+- 範圍：`js/`、`server/`、`scripts/`、`tests/`、`.github/`、`docs/` 全讀；正式站（Pages）與 Render proxy 各做非破壞性實測。
+- 未做：壓力／DoS 測試（R-024、R-025 的濫用情境由程式碼推導，不對公開服務施壓）；完整 WCAG 手動稽核；Fugle 條款法律判讀。
+- 對應：風險列 `docs/RISK_REGISTER.md` R-023～R-032；修正計畫 `docs/FUTURE_PLAN.md`「稽核後收斂 Track A–D」。
+- 以下 F-／G- 編號只在本 snapshot 內使用；追蹤以 R- 編號為準。
+
+### Verification evidence（2026-09-14）
+
+| Command / evidence | Result | Classification |
+|---|---|---|
+| `npm test`（Windows 10、Node 24.15.0） | 260 tests：259 pass／1 fail（`tests/proxy-runtime.test.js:28` SIGTERM exit code 為 `null`，Windows 限定，見 F-10） | Confirmed |
+| GitHub Actions `Quality`（ubuntu，`1d36fe5` push） | success | Confirmed |
+| `check:syntax`／`check:static`／`check:ui`／`score:ui` | exit 0／27 files／34 pass 0 warn 0 fail／100/100 | Confirmed |
+| `check:status`（main push） | PASS（非 PR 事件直接通過） | Confirmed |
+| 正式站瀏覽器：Trader、TW 2330 零股 10 股預覽（台北 16:45） | 預填 `1148.88` → `INVALID_TICK`；改 `1000` → `REFERENCE_PRICE_REQUIRED` | Confirmed（production） |
+| 以 repo 模組重現 UI 組單路徑（`PaperBroker`＋`RiskEngine`＋`executePaperOrder`，台北 10:00） | 不帶 `referencePrice` → preview 與 confirm 皆 `REFERENCE_PRICE_REQUIRED`；帶上即 `APPROVED` | Confirmed |
+| 6 檔台股模擬報價 `validateTick` | 6/6 `INVALID_TICK` | Confirmed |
+| 無 Origin 的 `curl GET /api/market/quote?symbol=2330`（Render proxy） | 200＋真實 Fugle envelope | Confirmed（production） |
+| 漲跌停窮舉：0–3,000 元共 4,000 個合法參考價，以整數分精確算法對照 `calculatePriceLimits` | 21 mismatch（1.10–10.50 元） | Confirmed |
+| `gh api repos/waydefu/stock/branches/main/protection` | 404 Branch not protected | Confirmed |
+| `git log -p --all` 疑似秘密掃描 | 只見測試假值（sentinel／dummy key） | Confirmed |
+
+### Findings（2026-09-14）
+
+#### P1
+
+- **F-01（R-023）台股紙上下單在 UI 永遠被拒。** `js/app.js:626` `previewOrder()` 組單不帶 `referencePrice`，`js/risk.js:52-55` 對 TW 強制要求；模擬報價（`js/data.js:103-108`）不對齊跳動點，預填價先被 `INVALID_TICK` 擋下。FUTURE_PLAN Phase 3 步驟 4 已寫「UI intent 帶 reference price」，PR#12 未落實。引擎測試自帶參考價、`check:ui`／`score:ui` 為原始碼比對、PR#24 瀏覽器驗收未涵蓋下單，因此在全綠下漏網。
+- **F-02（R-024）公開 proxy 無存取控制，且限流全體共用。** `server/market-proxy.js:45-65` 單一 process 共用 120 req／60s，不分來源；每個放行請求上游最多 3 attempts。ADR-006 與 `docs/PROVIDER_READINESS.md` 已把「公開前加 anti-abuse／重審授權」列為前提，Pages＋Render 公開後條件已成立。
+- **F-03（R-025）串流名額可被耗盡，訂閱錯誤不回傳。** `server/fugle-stream-manager.js:109-110` 全域 50 SSE／20 key，無 per-client 上限；`:262-264` 非認證 upstream error 只記 log；`:254` 需全部 key acked 才進 LIVE。`mapUpstreamError()` 的 `STREAM_SUBSCRIBE_FAILED` 對應（`tests/stream-contract.test.js:266`）未被 manager 使用。
+- **F-04（R-026）台股成本缺證券交易稅與最低手續費。** `js/backtest.js:85`、`js/research.js:38,63` 僅 0.1425% 雙邊手續費＋滑價；repo 內無交易稅實作。現股一次來回手續費＋稅約 0.585%，模型只計 0.285%。
+
+#### P2
+
+- **F-05（R-027）** 手動斷路器不持久化：`js/risk.js:23-24` 為記憶體狀態，reload 即解除；牴觸 `GOVERNANCE.md` 安全門檻 2。
+- **F-06（R-028）** 漲跌停浮點取整：`js/market-rules.js:136-137`。例：參考價 1.10 跌停得 1.00（應 0.99）；1.90 漲停得 2.08（應 2.09）。
+- **F-07（R-029）** ETF／受益憑證套用股票跳動點（`js/market-rules.js:13-20`）；`validateOrderTypeInSession()`（`:194-201`）不看 lot。
+- **F-08（R-030）** `probeStale()`（`server/fugle-stream-manager.js:422-429`）只在測試呼叫，正式流程未排程；R-022 所列 STALE 緩解尚未接線。
+- **F-09（R-031）** `js/research.js:153-155` 不論是否真的成交都更新 `target`；配置為 0 或股數取整為 0 時，策略狀態與持倉脫鉤。
+
+#### P3
+
+- **F-10** Windows 相容：`tests/proxy-runtime.test.js:26-28`（SIGTERM exit code）；`package.json` 的 `check:syntax` 依賴 find／xargs。
+- **F-11** `riskFreeRate` 以每期相減（`js/backtest.js:201`、`js/research.js:248`），UI 以年化 % 顯示（`js/app.js:290`）；預設 0，暫無影響。
+- **F-12** 冪等窗口：`js/paper.js:233` 訂單截斷為 100 筆，重複 `clientOrderId` 只比對最近 100 筆。
+- **F-13** 日損分母：`js/risk.js:75` 用當下 equity，snapshot 另提供 `dailyLossReferenceEquity`（session 開盤 equity）；語義不一致（結果偏保守）。
+- **F-14** `server/market-proxy.js:335-341` 第二個逾時計時器未清除；`:401` latency 用 `Date.now()` 而非注入 clock。
+
+#### Governance／docs
+
+- **G-01（R-032）** `docs/PROJECT_STATUS.md` 在 main 上過期（仍寫 `ca6a554`、「本分支 feat/phase7c-server-bridge」）；`scripts/check-status.js:43-56` 在 main push 直接 PASS，PR 階段只檢查檔案是否被改。本 PR 同步至 `1d36fe5`，結構問題見 Track C3。
+- **G-02** `README.md:6`「全部行情都是本機種子生成的模擬資料」、`:51`「107 tests」已過期；架構清單缺 `server/`、Fugle／stream 模組。
+- **G-03（R-032）** 無 browser E2E：閘門量的是原始碼樣式，F-01 在 `score:ui` 100/100 下存活。R-020 的 Chromium 崩潰是本機環境限制，GitHub ubuntu runner 不受影響。
+- **G-04** main 無 branch protection／rulesets，push 即部署 Pages；57 個 commit 中 30 個作者為 `root <root@localhost.localdomain>`；17 條已合併分支未刪除。
+- **G-05** 文件漂移：FUTURE_PLAN Phase 3／4／5 已由 PR#12／#13／#14 合併但未標完成（本 PR 補標）；AUDIT／ROADMAP／FUTURE_PLAN／DELIVERY_REPORT／STATUS 範圍重疊。
+
+### Confirmed strengths（維持，不回退）
+
+- Secret custody：`FUGLE_API_KEY` 只在 runtime env；缺 key fail-fast（`server/start-market-proxy.js:18-20`）；log redaction 以 sentinel 測試鎖住；Pages 只注入公開 URL。
+- CI supply chain：Actions full-SHA pin、workflow `permissions: contents: read`、Dependabot。
+- No look-ahead：bar-close signal＋next-bar-open fill；`rollingHigh` 不含當根（`js/data.js:145-153`）；研究引擎每根只給 `0..i` 切片（`js/research.js:146-150`）。
+- 零 runtime 依賴、穩定錯誤碼、可注入 clock／id／transport；promotion FAIL、CORS≠auth、paper-only 皆誠實揭露。
+
+### Verdict（2026-09-14）
+
+資料鏈與研究框架的可信度高於 2026-09-11 checkpoint；但 TW 紙上交易主流程在 production 不可用（R-023），公開 proxy 的濫用與授權風險已從「部署前提」變成「現況」（R-024、R-025）。Track A 驗收前，不應合併把瀏覽器流量導向 stream 端點的 PR#28，也不應把研究 gate 結果當成台股實際成本下的結論（R-026）。
+
 ## Verification evidence
 
 | Command / evidence | Result | Classification |
