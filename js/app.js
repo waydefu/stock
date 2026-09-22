@@ -17,6 +17,7 @@ import { FugleProxyAdapter } from "./fugle-proxy-adapter.js";
 import { SEARCH_ACTIONS, describeSearchAction, resolveSearchQuery, validateRemoteSymbol } from "./symbol-search.js";
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
+import { SseStreamClient } from "./sse-stream-client.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
 import { fixedFraction, fullNotional } from "./portfolio.js";
@@ -576,6 +577,129 @@ async function runFugleResearch() {
   }
 }
 
+/* 即時串流 Live UI（7C PR3）：provider-neutral SSE client 經 proxy 收 trades。
+   PAPER 隔離：trade handler 只碰 #stream-* 節點，永不寫入下單票／broker／風控。
+   更新政策：state 變化才寫 status（aria-live 節流，高頻逐筆不朗讀）；逐筆只做
+   targeted DOM 更新（latest＋前插一列，上限 10 列），不跑 renderAll；
+   audit 只記 START／STOP／ERROR（逐筆不記，避免洗 audit）。 */
+const STREAM_ERROR_TEXT = {
+  STREAM_AUTH_FAILED: "上游認證失敗，不自動重連；請部署者檢查 server 金鑰",
+  STREAM_SUBSCRIBE_FAILED: "訂閱失敗，不自動重連；請檢查標的後手動重試",
+  STREAM_RATE_LIMITED: "觸發限流，不自動重連；稍後手動重試",
+  STREAM_SCHEMA_INVALID: "串流資料結構異常，已停止",
+  STREAM_RECONNECT_EXHAUSTED: "上游重連用盡，已停止；請手動重試",
+  STREAM_UPSTREAM_CLOSED: "上游斷線，瀏覽器自動重連中",
+  STREAM_TIMEOUT: "逾時，瀏覽器自動重連中",
+  INVALID_SYMBOL: "商品代碼不正確，請修正標的",
+  FUGLE_MODE_OFF: "目前是模擬模式",
+  PROXY_NOT_CONFIGURED: "Fugle mode unavailable：尚未設定 proxy URL",
+  UNSUPPORTED_CAPABILITY: "目前瀏覽器不支援 EventSource，不偽裝連線",
+};
+let streamClient = null;
+let streamLastStatusText = "";
+
+function describeStreamText(snap) {
+  if (!snap || !snap.symbol) return "尚未啟動；切換「Fugle 真實行情」後可開始（瀏覽器經 proxy 收 SSE，不直連上游、不持金鑰）。";
+  const staleMark = snap.eventCount === 0 ? "尚無逐筆" : (snap.marketStale ? "STALE" : "FRESH");
+  const base = `傳輸 ${snap.transport}・上游 ${snap.upstream ?? "未知"}・${snap.symbol}・逐筆 ${snap.eventCount}・新鮮度 ${staleMark}・來源 FUGLE trades（經 proxy）・執行 PAPER`;
+  if (snap.error) {
+    const hint = STREAM_ERROR_TEXT[snap.error.code] ?? "未知錯誤";
+    return `${base}・錯誤 ${snap.error.code}：${hint}${snap.error.terminal ? "（已停止，需手動重試）" : "（自動重連中）"}`;
+  }
+  return base;
+}
+
+function paintStreamLatest(trade) {
+  const latest = $("#stream-latest");
+  if (!latest || !streamClient || !trade) return;
+  const snap = streamClient.getSnapshot();
+  const price = Number.isFinite(trade?.trade?.price) ? fmtPrice(trade.trade.price) : "N/A";
+  const fresh = snap.marketStale ? "STALE" : (trade.freshnessStatus ?? "UNKNOWN");
+  latest.textContent = `${trade.symbol} 最新 ${price}・${fmtTaipeiTime(trade.providerTimestamp)}・${fresh}・seq ${trade.sequence ?? "?"}`;
+}
+
+function updateStreamPanel() {
+  const startBtn = $("#stream-start");
+  const stopBtn = $("#stream-stop");
+  const badge = $("#stream-state-badge");
+  const status = $("#stream-status");
+  if (!startBtn || !stopBtn || !badge || !status) return;
+  const snap = streamClient ? streamClient.getSnapshot() : null;
+  const active = !!snap && (snap.transport === "OPEN" || snap.transport === "CONNECTING" || snap.transport === "RECONNECTING");
+  startBtn.disabled = active;
+  stopBtn.disabled = !active;
+  const toneName = !snap || !snap.symbol ? "neutral" : snap.transport === "FAILED" ? "down" : snap.upstream === "LIVE" ? "up" : "neutral";
+  badge.className = `badge ${toneName}`;
+  badge.textContent = snap?.upstream ?? snap?.transport ?? "IDLE";
+  const text = describeStreamText(snap);
+  if (text !== streamLastStatusText) {
+    status.textContent = text;
+    streamLastStatusText = text;
+  }
+  const trades = streamClient ? streamClient.recentTrades() : [];
+  if (trades.length) paintStreamLatest(trades[trades.length - 1]);
+}
+
+function renderStreamTrade(trade) {
+  paintStreamLatest(trade);
+  const box = $("#stream-trades");
+  if (!box || !trade) return;
+  const empty = box.querySelector(".state-block");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  const price = Number.isFinite(trade?.trade?.price) ? fmtPrice(trade.trade.price) : "N/A";
+  const size = Number.isFinite(trade?.trade?.size) ? trade.trade.size : "?";
+  row.textContent = `${fmtTaipeiTime(trade.providerTimestamp)} ${trade.symbol} ${price} x${size}・${trade.freshnessStatus ?? "UNKNOWN"}`;
+  box.prepend(row);
+  while (box.children.length > 10) box.lastChild.remove();
+}
+
+function renderStreamError(detail) {
+  updateStreamPanel();
+  auditEvent("STREAM_ERROR", { symbol: detail?.symbol ?? null, code: detail?.code ?? "UNKNOWN" });
+}
+
+function startStream() {
+  const input = $("#stream-symbol");
+  const fallback = $("#fugle-symbol");
+  const want = (input?.value.trim() || fallback?.value.trim() || "2330").toUpperCase();
+  try {
+    if (state.dataMode !== "fugle-proxy") throw Object.assign(new Error("切換「Fugle 真實行情」後再開始串流"), { code: "FUGLE_MODE_OFF" });
+    if (!MARKET_DATA_PROXY_URL) throw Object.assign(new Error("部署時注入 proxy URL 後可用"), { code: "PROXY_NOT_CONFIGURED" });
+    if (typeof EventSource === "undefined") throw Object.assign(new Error("目前瀏覽器不支援串流"), { code: "UNSUPPORTED_CAPABILITY" });
+    if (!streamClient) {
+      streamClient = new SseStreamClient({ baseUrl: MARKET_DATA_PROXY_URL });
+      streamClient.on("transport", updateStreamPanel);
+      streamClient.on("upstream", updateStreamPanel);
+      streamClient.on("trade", renderStreamTrade);
+      streamClient.on("error", renderStreamError);
+    } else {
+      const snap = streamClient.getSnapshot();
+      const busy = snap.transport === "OPEN" || snap.transport === "CONNECTING" || snap.transport === "RECONNECTING";
+      if (busy && snap.symbol === want) return;
+    }
+    streamClient.start(want);
+    const opened = streamClient.getSnapshot();
+    if (input) input.value = opened.symbol ?? want;
+    auditEvent("STREAM_STARTED", { symbol: opened.symbol });
+    const stopBtn = $("#stream-stop");
+    if (stopBtn) stopBtn.focus();
+  } catch (error) {
+    const code = typeof error?.code === "string" ? error.code : "UNKNOWN";
+    streamLastStatusText = "";
+    const status = $("#stream-status");
+    if (status) status.textContent = `串流啟動失敗［${code}］：${STREAM_ERROR_TEXT[code] ?? "未知錯誤"}維持 Fugle 模式，不切回模擬。`;
+    auditEvent("STREAM_ERROR", { symbol: want, code });
+  }
+  updateStreamPanel();
+}
+
+function stopStream() {
+  if (streamClient) streamClient.stop();
+  auditEvent("STREAM_STOPPED", {});
+  updateStreamPanel();
+}
+
 function renderTrade() {
   const market = $("#trade-market").value || state.market;
   if (market !== state.market) state.market = market;
@@ -822,6 +946,7 @@ async function handleSymbolSearch(event) {
     input.value = "";
     showSearchNotice("ok", `已驗證「${result.symbol}」為 Fugle 有效標的；下方為真實報價（僅供研究，下單票不受影響）。`);
     $("#fugle-symbol").value = result.symbol;
+    $("#stream-symbol").value = result.symbol;
     auditEvent("SYMBOL_SEARCH_REMOTE_OK", { symbol: result.symbol });
     setPage("trade");
     await renderFugleQuote();
@@ -901,10 +1026,18 @@ function initEvents() {
     if (state.dataMode !== "fugle-proxy") {
       $("#fugle-quote").innerHTML = "切換「Fugle 真實行情」後可查詢；模擬模式不連外網。真實報價僅供研究參考，下單票價格仍為模擬。";
       $("#fugle-research").innerHTML = "";
+      if (streamClient) {
+        streamClient.stop();
+        auditEvent("STREAM_STOPPED", { reason: "DATA_MODE_CHANGED" });
+      }
+      updateStreamPanel();
     }
   });
   $("#fugle-quote-btn").addEventListener("click", renderFugleQuote);
   $("#fugle-research-btn").addEventListener("click", runFugleResearch);
+  $("#stream-start").addEventListener("click", startStream);
+  $("#stream-stop").addEventListener("click", () => { stopStream(); const back = $("#stream-start"); if (back) back.focus(); });
+  $("#stream-symbol").addEventListener("keydown", (event) => { if (event.key === "Enter") startStream(); });
   $("#backtest-strategy").addEventListener("change", renderBacktest);
   $("#strategy-run").addEventListener("click", runStrategyComparison);
   document.addEventListener("keydown", handleGlobalKeydown);

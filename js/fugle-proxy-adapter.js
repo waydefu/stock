@@ -65,7 +65,7 @@ export class FugleProxyAdapter {
     return describeCapability({
       provider: "FUGLE",
       markets: ["TW"],
-      capabilities: { quote: true, historicalBars: true, realtimeStream: false, snapshot: false, corporateActions: false, fundamentals: false },
+      capabilities: { quote: true, historicalBars: true, realtimeStream: true, snapshot: false, corporateActions: false, fundamentals: false },
       dataKinds: [DATA_KINDS.REALTIME, DATA_KINDS.HISTORICAL],
       transport: "https-proxy",
       auth: "server-held",

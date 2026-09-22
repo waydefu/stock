@@ -121,11 +121,11 @@ test("browser adapter honors Retry-After through the full chain", async () => {
   assert.deepEqual(sleeps, [2000]);
 });
 
-test("browser adapter capabilities declare no realtime stream", () => {
+test("browser adapter capabilities declare realtime stream via proxy SSE", () => {
   const adapter = new FugleProxyAdapter({ baseUrl: "", fetchImpl: proxyOk({}), clock: () => 0 });
   const cap = adapter.getCapabilities();
   assert.equal(cap.provider, "FUGLE");
-  assert.equal(cap.capabilities.realtimeStream, false);
+  assert.equal(cap.capabilities.realtimeStream, true);
   assert.equal(cap.auth, "server-held");
   assert.equal(adapter.getStatus().state, ADAPTER_STATUS.DISCONNECTED);
   assert.equal(adapter.describe().dataKind, null);
