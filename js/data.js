@@ -2,6 +2,7 @@
    同一 symbol 永遠產生同一條序列 → 回測可重現（reproducible）。
    真實接線時把 `getBars` 換成 Shioaji／Alpaca adapter 即可，UI 不動。 */
 import { SimplifiedWeekdayCalendar } from "./trading-calendar.js";
+import { roundToTick } from "./market-rules.js";
 "use strict";
 
 /** 字串 → 32bit 種子（FNV-1a） */
@@ -102,9 +103,12 @@ export function closes(code) { return getBars(code).map((b) => b.c); }
 /** 最新價＋漲跌 */
 export function quote(code) {
   const bars = getBars(code);
-  const last = bars[bars.length - 1], prev = bars[bars.length - 2];
-  const chg = last.c - prev.c;
-  return { code, price: last.c, prev: prev.c, chg: r2(chg), pct: r2((chg / prev.c) * 100), vol: last.v };
+  const meta = getSymbol(code);
+  const last = bars[bars.length - 1], prevBar = bars[bars.length - 2];
+  const price = meta.market === "TW" ? roundToTick("TW", last.c) : last.c;
+  const prev = meta.market === "TW" ? roundToTick("TW", prevBar.c) : prevBar.c;
+  const chg = price - prev;
+  return { code, price, prev, chg: r2(chg), pct: prev === 0 ? 0 : r2((chg / prev) * 100), vol: last.v };
 }
 
 /* ---- 技術指標（純函數，可單測） ---- */

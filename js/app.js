@@ -9,6 +9,7 @@ import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { evaluateWindow } from "./research.js";
 import { MemoryStorage, PaperBroker } from "./paper.js";
 import { executePaperOrder } from "./order-service.js";
+import { buildOrderCandidate } from "./order-candidate.js";
 import { escapeHtml } from "./dom.js";
 import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
@@ -729,13 +730,23 @@ function updateOrderEstimate() {
   box.textContent = `試算：名目 ${fmtPrice(estimate.notional)}・預估手續費 ${fmtPrice(estimate.estFee)}・佔權益 ${estimate.equityPct.toFixed(2)}%・${lot}・可用 ${money(account.cash, account.currency)}${overCap}（送出前仍須預覽＋二次確認）`;
 }
 
+function orderQuote(symbol) {
+  const meta = getSymbol(symbol);
+  if (!meta) return null;
+  return currentQuote(meta.code);
+}
+
 function updateOrderPrice() {
   const select = $("#order-symbol");
   if (!select) return;
-  const meta = getSymbol(select.value);
-  const price = currentQuote(meta.code).price;
+  const q = orderQuote(select.value);
+  if (!q) return;
   const input = $("#order-price");
-  if (document.activeElement !== input) input.value = price.toFixed(2);
+  if (document.activeElement !== input) input.value = q.price.toFixed(2);
+  const freshness = $("#order-freshness");
+  if (freshness && Number.isFinite(q.prev)) {
+    freshness.textContent = `行情時間：本機模擬終點 2025/12/31・非即時・參考價 ${fmtPrice(q.prev)}（漲跌幅用）`;
+  }
 }
 
 function previewOrder(event) {
@@ -747,7 +758,11 @@ function previewOrder(event) {
   const price = Number($("#order-price").value);
   const account = broker.snapshot(market, quoteMap(market));
   const lot = $("#order-lot").value || (market === "TW" ? "oddLot" : "regular");
-  const candidate = { market, symbol, side, qty, price, lot, clientOrderId: nextClientOrderId() };
+  const candidate = buildOrderCandidate({
+    market, symbol, side, qty, price, lot,
+    quote: orderQuote(symbol),
+    clientOrderId: nextClientOrderId(),
+  });
   let decision;
   const box = $("#order-risk");
   if (!permissionsFor(state.role).includes("paper:order")) {
@@ -767,7 +782,10 @@ function previewOrder(event) {
 
 function openOrderModal(order, account) {
   state.modalTrigger = document.activeElement;
-  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}・${order.lot === "regular" ? "整股" : "零股"}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div><div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
+  const referenceRow = Number.isFinite(order.referencePrice)
+    ? `<div class="row"><span>參考價</span><span>${fmtPrice(order.referencePrice)}・漲跌幅基準</span></div>`
+    : "";
+  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}・${order.lot === "regular" ? "整股" : "零股"}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div>${referenceRow}<div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
   const modal = $("#order-modal");
   modal.hidden = false;
   modal.classList.add("open");
