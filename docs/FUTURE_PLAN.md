@@ -314,9 +314,9 @@ npm test && npm run check:static && git diff --check
 grep -n "107 tests\|全部行情都是本機種子" README.md || echo "README 已同步"
 ```
 
-#### A4 PR#28 重新審查（S）
+#### A4 Live UI 錯誤態補齊（S；PR#28 已於 2026-09-22 合併）
 
-A2 合併後 rebase `feat/phase7c-live-ui`；Live UI 對 `STREAM_SUBSCRIBE_FAILED`／`RATE_LIMITED` 顯示可行動狀態後再審（決策 D5）。
+決策 D5 過期：#28 已在 A2 之前合併。後續改為在 A2 合併後，於 Live UI 補 `STREAM_SUBSCRIBE_FAILED`／`RATE_LIMITED` 可行動狀態（獨立小 PR，不重開 #28）。
 
 ---
 
@@ -431,7 +431,7 @@ git checkout -b ci/browser-e2e origin/main
 | D2 | 斷路器觸發後是否允許減碼／平倉單 | 允許降低曝險、禁止新增曝險 | 待定 |
 | D3 | 台股紙上單是否強制真實交易時段 | 模擬資料加「模擬時鐘」模式；Fugle 模式維持真實時段 | 待定 |
 | D4 | 啟用 main branch protection＋required checks | 啟用（Track C2） | 待定 |
-| D5 | PR#28 是否在 A2 合併後才合併 | 是 | 待定 |
+| D5 | PR#28 是否在 A2 合併後才合併 | 原建議「是」 | **已過期**：#28 於 2026-09-22 合併；改走 A4 錯誤態補齊 |
 | D6 | Browser E2E 工具引入方式 | Playwright 只在 CI 安裝，不進 runtime | 待定 |
 
 ---
