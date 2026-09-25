@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   SEARCH_ACTIONS,
   describeSearchAction,
+  findLocalSymbol,
   normalizeSearchQuery,
   resolveSearchQuery,
   validateRemoteSymbol,
@@ -34,13 +35,18 @@ test("local Chinese name resolves", () => {
   assert.deepEqual(resolveSearchQuery("鴻海", { localFind, dataMode: "simulation" }), { action: "open-local", code: "2317" });
 });
 
-test("unknown symbol in simulation gives explicit needs-fugle, no fetch", () => {
-  let called = 0;
+test("uppercase US ticker matches the built-in symbol", () => {
+  const symbols = [{ code: "AAPL", name: "蘋果" }];
+  assert.equal(findLocalSymbol("AAPL", symbols), "AAPL");
+  assert.equal(findLocalSymbol("aapl", symbols), "AAPL");
+  assert.deepEqual(resolveSearchQuery("AAPL", { symbols }), { action: "open-local", code: "AAPL" });
+});
+
+test("unknown code validates remotely without a mode switch", () => {
   const d = resolveSearchQuery("0050", { localFind, dataMode: "simulation" });
-  assert.deepEqual(d, { action: "needs-fugle-mode", code: "0050" });
-  assert.equal(called, 0);
+  assert.deepEqual(d, { action: "validate-remote", code: "0050" });
   const text = describeSearchAction(d).text;
-  assert.ok(text.includes("0050") && text.includes("Fugle") && text.includes("不會自動切換"));
+  assert.ok(text.includes("0050"));
 });
 
 test("unknown symbol in Fugle mode goes remote", () => {

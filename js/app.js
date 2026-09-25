@@ -15,7 +15,7 @@ import { loadFavorites, toggleFavorite } from "./favorites.js";
 import { avgLast, fmtDay, money, orderEstimate, pct, signed, statePanel, stateRow, symbolLabel, tone } from "./view.js";
 import { AuditLog, DEFAULT_RISK, ROLE_PERMISSIONS, RiskEngine, permissionsFor } from "./risk.js";
 import { FugleProxyAdapter } from "./fugle-proxy-adapter.js";
-import { SEARCH_ACTIONS, describeSearchAction, resolveSearchQuery, validateRemoteSymbol } from "./symbol-search.js";
+import { SEARCH_ACTIONS, describeSearchAction, findLocalSymbol, resolveSearchQuery, validateRemoteSymbol } from "./symbol-search.js";
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { SseStreamClient } from "./sse-stream-client.js";
@@ -42,7 +42,8 @@ const state = {
   pendingOrder: null,
   modalTrigger: null,
   dataMode: "simulation",
-  runtimeSymbol: null, // 遠端驗證過的非內建標的 {code, market, source}；永不寫回 SYMBOLS／下單票
+  runtimeSymbol: null, // 遠端驗證過的非內建標的；只供看盤，不進下單清單
+  runtimeChart: null, // { code, name, quote, bars } 看盤用，PAPER 不讀
 };
 let clientOrderSequence = 0;
 let searchPending = false; // 遠端驗證中再按 Enter：忽略，不重複爆請求
@@ -196,6 +197,7 @@ function bindFavButtons(rootSelector, rerender) {
 function openSymbol(code) {
   const meta = getSymbol(code);
   if (!meta) return; // fail-closed：未知代號不切換頁面
+  state.runtimeChart = null;
   state.symbol = code;
   state.market = meta.market;
   $$("[data-market]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.market === state.market)));
@@ -204,7 +206,42 @@ function openSymbol(code) {
   setPage("chart");
 }
 
+function chartBars() {
+  if (state.runtimeChart?.bars?.length) return state.runtimeChart.bars;
+  return marketData.getBars(state.symbol);
+}
+
+function renderRuntimeChart(view) {
+  const q = view.quote;
+  const bars = view.bars ?? [];
+  const closes = bars.map((bar) => bar.c);
+  const price = Number.isFinite(q?.price) ? q.price : closes.at(-1);
+  const prev = Number.isFinite(q?.previousClose) ? q.previousClose : null;
+  const pctValue = Number.isFinite(q?.changePct) ? q.changePct : (prev ? ((price - prev) / prev) * 100 : 0);
+  const rsiValues = closes.length > 14 ? rsi(closes, 14) : [];
+  const lastRsi = rsiValues.at(-1);
+  const high = closes.length ? Math.max(...closes) : price;
+  const low = closes.length ? Math.min(...closes) : price;
+  const name = view.name ? `${view.code} ${view.name}` : view.code;
+  $("#quote-head").innerHTML = [
+    ["最新價", `TWD ${fmtPrice(price)}`, "neutral"],
+    ["日變化", pct(pctValue), tone(pctValue)],
+    ["區間", closes.length ? `${fmtPrice(low)} — ${fmtPrice(high)}` : "尚無歷史", "neutral"],
+    ["來源", "Fugle・僅供看盤", "neutral"],
+  ].map(([label, value, cls]) => `<article class="card"><h2>${escapeHtml(label)}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
+  const chart = $("#price-chart");
+  if (chart && bars.length && (state.page === "chart" || chart.closest(".active"))) {
+    drawCandles(chart, bars, { window: Number($("#chart-window").value || state.chartWindow) });
+  }
+  const rsiText = Number.isFinite(lastRsi) ? lastRsi.toFixed(2) : "N/A";
+  $("#technical-readings").innerHTML = `<div class="row"><span>標的</span><span class="mono">${escapeHtml(name)}</span></div><div class="row"><span>來源</span><span>Fugle 真實行情・不加入下單清單</span></div><div class="row"><span>RSI(14)</span><span class="mono">${rsiText}</span></div><div class="row"><span>成交量</span><span class="mono">${q?.volume == null ? "N/A" : fmtInt(q.volume)}</span></div>`;
+}
+
 function renderChart() {
+  if (state.runtimeChart) {
+    renderRuntimeChart(state.runtimeChart);
+    return;
+  }
   const meta = getSymbol(state.symbol);
   const q = currentQuote();
   const bars = marketData.getBars(state.symbol);
@@ -230,7 +267,7 @@ function bindChartHover() {
   chart.dataset.hoverBound = "1";
   chart.addEventListener("mousemove", (event) => {
     const rect = chart.getBoundingClientRect();
-    const bars = marketData.getBars(state.symbol);
+    const bars = chartBars();
     const window = Number($("#chart-window").value || state.chartWindow);
     const hit = candleHoverAt(bars, Math.max(320, Math.floor(rect.width || 720)), event.clientX - rect.left, { window });
     drawCandles(chart, bars, { window, hover: hit ? hit.index : null });
@@ -922,59 +959,117 @@ function showSearchNotice(kind, text) {
   box.textContent = text;
 }
 
-async function handleSymbolSearch(event) {
-  if (event.key !== "Enter") return;
-  const input = event.target;
+const RECENT_SEARCH_KEY = "tw-us-stock-recent-search-v1";
+
+function readRecentSearches() {
+  try {
+    const parsed = JSON.parse(storage.getItem(RECENT_SEARCH_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item.code === "string").slice(0, 6) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberSearch(entry) {
+  const next = [entry, ...readRecentSearches().filter((item) => item.code !== entry.code)].slice(0, 6);
+  storage.setItem(RECENT_SEARCH_KEY, JSON.stringify(next));
+  renderRecentSearches();
+}
+
+function renderRecentSearches() {
+  const box = $("#search-recent");
+  if (!box) return;
+  const items = readRecentSearches();
+  box.innerHTML = items.length
+    ? items.map((item) => `<button type="button" class="btn sm" data-recent-symbol="${escapeHtml(item.code)}">${escapeHtml(item.label || item.code)}</button>`).join("")
+    : "";
+}
+
+async function openRemoteChart(symbol, quote) {
+  const name = quote?.name || symbol;
+  state.runtimeSymbol = { code: symbol, market: "TW", source: "FUGLE", name };
+  let bars = [];
+  try {
+    const adapter = requireFugleAdapter();
+    const { to } = { to: taipeiYMD(new Date()) };
+    const range = fugleResearchRange({ to });
+    const loaded = await adapter.getBarsAsync(symbol, range);
+    bars = loaded.envelope.data;
+  } catch {
+    bars = [];
+  }
+  state.runtimeChart = {
+    code: symbol,
+    name,
+    quote: {
+      price: quote?.price,
+      previousClose: quote?.previousClose,
+      changePct: quote?.changePct,
+      volume: quote?.volume,
+    },
+    bars,
+  };
+  rememberSearch({ code: symbol, label: `${symbol} ${name === symbol ? "" : name}`.trim() });
+  setPage("chart");
+  renderChart();
+}
+
+async function runSymbolSearch() {
+  const input = $("#symbol-search");
+  if (!input) return;
   const raw = input.value;
   const decision = resolveSearchQuery(raw, {
-    dataMode: state.dataMode,
-    localFind: (query, original) => {
-      const hit = SYMBOLS.find((item) => item.code.toLowerCase() === query)
-        ?? SYMBOLS.find((item) => item.code.toLowerCase().startsWith(query))
-        ?? SYMBOLS.find((item) => item.name.includes(original.trim()));
-      return hit ? hit.code : null;
-    },
+    symbols: SYMBOLS,
+    localFind: (_query, original) => findLocalSymbol(original, SYMBOLS),
   });
   if (decision.action === SEARCH_ACTIONS.NOOP) return;
   if (decision.action === SEARCH_ACTIONS.OPEN_LOCAL) {
     input.value = "";
     showSearchNotice("none", "");
+    const meta = getSymbol(decision.code);
+    rememberSearch({ code: decision.code, label: meta ? `${meta.code} ${meta.name}` : decision.code });
     openSymbol(decision.code);
     return;
   }
-  if (decision.action === SEARCH_ACTIONS.NEEDS_FUGLE_MODE || decision.action === SEARCH_ACTIONS.NOT_FOUND) {
+  if (decision.action === SEARCH_ACTIONS.NOT_FOUND) {
     showSearchNotice(describeSearchAction(decision).kind, describeSearchAction(decision).text);
     auditEvent("SYMBOL_SEARCH_UNRESOLVED", { query: raw.trim(), reason: decision.action });
     return;
   }
-  // VALIDATE_REMOTE：Fugle mode 才會到這裡；simulation 永不連外，不改 dataMode。
   if (searchPending) return;
   searchPending = true;
+  const button = $("#symbol-search-btn");
+  if (button) button.disabled = true;
   showSearchNotice("loading", describeSearchAction(decision).text);
   try {
     const adapter = requireFugleAdapter();
     const result = await validateRemoteSymbol(decision.code, { quoteFn: (code) => adapter.quoteAsync(code) });
     if (!result.ok) {
       const hint = FUGLE_ERROR_TEXT[result.code] ?? "未知錯誤";
-      showSearchNotice("error", `遠端驗證「${decision.code}」失敗［${result.code}］：${hint}維持 Fugle 模式，不切回模擬。`);
+      const timeoutNote = result.code === "TIMEOUT" ? "連線逾時。" : "";
+      showSearchNotice("error", `查無或無法確認「${decision.code}」［${result.code}］：${timeoutNote}${hint}只查行情，不加入下單清單。`);
       auditEvent("SYMBOL_SEARCH_REMOTE_FAILED", { query: decision.code, code: result.code });
       return;
     }
-    state.runtimeSymbol = { code: result.symbol, market: "TW", source: "FUGLE" };
     input.value = "";
-    showSearchNotice("ok", `已驗證「${result.symbol}」為 Fugle 有效標的；下方為真實報價（僅供研究，下單票不受影響）。`);
-    $("#fugle-symbol").value = result.symbol;
-    $("#stream-symbol").value = result.symbol;
+    const quote = result.envelope?.data ?? {};
+    showSearchNotice("ok", `已打開「${result.symbol}」的 Fugle 看盤。只供研究，不加入下單清單。`);
     auditEvent("SYMBOL_SEARCH_REMOTE_OK", { symbol: result.symbol });
-    setPage("trade");
-    await renderFugleQuote();
+    await openRemoteChart(result.symbol, quote);
   } catch (error) {
     const code = typeof error?.code === "string" ? error.code : "UNKNOWN";
-    showSearchNotice("error", `遠端驗證「${decision.code}」失敗［${code}］，維持 Fugle 模式，不切回模擬。`);
+    showSearchNotice("error", `查詢「${decision.code}」失敗［${code}］。只查行情，不加入下單清單。`);
     auditEvent("SYMBOL_SEARCH_REMOTE_FAILED", { query: decision.code, code });
   } finally {
     searchPending = false;
+    if (button) button.disabled = false;
   }
+}
+
+async function handleSymbolSearch(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  await runSymbolSearch();
 }
 
 function renderRisk(target = "#audit-log") {
@@ -1012,7 +1107,7 @@ function initEvents() {
     button.addEventListener("keydown", handleTabKeydown);
   });
   $("#role-select").addEventListener("change", (event) => { state.role = event.target.value; auditEvent("ROLE_CHANGED", { role: state.role }); renderAll(); });
-  $("#chart-symbol").addEventListener("change", (event) => { state.symbol = event.target.value; renderChart(); });
+  $("#chart-symbol").addEventListener("change", (event) => { state.runtimeChart = null; state.symbol = event.target.value; renderChart(); });
   $("#chart-window").addEventListener("change", (event) => { state.chartWindow = Number(event.target.value); renderChart(); });
   bindChartHover();
   $("#screen-run").addEventListener("click", renderScreener);
@@ -1037,6 +1132,14 @@ function initEvents() {
   $("#help-close").addEventListener("click", closeHelp);
   $("#shortcut-help").addEventListener("click", openHelp);
   $("#symbol-search").addEventListener("keydown", handleSymbolSearch);
+  $("#symbol-search-form")?.addEventListener("submit", (event) => { event.preventDefault(); runSymbolSearch(); });
+  $("#search-recent")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-recent-symbol]");
+    if (!button) return;
+    $("#symbol-search").value = button.dataset.recentSymbol;
+    runSymbolSearch();
+  });
+  renderRecentSearches();
   $("#order-lot").addEventListener("change", updateOrderEstimate);
   $("#data-mode").addEventListener("change", (event) => {
     state.dataMode = event.target.value;

@@ -539,11 +539,13 @@ const count = (text, re) => (text.match(re) ?? []).length;
 // 33. 全域搜尋不得靜默：notice 容器＋遠端驗證路徑＋simulation 不連外承諾
 {
   const problems = [];
+  if (!/id="symbol-search-btn"/.test(html)) problems.push("index.html 缺搜尋按鈕");
   if (!/id="search-notice"/.test(html)) problems.push("index.html 缺 #search-notice（未知代號無處顯示）");
   if (!/VALIDATE_REMOTE|validateRemoteSymbol/.test(app)) problems.push("app 缺遠端代號驗證路徑");
-  if (!/NEEDS_FUGLE_MODE|不會自動切換/.test(app)) problems.push("app 缺 simulation 顯式提示（不得靜默）");
-  if (!/searchPending/.test(app)) problems.push("app 缺重複 Enter 請求 guard");
+  if (!/不加入下單清單/.test(app)) problems.push("app 缺下單清單隔離說明");
+  if (!/searchPending/.test(app)) problems.push("app 缺重複請求 guard");
   if (!/runtimeSymbol/.test(app)) problems.push("app 缺 runtimeSymbol 隔離（遠端標的不得污染 SYMBOLS）");
+  if (!/findLocalSymbol/.test(app)) problems.push("app 搜尋未做大小寫正規化");
   if (problems.length === 0) ok("global-search");
   else fail("global-search", problems.join("；"));
 }
