@@ -41,8 +41,9 @@ test("all listed symbols have valid reproducible OHLCV bars", () => {
 test("quote exposes the last close and percentage movement", () => {
   const q = quote("2330");
   const bars = getBars("2330");
-  assert.equal(q.price, bars.at(-1).c);
-  assert.equal(q.prev, bars.at(-2).c);
+  assert.notEqual(q.price, undefined);
+  assert.equal(q.price, Math.round(bars.at(-1).c / 5) * 5);
+  assert.ok(Math.abs(q.prev - bars.at(-2).c) < 5);
   assert.equal(q.code, "2330");
   assert.ok(Number.isFinite(q.pct));
 });

@@ -82,6 +82,16 @@ export { TW_LIMIT_SOURCE, TW_ODD_LOT_SOURCE, TW_RULE_SOURCE, TW_TICK_SCHEDULE, T
  * Get the tick size for a given price in TW market.
  * Returns the tick size or null if price is invalid.
  */
+/** Round a price to the nearest legal tick. Markets without a schedule are unchanged. */
+export function roundToTick(market, price) {
+  if (!Number.isFinite(price)) return price;
+  const tick = getTickSize(market, price);
+  if (!tick) return price;
+  const rounded = Math.round(price / tick) * tick;
+  const decimals = tick >= 1 ? 0 : Math.min(4, Math.round(-Math.log10(tick)));
+  return Number(rounded.toFixed(decimals));
+}
+
 export function getTickSize(market, price) {
   const rules = getMarketRules(market);
   if (!rules.tickSchedule) return null;
