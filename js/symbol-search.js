@@ -1,11 +1,8 @@
 /* Global symbol search resolver (pure, no DOM).
-   Top search must resolve ANY TW code, not just built-in demo SYMBOLS:
-   local hit -> open chart; local miss + fugle-proxy mode -> validate the code
-   against the trusted proxy (quote); local miss + simulation -> explicit
-   message, never a silent no-op and never a secret outbound call.
-   Remote-validated symbols live in state.runtimeSymbol and NEVER merge back
-   into simulation SYMBOLS or the PAPER order ticket (search is行情查詢, not
-   order authorization). */
+   Local hit (case-insensitive code or name) -> open the built-in chart.
+   Local miss + code-shaped query -> validate via Fugle, even in simulation
+   mode. That lookup does not change PAPER mode and does not add an orderable
+   symbol. Remote hits live in state.runtimeSymbol only. */
 "use strict";
 
 export const SEARCH_ACTIONS = Object.freeze({
@@ -24,16 +21,29 @@ export function normalizeSearchQuery(raw) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
+/* Exact code, then code prefix, then name. Both sides are case-folded. */
+export function findLocalSymbol(raw, symbols) {
+  const query = normalizeSearchQuery(raw).toLowerCase();
+  if (!query || !Array.isArray(symbols)) return null;
+  const exact = symbols.find((item) => String(item.code).toLowerCase() === query);
+  if (exact) return exact.code;
+  const prefix = symbols.find((item) => String(item.code).toLowerCase().startsWith(query));
+  if (prefix) return prefix.code;
+  const named = symbols.find((item) => String(item.name).toLowerCase().includes(query));
+  return named ? named.code : null;
+}
+
 /* localFind(query, raw): exact code -> prefix code -> local name; preserves the
    historical priority. Returns a code string or null. Injected for tests. */
-export function resolveSearchQuery(raw, { localFind, dataMode = "simulation" } = {}) {
+export function resolveSearchQuery(raw, { localFind, symbols } = {}) {
   const query = normalizeSearchQuery(raw);
   if (!query) return { action: SEARCH_ACTIONS.NOOP };
-  const code = typeof localFind === "function" ? localFind(query, raw) : null;
+  const code = typeof localFind === "function"
+    ? localFind(query.toLowerCase(), query)
+    : findLocalSymbol(query, symbols);
   if (code) return { action: SEARCH_ACTIONS.OPEN_LOCAL, code };
   if (!REMOTE_CODE_PATTERN.test(query)) return { action: SEARCH_ACTIONS.NOT_FOUND, query };
-  if (dataMode === "fugle-proxy") return { action: SEARCH_ACTIONS.VALIDATE_REMOTE, code: query.toUpperCase() };
-  return { action: SEARCH_ACTIONS.NEEDS_FUGLE_MODE, code: query.toUpperCase() };
+  return { action: SEARCH_ACTIONS.VALIDATE_REMOTE, code: query.toUpperCase() };
 }
 
 /* Remote validation via an injected quote function (adapter.quoteAsync in app).
@@ -60,7 +70,7 @@ export function describeSearchAction(decision) {
     case SEARCH_ACTIONS.OPEN_LOCAL:
       return { kind: "local", text: "" };
     case SEARCH_ACTIONS.NEEDS_FUGLE_MODE:
-      return { kind: "info", text: `「${decision.code}」不在內建模擬清單；切換「Fugle 真實行情」後可查詢（不會自動切換）。` };
+      return { kind: "info", text: `「${decision.code}」需要遠端查詢。查到只進看盤，不加入下單清單，也不切換 PAPER。` };
     case SEARCH_ACTIONS.VALIDATE_REMOTE:
       return { kind: "loading", text: `向 Fugle 驗證「${decision.code}」…` };
     case SEARCH_ACTIONS.NOT_FOUND:

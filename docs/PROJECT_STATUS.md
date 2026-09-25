@@ -7,15 +7,15 @@
 
 ## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
 
-- Last verified main checkpoint：`8747f85`（Track A 文件已快轉進 main；程式 HEAD 仍含 PR#28 `e8b3ef5`）
-- 本分支：`cursor/tw-order-reference-40b7`（Track A1：台股下單參考價＋模擬報價對齊跳動點）
-- Tests：281（本環境 Node 22：`pass 275`／`cancelled 6`／`fail 0`；ubuntu CI 以 GitHub Quality 為準）；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
+- Last verified main checkpoint：`1ca27d7`（PR#33 台股參考價已合併）
+- 本分支：`cursor/global-symbol-search-40b7`（搜尋：大小寫正規化；非內建代號自動問 Fugle 後進看盤；不加入下單清單）
+- Tests：282（本環境 Node 22：`pass 276`／`cancelled 6`／`fail 0`）；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
 - Quality：以 GitHub required check「Quality」為準（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
 - Open PR（文件／deps）：#29 audit（將由本分支／後續 PR 取代或關閉）、#30–#32 Dependabot Pages Actions（Quality 紅燈，暫不合併）
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）；`score:ui` 100/100 為靜態原始碼證據，不代表使用者流程可用（R-032）
 - Phase 7B／7C：#20–#28 全部 MERGED；`realtimeStream=true`；browser SSE client＋最小 Live UI 已上 main
 - Audit：2026-09-14 snapshot 見 `docs/PROJECT_AUDIT.md`；修正計畫見 `docs/FUTURE_PLAN.md`「稽核後收斂 Track A–D」
-- **Next executable**：本分支修 R-023；合併後下一項是 Track A2（proxy／SSE 防濫用）
+- **Next executable**：本分支修全域搜尋；下單仍只限內建模擬標的
 - Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate）；Pages 已注入 proxy URL；
    串流（2026-09-13）：REAL_STREAM_TRANSPORT=PASS；REAL_STREAM_TRADE=BLOCKED_BY_MARKET_CLOSED；5-min soak 見 R-022
 

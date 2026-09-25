@@ -85,8 +85,11 @@ a { color: var(--brand); }
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 50;
 }
-.cmdbar { display: flex; align-items: center; gap: var(--sp-2); }
+.cmdbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .cmdbar input { width: 200px; }
+.search-form { display: flex; align-items: center; gap: var(--sp-2); }
+.search-recent { display: flex; flex-wrap: wrap; gap: 4px; }
+.search-recent button { font-size: 12px; }
 .kbd {
   display: inline-block; min-width: 16px; text-align: center;
   border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
