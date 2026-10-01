@@ -492,14 +492,20 @@ const FUGLE_ERROR_TEXT = {
   PROXY_NOT_CONFIGURED: "Fugle mode unavailable：尚未設定 proxy URL",
 };
 
-function requireFugleAdapter() {
-  if (state.dataMode !== "fugle-proxy") {
-    throw Object.assign(new Error("切換「Fugle 真實行情」後再查詢"), { code: "FUGLE_MODE_OFF" });
-  }
+// An explicit global search may fetch a remote chart without changing the
+// selected data mode. Quote/research controls keep their separate mode guard.
+function createFugleAdapter() {
   if (!MARKET_DATA_PROXY_URL) {
     throw Object.assign(new Error("部署時注入 proxy URL 後可用"), { code: "PROXY_NOT_CONFIGURED" });
   }
   return new FugleProxyAdapter({ baseUrl: MARKET_DATA_PROXY_URL });
+}
+
+function requireFugleAdapter() {
+  if (state.dataMode !== "fugle-proxy") {
+    throw Object.assign(new Error("切換「Fugle 真實行情」後再查詢"), { code: "FUGLE_MODE_OFF" });
+  }
+  return createFugleAdapter();
 }
 
 function renderFugleError(box, error) {
@@ -990,7 +996,7 @@ async function openRemoteChart(symbol, quote) {
   state.runtimeSymbol = { code: symbol, market: "TW", source: "FUGLE", name };
   let bars = [];
   try {
-    const adapter = requireFugleAdapter();
+    const adapter = createFugleAdapter();
     const { to } = { to: taipeiYMD(new Date()) };
     const range = fugleResearchRange({ to });
     const loaded = await adapter.getBarsAsync(symbol, range);
@@ -1042,7 +1048,7 @@ async function runSymbolSearch() {
   if (button) button.disabled = true;
   showSearchNotice("loading", describeSearchAction(decision).text);
   try {
-    const adapter = requireFugleAdapter();
+    const adapter = createFugleAdapter();
     const result = await validateRemoteSymbol(decision.code, { quoteFn: (code) => adapter.quoteAsync(code) });
     if (!result.ok) {
       const hint = FUGLE_ERROR_TEXT[result.code] ?? "未知錯誤";

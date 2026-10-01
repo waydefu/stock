@@ -1,5 +1,5 @@
 /* Global search acceptance: any TW code resolves, never silently no-ops,
-   simulation never dials out, remote symbols never pollute local SYMBOLS. */
+   remote lookups are explicit, remote symbols never pollute local SYMBOLS. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

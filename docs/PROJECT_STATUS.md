@@ -7,15 +7,16 @@
 
 ## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
 
-- Last verified main checkpoint：`1ca27d7`（PR#33 台股參考價已合併）
-- 本分支：`cursor/global-symbol-search-40b7`（搜尋：大小寫正規化；非內建代號自動問 Fugle 後進看盤；不加入下單清單）
-- Tests：282（本環境 Node 22：`pass 276`／`cancelled 6`／`fail 0`）；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
+- Last verified main checkpoint：`70bcf79`（PR#33／#34 與 Pages Actions 更新已合併）
+- 本分支：`fix/remote-search-mode`（修正 #34 殘留的 FUGLE_MODE_OFF：預設模擬模式可明確搜尋 0050／006208，報價與歷史 K 線直接進看盤；下單清單仍限內建模擬標的）
+- Tests：287/287 pass、fail 0、cancelled 0（Node 24.19.0）；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
 - Quality：以 GitHub required check「Quality」為準（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
-- Open PR（文件／deps）：#29 audit（將由本分支／後續 PR 取代或關閉）、#30–#32 Dependabot Pages Actions（Quality 紅燈，暫不合併）
+- 前輪 PR：#29 已關閉；#30–#34 已合併。本分支以新 PR 提交。
 - Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）；`score:ui` 100/100 為靜態原始碼證據，不代表使用者流程可用（R-032）
 - Phase 7B／7C：#20–#28 全部 MERGED；`realtimeStream=true`；browser SSE client＋最小 Live UI 已上 main
 - Audit：2026-09-14 snapshot 見 `docs/PROJECT_AUDIT.md`；修正計畫見 `docs/FUTURE_PLAN.md`「稽核後收斂 Track A–D」
-- **Next executable**：本分支修全域搜尋；下單仍只限內建模擬標的
+- 搜尋驗證（2026-10-01）：正式 proxy 的 0050 quote／bars HTTP 200；Chromium 本機以擷取的真實 envelope 回放，修正前 FUGLE_MODE_OFF 且零請求，修正後進看盤、報價＋K 線皆請求、資料模式仍 simulation、PAPER 下單清單未增加 0050、無 page error。線上版待本 PR 合併與 Pages 部署。
+- **Next executable**：合併搜尋修正後接 Track A2（proxy／串流防濫用）。
 - Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate）；Pages 已注入 proxy URL；
    串流（2026-09-13）：REAL_STREAM_TRANSPORT=PASS；REAL_STREAM_TRADE=BLOCKED_BY_MARKET_CLOSED；5-min soak 見 R-022
 
@@ -27,7 +28,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 
 ### Blockers（2026-09-14 稽核，Track A／B；仍適用於 main@e8b3ef5）
 
-1. 台股紙上下單：本分支已接上 `referencePrice`（模擬＝`quote.prev`）並把模擬報價取整到合法 tick（R-023）。休市仍回 `MARKET_CLOSED`（D3 未改）
+1. 台股紙上下單：PR#33 已合併 `referencePrice`（模擬＝`quote.prev`）與模擬報價合法 tick 取整（R-023）。休市仍回 `MARKET_CLOSED`（D3 未改）；正式站開盤流程 E2E 待補。
 2. 公開 proxy 無存取控制、全域共用限流；資料再散布授權待確認（R-024，Track A2＋決策 D1）
 3. 串流名額可被單一來源佔滿；訂閱錯誤不回傳、不釋放名額（R-025，Track A2；PR#28 已合併，暴露面已開）
 4. 台股回測／研究缺證券交易稅與最低手續費，結論偏樂觀（R-026，Track B1）
@@ -40,7 +41,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 4. 真 exchange calendar／corporate-action 調整資料（simplified-weekday 現狀）
 5. matching＋reconciliation（立即成交模型現狀，見 R-003）
 6. server authority／durable audit／secret management（ADR-005 誠實範圍）
-7. provider real-data runtime：Render HTTPS proxy 已部署並通過 quote／history／research smoke；下單流程尚未可用（R-023）
+7. provider real-data runtime：Render HTTPS proxy 已部署並通過 quote／history／research smoke；PAPER 下單的 R-023 修正已合併，正式站開盤流程驗收待補。
 8. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
 
 ## Enforcement（server side）

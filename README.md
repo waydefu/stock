@@ -55,6 +55,13 @@ scripts/            check-static.js、check-ui.js（21 閘門）、ui-score.js�
 
 ## 本機執行
 
+### 搜尋其他台股代號
+
+頂部搜尋可輸入 `0050`、`006208` 等代號，非內建標的會明確向 Fugle
+查詢並開啟看盤，不需先切換資料模式。需使用已設定行情 proxy 的部署版本；
+本機預設 `runtime-config.js` 未設定 proxy，會顯示 `PROXY_NOT_CONFIGURED`。
+遠端標的只供看盤，不加入紙上下單清單；非內建股票名稱搜尋尚未支援。
+
 ```bash
 # 1) 直接開檔（部分瀏覽器擋 file:// 的 ES module，建議用 2）
 xdg-open index.html
