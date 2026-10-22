@@ -19,6 +19,7 @@ import { SEARCH_ACTIONS, describeSearchAction, findLocalSymbol, resolveSearchQue
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { SseStreamClient } from "./sse-stream-client.js";
+import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
 import { fixedFraction, fullNotional } from "./portfolio.js";
@@ -308,8 +309,9 @@ function renderBacktest() {
     commissionRate: (Number($("#backtest-commission").value) || 0) / 100,
     slippageBps: Number($("#backtest-slippage").value) || 0,
   };
+  const feeModel = feeModelForSymbol(state.symbol, options.commissionRate);
   let result;
-  try { result = runBacktest(marketData.getBars(state.symbol), strategy, options); }
+  try { result = runBacktest(marketData.getBars(state.symbol), strategy, { ...options, feeModel }); }
   catch (error) {
     $("#backtest-metrics").innerHTML = statePanel("error", "回測無法執行", error.message);
     $("#backtest-assumptions").innerHTML = statePanel("error", "模型假設不可用", "修正輸入參數後重新執行。");
@@ -326,16 +328,40 @@ function renderBacktest() {
     ["Sharpe", m.sharpeInsufficient ? "樣本不足" : formatMetric(m.sharpe), m.sharpeInsufficient ? "neutral" : m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
-  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>年化 risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
+  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${feeModel ? escapeHtml(feeAssumptionText(feeModel)) : `${(options.commissionRate * 100).toFixed(4)}%（簡化模型，未含稅與最低額）`}</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>年化 risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
 function researchCosts() {
+  const commissionRate = (Number($("#backtest-commission").value) || 0) / 100;
   return {
-    commissionRate: (Number($("#backtest-commission").value) || 0) / 100,
+    commissionRate,
     slippageBps: Number($("#backtest-slippage").value) || 0,
     initialCapital: Number($("#backtest-capital").value) || 1_000_000,
+    feeModel: feeModelForSymbol(state.symbol, commissionRate),
   };
+}
+
+/* 台股成本模型（Track B1）：每筆手續費（含最低額）＋賣方證券交易稅。
+   US 費用未建模 → 不啟用 fee model，維持原本的簡化手續費（誠實標示，不假裝涵蓋）。 */
+function feeModelForSymbol(symbol, commissionRate) {
+  const meta = getSymbol(symbol);
+  if (!meta || meta.market !== "TW") return null;
+  if (!Number.isFinite(commissionRate) || commissionRate <= 0) return null;
+  return createTwFeeModel({
+    commissionRate,
+    minCommission: DEFAULT_TW_FEE_ASSUMPTIONS.minCommission,
+    instrumentType: TW_INSTRUMENT.STOCK,
+  });
+}
+
+/* 假設面板用的費用說明（純文字，來源與查閱日期一起顯示）。 */
+function feeAssumptionText(feeModel) {
+  if (!feeModel) return null;
+  const d = describeTwFeeModel(feeModel);
+  const tax = d.sellTaxRateByInstrument?.[d.instrumentType] ?? 0;
+  return `${(d.effectiveCommissionRate * 100).toFixed(4)}%／筆（最低 ${d.minCommission} 元）＋賣方證交稅 ${(tax * 100).toFixed(2)}%`
+    + `（來源：《證券交易稅條例》第 2 條、營業細則第 94 條，查閱 ${d.accessed}）`;
 }
 
 function researchAllocate(def, frac) {
@@ -381,7 +407,9 @@ function renderResearchBacktest(strategyId) {
     ["暖機", `${def.warmup} 根（含 warmup 前不交易）`],
     ["成交", "立即紙上模擬成交（next-bar-open）"],
     ["配置", def.id === "buyHold" ? "全額 buy&hold 基準" : `固定比例 ${(frac * 100).toFixed(0)}%（Portfolio 層決定，策略不碰股數）`],
-    ["手續費／滑價", `${(costs.commissionRate * 100).toFixed(4)}%／${costs.slippageBps} bp`],
+    ["手續費／滑價", costs.feeModel
+      ? `${escapeHtml(feeAssumptionText(costs.feeModel))}／${costs.slippageBps} bp`
+      : `${(costs.commissionRate * 100).toFixed(4)}%（簡化模型，未含稅與最低額）／${costs.slippageBps} bp`],
     ["IS／OOS", `${split.is.length}／${split.oos.length} 根（時序切分，OOS 為後段）`],
     ["基準比較", `Cash ${money(bench.cash.netProfit, ccy)}・Buy&Hold ${money(bench.buyHold.netProfit, ccy)}（同資金同成本）`],
     ["費用合計", `手續費 ${money(full.totalFees, ccy)}・滑價 ${money(full.totalSlippage, ccy)}`],

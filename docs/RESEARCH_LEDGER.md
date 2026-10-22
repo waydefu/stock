@@ -44,6 +44,13 @@
 | 受益憑證每日升降幅度準用上市股票（10%），但國外成分 ETF／期貨信託 ETF／境外指數股票型基金／國外成分主動式 ETF 無升降幅度限制；槓桿反向 ETF 為 10%×倍數 | [126] | 臺灣證券交易所受益憑證買賣辦法第8條 | MarketRules 漲跌幅 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：`dailyPriceLimitPct` 目前一律 10%（明確缺口，需商品別每日升降幅度資料模型）。 |
 | 權證漲跌停非 ±10%，以標的證券當日漲跌停價換算；指數型權證以前一日標的指數收盤×每點對應金額×行使比例×10% 計算 | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、每日升降幅度」 | MarketRules 漲跌停 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：權證只支援 tick 表，漲跌停仍走一般 ±10% 公式（明確缺口，需標的證券漲跌停價）。 |
 | TWSE 市場開休市日期（2026 年度：24 個市場無交易日，含春節 2/12–2/20、和平紀念日補假 2/27、兒童節掃墓節 4/3–4/6、勞動節 5/1、端午節 6/19、中秋節 9/25、教師節 9/28、國慶日補假 10/9、光復節補假 10/26、行憲紀念日 12/25） | [127] | 臺灣證券交易所「市場開休市日期」開放資料 | MarketCalendar（TW 休市日） | Highly time-sensitive（查閱 2026-10-22，涵蓋 2026-01-01..2026-12-31） | `js/tw-market-holidays.js` 為官方快照；`MarketHolidayCalendar` 用於台股交易時段判斷，涵蓋範圍外退回 weekday 規則並在 policy 明講。 |
+| 台股證券交易稅：向出賣人按每次交易成交價格課徵；股票千分之三、公司債及其他經政府核准之有價證券（ETF／受益憑證）千分之一 | [128] | 《證券交易稅條例》第 1 條、第 2 條（財政部／全國法規資料庫，修正日期民國 114 年 1 月 2 日） | TW FeeModel 賣方稅率、稅基＝成交金額（不含手續費） | Time-sensitive（稅率與免稅期間會修法） | 股票 0.3%、ETF／受益憑證 0.1%，只對賣方；買方 0。 |
+| 台股當日沖銷證券交易稅千分之一點五，且僅適用「上市或上櫃股票」同一帳戶同一營業日現款買進＋現券賣出同種類同數量者 | [128] | 《證券交易稅條例》第 2-2 條 | TW FeeModel 當沖稅率 | Time-sensitive（受託買賣 106/4/28 起、證券商自行買賣 107/4/28 起，至 116/12/31 止） | 當沖股票賣方 0.15%；ETF／受益憑證不適用第 2-2 條，仍用 0.1%。 |
+| 公司債／金融債券與債券指數股票型基金受益憑證之證券交易稅暫停徵收；權證避險專戶千分之一 | [128] | 《證券交易稅條例》第 2-1 條、第 2-3 條 | TW FeeModel 稅率表邊界 | Time-sensitive（暫停徵至 115/12/31） | 本 repo 只建模股票／ETF／受益憑證；債券與避險專戶未建模，UI 不得宣稱涵蓋。 |
+| 手續費率之授權基礎：集中交易市場由證券交易所申報主管機關核定，非集中交易市場由證券商同業公會申報主管機關核定 | [129] | 《證券交易法》第 85 條 | TW FeeModel commissionRate 的法源 | Stable（授權架構） | 費率是「申報核定」而非法定固定值 → 模型把費率做成可設定參數，預設值須標來源。 |
+| 手續費：經紀商依客戶成交金額自行訂定費率標準、折讓與每筆委託最低費用，實施前報證交所備查；所訂費率逾成交金額千分之一點四二五者應於委託前通知委託人並留存紀錄 | [130] | 臺灣證券交易所營業細則第 94 條（修正 115/09/24） | TW FeeModel 的手續費率、最低手續費、折讓 | Time-sensitive（費率與門檻會調整） | 0.1425% 是「事前通知門檻」不是硬上限；折讓與每筆最低費用由券商自訂 → 預設 0.1425%、不假設折讓、最低 20 元，並在 assumptions 標明來源與查閱日。 |
+| 證券商同業公會自律：會員手續費率於主管機關核定之上限範圍內自行訂定；逾千分之 1.425 應於委託前通知客戶 | [131] | 中華民國證券商業同業公會「會員受託買賣有價證券收取手續費自律規則」第 2 條、第 6 條 | TW FeeModel 折讓與最低費用 | Time-sensitive | 「核定上限」的數值在自律規則中未列，實作不得自行編造上限數字。 |
+| 市場實務（券商收費標準）：台股現股買賣手續費以成交金額乘千分之 1.425 計算，電子交易另有折扣；每筆手續費不足 20 元以 20 元計收 | [132] | 元大證券官方交易手續費說明（券商收費標準／受託契約條款） | TW FeeModel 最低手續費 20 元 | Time-sensitive（券商可各自訂定，須逐家確認） | 最低 20 元是市場慣例而非法律明定，模型把 minCommission 做成參數；本輪未建模零股 1 元低消與電子下單折扣。 |
 ## Evidence policy
 
 - Government／exchange／regulator > official broker/API docs > official design system > primary repo > secondary comparison。
@@ -127,3 +134,8 @@
 [125] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=62
 [126] https://twse-regulation.twse.com.tw/TW/law/DAT0201.aspx?FLCODE=FL007114
 [127] https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json&queryYear=2026
+[128] https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=G0340078
+[129] https://law.moj.gov.tw/LawClass/LawSingle.aspx?Pcode=G0400001&FLNO=85
+[130] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=94
+[131] https://www.twsa.org.tw/DOC/970709.html
+[132] https://www.yuanta.com.tw/eYuanta/Securities/Node/Index?MainId=00415

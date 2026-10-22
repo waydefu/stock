@@ -332,7 +332,7 @@ grep -n "107 tests\|全部行情都是本機種子" README.md || echo "README �
 
 對應風險：R-026、R-027、R-028、R-029、R-030、R-031。
 
-#### B1 台股成本模型（M）
+#### B1 台股成本模型（M）✅ 已完成（2026-10-22）
 
 ```bash
 git checkout -b feat/tw-cost-model origin/main
@@ -346,6 +346,13 @@ npm test && npm run check:ui && git diff --check
 ```
 
 驗收：golden cases 全過；假設面板顯示稅率；research 結論以新成本重記（promotion 結果若改變照實寫）。
+
+→ 已落地：`js/tw-fee-model.js`（`createTwFeeModel`／`describeTwFeeModel`／`feeModelAffordableQty`／`scaleTwFeeModel`）、
+`js/backtest.js`／`js/research.js` 可接 feeModel（不給＝既有行為逐位元不變）、`js/app.js` 假設面板顯示稅率與最低手續費、
+`tests/fee-model.test.js`（20 個 golden case）。**未採用**「手續費率上限 0.3%」與「28% 折扣→0.1425%」：
+官方文件只說費率由主管機關核定、0.1425% 是事前通知門檻，故費率參數化並標來源。
+真實資料驗證（`npm run smoke:research:remote`，2026-10-22）：REMOTE_RESEARCH_SMOKE=PASS，232 根真實日 K、
+OOS 交易 1 筆、OOS 損益 +11,236（含稅費 1,522）、promotion=FAIL（結論不變）。
 
 決策點：paper broker 是否同步改用 TW FeeModel（R-018 目前為 zero-fee paper）。
 

@@ -20,7 +20,7 @@
 | A2 | proxy／串流防濫用（R-024、R-025） | 完成：per-client token bucket、quote 短 TTL 快取、每日上游預算、per-client SSE 上限、upstream 錯誤路由、per-key 串流狀態 |
 | A3 | 文件同步（README／STATUS／RISK／LEDGER 對齊） | 持續進行 |
 | A4 | Live UI 可行動錯誤態（`STREAM_SUBSCRIBE_FAILED`／`RATE_LIMITED`） | 完成：`#stream-alert` ＋ `STREAM_ERROR_ACTION` |
-| B1 | 台股成本模型（R-026） | 進行中：TW FeeModel（證券交易稅＋最低手續費） |
+| B1 | 台股成本模型（R-026） | 完成：`js/tw-fee-model.js`（證交稅＋最低手續費，來源可查）；paper broker 仍 zero-fee |
 | B2 | 市場規則精度（R-028、R-029） | 完成：整數最小單位漲跌停、商品別跳動單位、零股限價 |
 | B3 | 狀態與引擎（R-027、R-030、R-031） | 完成：斷路器持久化、probeStale 排程、target 依成交更新 |
 | B4 | 跨平台相容（F-10） | 完成：跨平台語法檢查、proxy lifecycle 測試 |
