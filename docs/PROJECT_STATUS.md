@@ -24,10 +24,10 @@
 | B2 | 市場規則精度（R-028、R-029） | 完成：整數最小單位漲跌停、商品別跳動單位、零股限價 |
 | B3 | 狀態與引擎（R-027、R-030、R-031） | 完成：斷路器持久化、probeStale 排程、target 依成交更新 |
 | B4 | 跨平台相容（F-10） | 完成：跨平台語法檢查、proxy lifecycle 測試 |
-| C1 | Browser E2E 進 CI（R-032） | 進行中 |
-| C2 | 治理加固（branch protection／CodeQL／secret scanning） | 待維護者決策（server-side 設定） |
+| C1 | Browser E2E 進 CI（R-032） | 完成：`.github/workflows/e2e.yml`＋`tests/e2e/*`（含 R-023 突變回放） |
+| C2 | 治理加固（branch protection／CodeQL／secret scanning／dependency review） | 完成：main branch protection（required `Quality`）、CodeQL workflow、secret scanning 已啟用、dependency review workflow |
 | C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字 |
-| D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | 逐項決策（見 FUTURE_PLAN） |
+| D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 
 ## Scope
 
@@ -45,6 +45,10 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 
 ## Enforcement（server side）
 
-- Branch protection（main）：無（2026-09-11 API 查驗：404 Branch not protected）；啟用屬維護者決策。
-- Rulesets：無
-- 現狀＝policy＋CI 強、server-side enforcement 缺席；本文件只記錄、不擅自開。
+- Branch protection（main）：**已啟用**（2026-10-22，API 查驗）：required status check＝`Quality`；
+  不允許 force push／刪除分支；`enforce_admins` 未開（維護者可 bypass）。
+  `Browser E2E` 待該 workflow 上 main 後再加為 required context（避免 PR 卡住等不存在的 check）。
+- CodeQL（code scanning）：workflow 已上 main（`.github/workflows/codeql.yml`，javascript-typescript）。
+- Secret scanning：公開 repo 預設已開（含 push protection），2026-10-22 API 查驗為 `enabled`。
+- Dependency review：`.github/workflows/dependency-review.yml`（PR 檢視依賴變更）。
+- 仍缺：required PR review 數、ruleset、貢獻者身份一致性（見 FUTURE_PLAN Track C2）。
