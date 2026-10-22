@@ -45,13 +45,29 @@ async function main() {
   });
   const running = await start(config.port, config.host);
   console.log(`market-proxy listening on ${running.url}`);
+  let shuttingDown = false;
   const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     streams.shutdown();
     await running.close();
     process.exitCode = 0;
+    /* 開啟的 IPC channel 會讓 event loop 保持存活；斷線後讓 process 自然結束（exit code 0）。 */
+    try {
+      if (typeof process.disconnect === "function" && process.connected) process.disconnect();
+    } catch {
+      /* channel 已關閉 */
+    }
   };
   process.once("SIGTERM", () => { void shutdown(); });
   process.once("SIGINT", () => { void shutdown(); });
+  /* 跨平台優雅關閉：Windows 沒有真正的 SIGTERM 語意，測試（與人類）可改送
+     IPC 訊息觸發同一條 shutdown() 路徑，驗證的是同一段 graceful shutdown 程式碼。 */
+  if (typeof process.send === "function") {
+    process.on("message", (message) => {
+      if (message === "shutdown") void shutdown();
+    });
+  }
 }
 
 const invokedDirectly = typeof process.argv[1] === "string" && process.argv[1].endsWith("start-market-proxy.js");
