@@ -47,6 +47,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_RATE_LIMIT = Object.freeze({ capacity: 60, refillPerSecond: 1 });
 const DEFAULT_QUOTE_CACHE_TTL_MS = 4_000;
 const DEFAULT_DAILY_UPSTREAM_BUDGET = 5_000;
+const MAX_CLIENT_BUCKETS = 10_000;
 
 /* rateLimit 支援兩種形狀：
    - 新版 token bucket：{ capacity, refillPerSecond }
@@ -89,6 +90,7 @@ function takeToken(state, clientKey) {
   if (!bucket) {
     bucket = { tokens: rl.capacity, updatedAt: now };
     state.buckets.set(clientKey, bucket);
+    evictStaleBuckets(state);
   }
   const elapsedSeconds = Math.max(0, now - bucket.updatedAt) / 1000;
   bucket.tokens = Math.min(rl.capacity, bucket.tokens + elapsedSeconds * rl.refillPerSecond);
@@ -98,6 +100,16 @@ function takeToken(state, clientKey) {
     return null;
   }
   return Math.max(1, Math.ceil((1 - bucket.tokens) / rl.refillPerSecond));
+}
+
+/* bucket 表不可無限成長（大量來源 IP 會撐大記憶體）：超過上限就丟最舊的。 */
+function evictStaleBuckets(state) {
+  if (state.buckets.size <= MAX_CLIENT_BUCKETS) return;
+  const entries = [...state.buckets.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt);
+  for (const [key] of entries) {
+    if (state.buckets.size <= MAX_CLIENT_BUCKETS) break;
+    state.buckets.delete(key);
+  }
 }
 
 /* 每日上游呼叫預算（UTC 日界）。超過 → RATE_LIMITED，不打上游。 */
