@@ -90,6 +90,15 @@ function cleanSymbol(symbol) {
   return upper;
 }
 
+/* 預設 EventSource 工廠：瀏覽器的 EventSource 是 class，必須用 new 呼叫。
+   直接呼叫（`globalThis.EventSource(url)`）會丟 Illegal constructor —— 注入測試
+   都是普通函式所以測不出來，真瀏覽器才會爆（E2E 抓到）。 */
+function defaultEventSourceFactory() {
+  const EventSourceCtor = globalThis.EventSource;
+  if (typeof EventSourceCtor !== "function") return null;
+  return (url) => new EventSourceCtor(url);
+}
+
 export class SseStreamClient {
   #baseUrl;
   #factory;
@@ -118,7 +127,7 @@ export class SseStreamClient {
       throw new Error(`sse client 未知參數：${key}`);
     }
     this.#baseUrl = cleanBaseUrl(baseUrl);
-    this.#factory = eventSourceFactory ?? globalThis.EventSource ?? null;
+    this.#factory = eventSourceFactory ?? defaultEventSourceFactory();
     if (typeof this.#factory !== "function") {
       throw new Error("目前環境無 EventSource（不偽裝連線，請用支援瀏覽器）");
     }

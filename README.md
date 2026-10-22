@@ -3,7 +3,8 @@
 繁體中文的台股＋美股分析與模擬自動交易單頁應用（SPA）。
 純靜態、零依賴、免建置：直接用瀏覽器開 `index.html` 或走 GitHub Pages 即可跑。
 
-> **定位**：研究／教育用原型（prototype），全部行情都是本機種子生成的模擬資料，
+> **定位**：研究／教育用原型（prototype）。預設行情是本機種子生成的**模擬資料**；
+> 可切換到 **Fugle 真實行情**（經部署端的 trusted proxy，僅供研究）。
 > 下單全部走紙上交易（paper trading），**不連真實券商、不給投資建議**。
 > 詳見 `DISCLAIMER.md`。
 
@@ -48,10 +49,20 @@ js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
 js/app.js           UI 組裝＋角色治理
-tests/              node --test（零依賴，107 tests：回測數學、風控邊界、策略契約、研究框架）
+js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參考價與商品別）
+js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
+js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
+js/fugle-proxy-adapter.js 經 proxy 取真實行情的 adapter（頁面不持金鑰）
+server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
+tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
 docs/               ARCHITECTURE.md（模組研究矩陣）、GOVERNANCE.md、UI_UX.md
-scripts/            check-static.js、check-ui.js（21 閘門）、ui-score.js（/100 評分）
+scripts/            check-static.js、check-ui.js（35 閘門）、ui-score.js（/100 評分）、
+                    check-syntax.js（跨平台語法檢查）、check-status.js（狀態同步閘）、
+                    ci-summary.js（CI job summary）、smoke-*.js（真實資料煙霧測試）
+tests/e2e/          Playwright 瀏覽器 E2E（只在 CI 安裝工具，不進 runtime）
 ```
+
+> 測試數量與各閘門結果不寫在文件裡：由 CI job summary 自動產生（見 `docs/PROJECT_STATUS.md`）。
 
 ## 本機執行
 
@@ -72,6 +83,10 @@ python3 -m http.server 8080
 
 # 3) 跑測試（Node.js 24，零依賴）
 npm test
+
+# 4) 跑瀏覽器 E2E（需另外安裝 Playwright，只在 CI 會自動做）
+npm install --no-save playwright@1.64.1 && npx playwright install chromium
+npm run e2e
 ```
 
 ## 券商接線（留白，不實作真單）

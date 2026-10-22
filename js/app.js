@@ -546,6 +546,7 @@ async function renderFugleQuote() {
       ["成交量", `<span class="mono">${q.volume === null ? "N/A" : fmtInt(q.volume)}</span>`],
       ["Provider 時間", fmtTaipeiTime(q.timestamp)],
       ["收到時間", fmtTaipeiTime(m.receivedAt)],
+      ["資料來源", `${escapeHtml(m.provider)}・${escapeHtml(m.dataKind)}・norm-v${m.normalizationVersion}`],
       ["Freshness", `${m.freshnessStatus} ${freshBadge}`],
       ["交易時段", session ? session.name : "休市"],
       ["Provider 狀態", adapter.getStatus().state],
@@ -658,12 +659,19 @@ let streamLastStatusText = "";
 function describeStreamText(snap) {
   if (!snap || !snap.symbol) return "尚未啟動；切換「Fugle 真實行情」後可開始（瀏覽器經 proxy 收 SSE，不直連上游、不持金鑰）。";
   const staleMark = snap.eventCount === 0 ? "尚無逐筆" : (snap.marketStale ? "STALE" : "FRESH");
-  const base = `傳輸 ${snap.transport}・上游 ${snap.upstream ?? "未知"}・${snap.symbol}・逐筆 ${snap.eventCount}・新鮮度 ${staleMark}・來源 FUGLE trades（經 proxy）・執行 PAPER`;
+  const base = `傳輸 ${snap.transport}・上游 ${snap.upstream ?? "未知"}・${snap.symbol}・新鮮度 ${staleMark}・來源 FUGLE trades（經 proxy）・執行 PAPER`;
   if (snap.error) {
     const hint = STREAM_ERROR_TEXT[snap.error.code] ?? "未知錯誤";
     return `${base}・錯誤 ${snap.error.code}：${hint}${snap.error.terminal ? "（已停止，需手動重試）" : "（自動重連中）"}`;
   }
   return base;
+}
+
+/* 逐筆數量放在獨立、aria-live=off 的元素：避免高頻成交朗讀到螢幕閱讀器。 */
+function paintStreamCount(snap) {
+  const counter = $("#stream-count");
+  if (!counter) return;
+  counter.textContent = `逐筆 ${snap?.eventCount ?? 0}`;
 }
 
 function paintStreamLatest(trade) {
@@ -707,12 +715,14 @@ function updateStreamPanel() {
     streamLastStatusText = text;
   }
   renderStreamAlert(snap);
+  paintStreamCount(snap);
   const trades = streamClient ? streamClient.recentTrades() : [];
   if (trades.length) paintStreamLatest(trades[trades.length - 1]);
 }
 
 function renderStreamTrade(trade) {
   paintStreamLatest(trade);
+  if (streamClient) paintStreamCount(streamClient.getSnapshot());
   const box = $("#stream-trades");
   if (!box || !trade) return;
   const empty = box.querySelector(".state-block");

@@ -34,6 +34,15 @@
 | Volatility-managed portfolios：波動高時降險可提高 Sharpe；受限版本測試 leverage cap 1／1.5 | [100][101] | Primary：Journal of Finance＋NBER working paper | VolatilityTargetingOverlay（capped leverage） | Published research，stable | 低波動不變無限槓桿：maxLeverage 必須有限；本 repo 只做單標的 overlay，未做多因子。 |
 | 時間序列動量／橫截面動量／價值動量／配對交易／data-snooping 的 canonical 引用（本輪未重讀全文，只記研究假說出處） | [102][103][104][105][106][107][108] | Journals（JFE／JF／RFS／Econometrica）＋AQR 白皮書 | multi-horizon trend hypothesis；pairs／regime／White 檢驗留待後續 | Canonical references，需實作前重查 | 多 horizon 組合只為穩健高原，不宣稱機構級；pairs／regime 未達資料門檻不實作。 |
 | GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
+| TWSE 股票價格升降單位分六段（未滿 10 元 0.01／10–未滿 50 元 0.05／50–未滿 100 元 0.10／100–未滿 500 元 0.50／500–未滿 1000 元 1.00／1000 元以上 5.00） | [125] | 臺灣證券交易所營業細則第62條 | MarketRules 商品別 tick 表 | Highly time-sensitive（查閱 2026-10-22） | 實作為股票表 `TW_STOCK_TICK_SCHEDULE`；`getTickSize("TW", price)` 預設即此表，既有呼叫端行為不變。 |
+| ETF／主動式 ETF／REITs 每受益權單位未滿 50 元升降單位 0.01、50 元以上 0.05；封閉型基金準用上市股票表 | [126] | 臺灣證券交易所受益憑證買賣辦法第7條 | MarketRules 商品別 tick 表 | Highly time-sensitive（查閱 2026-10-22） | 實作為 `TW_ETF_TICK_SCHEDULE`（0.01／0.05）；商品別 etf／etn／reit 走此表，closedfund 走股票表。 |
+| 集中市場升降單位總表：認購(售)權證與認股權憑證 0–5:0.01、5–10:0.05、10–50:0.10、50–100:0.50、100–500:1.00、500 以上:5.00 | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、升降單位」 | MarketRules 商品別 tick 表 | Highly time-sensitive（查閱 2026-10-22） | 實作為 `TW_WARRANT_TICK_SCHEDULE`；權證在 5–10 元已是 0.05，與股票表不同，不可混用。 |
+| 每日漲跌停＝開盤競價基準×110%／×90% 再依升降單位對齊（漲停取不超過上限之最大合法值、跌停取不低於下限之最小合法值；官方範例 40.60→漲停 44.65／跌停 36.55） | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、每日有價證券漲跌停價格計算範例」 | MarketRules 漲跌停計算 | Highly time-sensitive（查閱 2026-10-22） | `calculatePriceLimits()` 改以整數最小單位運算並採 floor／ceil，取代浮點 `Math.floor/Math.ceil`；300,000 檔窮舉 0 mismatch。 |
+| 股票每日市價升降幅度以開盤競價基準 10% 為限；升降幅度限度未滿最小升降單位者按最小升降單位計算 | [97] | 臺灣證券交易所營業細則第63條 | MarketRules 漲跌幅 | Highly time-sensitive（查閱 2026-10-22） | `dailyPriceLimitPct = 10` 維持；「低位價下限以最小升降單位為限」尚未建模（明確缺口）。 |
+| 零股交易買賣申報應以限價為之，且限當日有效 | [96] | 臺灣證券交易所上市股票零股交易辦法第3條 | MarketRules 零股委託限制 | Highly time-sensitive（查閱 2026-10-22） | `validateOrderTypeInSession(market, orderType, ts, lot)` 於 TW＋oddLot＋非限價單回 `ODD_LOT_LIMIT_ONLY`；risk 層傳 lot 原文。 |
+| 盤中零股交易委託以限價為之且限當日有效（申報 9:00–13:30、9:10 起每 5 秒集合競價） | [98] | 臺灣證券交易所「集中市場交易制度介紹／肆、盤中零股交易」 | MarketRules 零股制度 | Highly time-sensitive（查閱 2026-10-22） | 零股限價規則已實作；零股專屬申報時段與集合競價制度尚未建模（明確缺口）。 |
+| 受益憑證每日升降幅度準用上市股票（10%），但國外成分 ETF／期貨信託 ETF／境外指數股票型基金／國外成分主動式 ETF 無升降幅度限制；槓桿反向 ETF 為 10%×倍數 | [126] | 臺灣證券交易所受益憑證買賣辦法第8條 | MarketRules 漲跌幅 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：`dailyPriceLimitPct` 目前一律 10%（明確缺口，需商品別每日升降幅度資料模型）。 |
+| 權證漲跌停非 ±10%，以標的證券當日漲跌停價換算；指數型權證以前一日標的指數收盤×每點對應金額×行使比例×10% 計算 | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、每日升降幅度」 | MarketRules 漲跌停 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：權證只支援 tick 表，漲跌停仍走一般 ±10% 公式（明確缺口，需標的證券漲跌停價）。 |
 ## Evidence policy
 
 - Government／exchange／regulator > official broker/API docs > official design system > primary repo > secondary comparison。
@@ -43,7 +52,8 @@
 
 ## Current unverified external work
 
-- TWSE 最新交易規則、tick schedule、odd-lot、corporate-action effective dates。
+- TWSE 商品別「每日升降幅度」規則（受益憑證買賣辦法第8條：無升降幅度 ETF、槓桿反向 ETF 倍數）尚未建模；權證漲跌停換算公式、上櫃（TPEx）規則、債券 tick 表亦未建模（見 FUTURE_PLAN Track B2 缺口 G-1～G-4）。
+- 盤中／盤後零股專屬申報時段與集合競價制度尚未建模（G-5）；新上市首五日無漲跌幅限制未建模（G-7）。
 - Fugle／Shioaji／Alpaca／IBKR 當前 adapter limits 與 paper 行為。
 - GitHub Actions secret scanning、code scanning、dependency review policy（immutable SHA pin＋Dependabot 已於 v7 落地並綠燈）。
 - AQR 白皮書 URL（[103]／[107]）為記憶重建、本輪未能開啟驗證；任何實作引用前必須重查官方頁，不得直接採用。
@@ -112,3 +122,5 @@
 [122] https://developer.fugle.tw/docs/pricing
 [123] https://developer.fugle.tw/docs/data/websocket-api/getting-started
 [124] https://developer.fugle.tw/docs/data/websocket-api/market-data-channels/trades
+[125] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=62
+[126] https://twse-regulation.twse.com.tw/TW/law/DAT0201.aspx?FLCODE=FL007114
