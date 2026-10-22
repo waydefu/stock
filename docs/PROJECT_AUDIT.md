@@ -1,5 +1,8 @@
 # Project Audit
 
+> **歷史文件（Track C3）**：本文件是 baseline ＋ 各輪稽核快照，不再更新現況。
+> 現況以 `docs/PROJECT_STATUS.md` 為準；每條風險的目前狀態在 `docs/RISK_REGISTER.md`。
+
 ## Baseline
 
 - Repository：`waydefu/stock`
