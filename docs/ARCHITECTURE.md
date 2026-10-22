@@ -20,31 +20,45 @@
                          │
                          ▼
                        [AuditLog]
+
+[Browser 端即時串流] ──SSE──> [trusted proxy (server/)] ──WebSocket──> [Fugle]
+                                ▲ holds FUGLE_API_KEY（頁面永遠不持金鑰）
 ```
 
 ### 邊界
 
-- `js/data.js`：資料與純技術指標；目前只提供固定模擬資料。
+- `js/data.js`：資料與純技術指標；目前只提供固定模擬資料（模擬窗固定 2025 終點）。
 - `js/market-data.js`：行情入口；UI／回測只經 adapter 取數。7A 起附 capability／envelope／provenance／freshness 契約（`js/market-data-contract.js`）；live adapter 照同介面替換。
-- `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、zero-fee FeeModel 與 invariants。**backtest slippage（`slippageBps`）是歷史模擬假設；paper fees（`FeeModel`）是執行模型。兩者名稱相似但實作分開、互不干涉。**
-- `js/market-rules.js`：TW／US market rules contract；TW sourced tick／limit／session 由 RiskEngine 在 commit boundary 強制驗證（PR#12 起）；US 維持 simplified，不套 TW 規則。
-- `js/session-clock.js`：market-local timezone session key；calendar policy 是 `simplified-weekday`，不是 exchange holiday calendar。
-- `js/trading-calendar.js`：明確命名的 simplified weekday calendar，供 deterministic data layer 使用。
+- `js/market-data-contract.js`：provider-neutral envelope／freshness／retry／transport 契約與 bar 缺棒分類（`classifyBars`）。
+- `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、FeeModel 契約與 invariants、每期利率換算（`perPeriodRate`）。**backtest slippage（`slippageBps`）是歷史模擬假設；paper fees（`FeeModel`）是執行模型。兩者名稱相似但實作分開、互不干涉。**
+- `js/market-rules.js`：TW／US market rules contract；TW sourced tick／limit／session 由 RiskEngine 在 commit boundary 強制驗證；商品別 tick 表（股票／ETF／ETN／REIT／封閉型基金／權證）可選傳入 `instrumentType`；漲跌停以整數最小單位計算。US 維持 simplified，不套 TW 規則。
+- `js/session-clock.js`：market-local timezone session key；calendar policy 由 `js/trading-calendar.js` 提供。
+- `js/trading-calendar.js`：`SimplifiedWeekdayCalendar`（只看星期幾，供 deterministic data layer）與 `MarketHolidayCalendar`（台股用 TWSE 官方休市日快照，涵蓋範圍外退回 weekday 規則並在 policy 明講）。
+- `js/tw-market-holidays.js`：TWSE「市場開休市日期」官方快照（2026 年度），含來源與查閱日期。
 - `js/corporate-actions.js`：SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING schema contract；尚未取得或套用調整資料。
 - `js/execution-model.js`：立即 paper execution boundary；MATCHING 只保留未實作 contract。
 - `js/order-errors.js`：stable order／risk／broker error codes。
+- `js/order-candidate.js`：純函式下單候選組裝（UI 與測試共用；帶 `referencePrice` 與商品別），避免 preview／confirm 組單不一致。
 - `js/backtest.js`：策略、成交假設、績效統計；不呼叫券商。legacy 融合迴圈（相容保留，見 R-021）；新研究走 `js/research.js`。
 - `js/strategy.js`：Strategy／Signal 契約、long-only 映射、註冊表、生命週期門（新策略不得自動進 paper）。
 - `js/alpha.js`：研究基準庫（cash／buyHold／multi-horizon trend，皆有 hypothesis＋warmup）。
 - `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
-- `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate。
-- `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）。
+- `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate；target 依實際成交更新。
+- `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）；斷路器狀態寫入 versioned localStorage。
 - `js/paper.js`：本機紙上帳本；將來 broker adapter 必須維持相同狀態回讀介面。
 - `js/order-state.js`：deterministic order status 與 transition event。
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
 - `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
 - `js/app.js`：UI 組裝；不應直接保存或處理秘密。
+- `js/stream-contract.js`：provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽、stale 政策）。
+- `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
+- `js/fugle-proxy-adapter.js`／`js/fixture-provider.js`／`js/providers/fugle-mapper.js`：真實行情 adapter 與 Fugle schema 映射（唯一懂 Fugle 格式的地方）。
+- `js/proxy-config.js`：公開 runtime config（proxy URL，非秘密）注入點。
+- `server/market-proxy.js`：trusted proxy——per-client token bucket、quote 短 TTL 快取、每日上游預算、CORS allowlist、GET only；日誌只留雜湊 client id。
+- `server/fugle-stream-manager.js`：Fugle WebSocket 管理器——單一上游多訂閱、per-client SSE 上限、per-key 狀態、upstream 錯誤路由與名額釋放。
+- `server/stream-sse.js`：瀏覽器端 SSE 序列化（只送 normalized envelope）。
+- `server/start-market-proxy.js`：正式 entrypoint——fail-fast 設定、STALE 探測排程、graceful shutdown。
 
 ## 架構取捨
 
