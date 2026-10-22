@@ -51,7 +51,7 @@ let searchPending = false; // 遠端驗證中再按 Enter：忽略，不重複�
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
 const marketData = selectAdapter("simulation");
-const risk = new RiskEngine(DEFAULT_RISK);
+const risk = new RiskEngine(DEFAULT_RISK, { storage });
 const audit = new AuditLog({ storage });
 const registry = buildDefaultRegistry();
 const PAGE_ORDER = ["dashboard", "chart", "screener", "backtest", "trade", "risk"];
@@ -326,7 +326,7 @@ function renderBacktest() {
     ["Sharpe", m.sharpeInsufficient ? "樣本不足" : formatMetric(m.sharpe), m.sharpeInsufficient ? "neutral" : m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
-  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
+  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>年化 risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
@@ -1082,7 +1082,9 @@ function renderRisk(target = "#audit-log") {
   const status = risk.status();
   $("#risk-state").textContent = status.tripped ? "已凍結" : "運作中";
   $("#risk-state").className = `kpi ${status.tripped ? "down" : "up"}`;
-  $("#risk-reason").textContent = status.reason || "所有紙上訂單仍需先經風控";
+  $("#risk-reason").textContent = status.tripped
+    ? `${status.reason || "斷路器已啟動"}${status.persisted ? "（已保存，重新整理後仍凍結）" : ""}`
+    : "所有紙上訂單仍需先經風控";
   const canManage = permissionsFor(state.role).includes("risk:trip");
   $("#kill-switch").disabled = !canManage || status.tripped;
   $("#reset-risk").disabled = !permissionsFor(state.role).includes("risk:reset") || !status.tripped;

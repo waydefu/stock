@@ -14,6 +14,19 @@ export function feeFor(feeModel, context) {
   return fee;
 }
 
+/* 年化無風險利率 → 每期利率。
+   Sharpe／Sortino 的超額報酬必須用「每期」單位：年化 3%、252 期時，
+   每期約 0.0000119（複利折算），不是 0.03。
+   periodsPerYear <= 1 視為已是每期值。 */
+export function perPeriodRate(annualRate, periodsPerYear) {
+  const annual = Number(annualRate);
+  const periods = Number(periodsPerYear);
+  if (!Number.isFinite(annual) || annual <= -1) throw new Error("risk-free rate 必須是大於 -1 的有限數值");
+  if (!Number.isFinite(periods) || periods <= 0) throw new Error("periodsPerYear 必須是正數");
+  if (periods <= 1) return annual;
+  return Math.pow(1 + annual, 1 / periods) - 1;
+}
+
 export function createAccountSnapshot({
   market,
   currency,

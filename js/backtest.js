@@ -3,6 +3,7 @@
 "use strict";
 
 import { rollingHigh, rsi, sma } from "./data.js";
+import { perPeriodRate } from "./accounting.js";
 
 export const STRATEGIES = {
   maCross: "均線交叉",
@@ -198,7 +199,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   const variance = returns.length ? returns.reduce((a, b) => a + (b - avg) ** 2, 0) / returns.length : 0;
   const std = Math.sqrt(variance);
   const sharpeInsufficient = returns.length < minSharpeSamples;
-  const excessAvg = avg - riskFreeRate;
+  // riskFreeRate 是「年化」利率（UI 也以年化 % 顯示）：超額報酬要用每期利率。
+  const riskFreeRatePerPeriod = perPeriodRate(riskFreeRate, periodsPerYear);
+  const excessAvg = avg - riskFreeRatePerPeriod;
   const metrics = {
     initialCapital,
     finalCapital,
@@ -219,7 +222,7 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     trades,
     equity,
     metrics,
-    assumptions: { strategy, commissionRate, slippageBps, positionPct, periodsPerYear, riskFreeRate, minSharpeSamples, fill: "next_bar_open", forceClose: "last_close" },
+    assumptions: { strategy, commissionRate, slippageBps, positionPct, periodsPerYear, riskFreeRate, riskFreeRatePerPeriod, riskFreeRateBasis: "annual", minSharpeSamples, fill: "next_bar_open", forceClose: "last_close" },
     closes,
   };
 }

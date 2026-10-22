@@ -8,6 +8,7 @@
 "use strict";
 
 import { normalizeSignal, signalToTargetWeight, validateStrategy } from "./strategy.js";
+import { perPeriodRate } from "./accounting.js";
 
 function finite(value, fallback) {
   return Number.isFinite(value) ? value : fallback;
@@ -150,9 +151,17 @@ export function evaluateWindow({
       const raw = strategy.generateSignal({ bars: history, index: absolute, symbol });
       const signal = normalizeSignal(raw, { symbol, timestamp: evals[j].t });
       const next = signalToTargetWeight(signal, target, { entryThreshold, exitThreshold });
-      if (next === 1 && target === 0) buyAt(evals[j + 1], absolute, signal);
-      if (next === 0 && target === 1) sellAt(evals[j + 1], absolute, "signal");
-      target = next;
+      if (next === 1 && target === 0) {
+        buyAt(evals[j + 1], absolute, signal);
+        // R-031：target 必須反映「真的成交」，沒買成（配置 0／股數取整為 0／現金不足）
+        // 就不能宣稱持有，否則策略會以為在部位而錯過進場。
+        target = shares > 0 ? 1 : 0;
+      } else if (next === 0 && target === 1) {
+        sellAt(evals[j + 1], absolute, "signal");
+        target = 0;
+      } else {
+        target = next;
+      }
     }
     const positionValue = shares * evals[j].c;
     const total = cash + positionValue;
@@ -241,11 +250,13 @@ export function summarizeResearch(result, { periodsPerYear = 252, riskFreeRate =
     const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance = returns.reduce((a, b) => a + (b - avg) ** 2, 0) / returns.length;
     const std = Math.sqrt(variance);
-    const excess = returns.map((r) => r - riskFreeRate);
+    // riskFreeRate 是年化利率：超額報酬與 downside deviation 都用每期利率。
+    const riskFreeRatePerPeriod = perPeriodRate(riskFreeRate, periodsPerYear);
+    const excess = returns.map((r) => r - riskFreeRatePerPeriod);
     const downside = excess.filter((r) => r < 0);
     const downsideDev = downside.length ? Math.sqrt(downside.reduce((a, r) => a + r * r, 0) / downside.length) : 0;
     out.volatilityPct = std * Math.sqrt(periodsPerYear) * 100;
-    if (std > 0) out.sharpe = ((avg - riskFreeRate) / std) * Math.sqrt(periodsPerYear);
+    if (std > 0) out.sharpe = ((avg - riskFreeRatePerPeriod) / std) * Math.sqrt(periodsPerYear);
     if (downsideDev > 0) {
       const avgExcess = excess.reduce((a, b) => a + b, 0) / excess.length;
       out.sortino = (avgExcess / downsideDev) * Math.sqrt(periodsPerYear);
