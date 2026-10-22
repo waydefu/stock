@@ -33,10 +33,12 @@ async function scenario(name, fn) {
 }
 
 const env = await startEnvironment();
+const openContexts = [];
 const browser = await chromium.launch();
 
 async function newPage({ clock = true } = {}) {
   const context = await browser.newContext();
+  openContexts.push(context);
   const page = await context.newPage();
   const consoleErrors = [];
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
@@ -125,7 +127,55 @@ try {
     assert.equal(badge.trim(), "LIVE");
     await context.close();
   });
+  await scenario("選股：套用條件後有結果（不是只有空狀態）", async () => {
+    const { context, page, consoleErrors } = await newPage();
+    await page.click("#tab-screener");
+    await page.waitForSelector("#panel-screener:not([hidden])");
+    await page.click("#screen-run");
+    await page.waitForFunction(() => document.querySelector("#screener-table tbody")?.textContent?.trim().length > 0);
+    const rows = await page.$$("#screener-table tbody tr");
+    assert.ok(rows.length > 0, "篩選後應有列");
+    assert.deepEqual(consoleErrors, [], `console 錯誤：${consoleErrors.join(" / ")}`);
+    await context.close();
+  });
+
+  await scenario("回測：執行後有指標與模型假設", async () => {
+    const { context, page, consoleErrors } = await newPage();
+    await page.click("#tab-backtest");
+    await page.waitForSelector("#panel-backtest:not([hidden])");
+    await page.click("#backtest-run");
+    await page.waitForFunction(() => document.querySelector("#backtest-metrics")?.textContent?.trim().length > 0, null, { timeout: 30000 });
+    const assumptions = await page.textContent("#backtest-assumptions");
+    assert.ok(assumptions.includes("手續費"), `假設面板應列出手續費：${assumptions}`);
+    assert.deepEqual(consoleErrors, [], `console 錯誤：${consoleErrors.join(" / ")}`);
+    await context.close();
+  });
+
+  await scenario("策略中心：執行比較後有 gate 結論", async () => {
+    const { context, page, consoleErrors } = await newPage();
+    await page.click("#tab-backtest");
+    await page.waitForSelector("#panel-backtest:not([hidden])");
+    await page.click("#strategy-run");
+    await page.waitForFunction(() => document.querySelector("#strategy-gate")?.textContent?.trim().length > 0, null, { timeout: 120000 });
+    const gate = await page.textContent("#strategy-gate");
+    assert.ok(gate.length > 0, "策略中心應給出 gate 結論");
+    assert.deepEqual(consoleErrors, [], `console 錯誤：${consoleErrors.join(" / ")}`);
+    await context.close();
+  });
+
+  await scenario("鍵盤快速鍵：數字鍵切換頁籤", async () => {
+    const { context, page } = await newPage();
+    await page.keyboard.press("2");
+    await page.waitForFunction(() => !document.querySelector("#panel-chart")?.hasAttribute("hidden"));
+    const selected = await page.getAttribute("#tab-chart", "aria-selected");
+    assert.equal(selected, "true");
+    await context.close();
+  });
+
 } finally {
+  for (const context of openContexts) {
+    try { await context.close(); } catch { /* already closed */ }
+  }
   await browser.close();
   await env.close();
 }
