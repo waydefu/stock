@@ -8,6 +8,8 @@
 "use strict";
 
 import { normalizeSignal, signalToTargetWeight, validateStrategy } from "./strategy.js";
+import { feeFor, perPeriodRate } from "./accounting.js";
+import { describeTwFeeModel, feeModelAffordableQty, scaleTwFeeModel } from "./tw-fee-model.js";
 
 function finite(value, fallback) {
   return Number.isFinite(value) ? value : fallback;
@@ -28,6 +30,8 @@ function assertResearchBars(bars) {
 
 /**
  * 分層研究回測（單標的 long-only）。
+ * @param {object} args
+ * @param {object|null} args.feeModel 選用成本模型（null／未給＝原本 flat commissionRate、沒有證券交易稅）。
  * @returns {trades, equity, exposure, turnoverNotional, totalFees, totalSlippage, assumptions}
  */
 export function runResearchBacktest({
@@ -40,19 +44,22 @@ export function runResearchBacktest({
   initialCapital = 1_000_000,
   entryThreshold = 0.5,
   exitThreshold = -0.5,
+  feeModel = null,
+  instrumentType = undefined,
 }) {
   if (typeof symbol !== "string" || !symbol) throw new Error("需要 symbol");
   validateStrategy(strategy);
   assertResearchBars(bars);
   if (typeof allocate !== "function") throw new Error("需要 Portfolio allocator（策略不得自己決定股數）");
   if (!(initialCapital > 0)) throw new Error("初始資金必須大於 0");
-  return evaluateWindow({ symbol, strategy, allocate, contextBars: [], evalBars: bars, commissionRate, slippageBps, initialCapital, entryThreshold, exitThreshold });
+  return evaluateWindow({ symbol, strategy, allocate, contextBars: [], evalBars: bars, commissionRate, slippageBps, initialCapital, entryThreshold, exitThreshold, feeModel, instrumentType });
 }
 
 /**
  * 正式 evaluation contract：[warmup context][evaluation window]。
  * context 只供指標歷史（OOS 第一根即可產生 signal，不再永遠 WARMUP），
  * 永不計入 PnL／trades／metrics；評估永遠 starting flat；index 皆為絕對位置。
+ * feeModel 為選用成本模型（見 js/accounting.js createTwFeeModel）；null 時維持 flat commissionRate。
  */
 export function evaluateWindow({
   symbol,
@@ -65,6 +72,8 @@ export function evaluateWindow({
   initialCapital = 1_000_000,
   entryThreshold = 0.5,
   exitThreshold = -0.5,
+  feeModel = null,
+  instrumentType = undefined,
 }) {
   if (typeof symbol !== "string" || !symbol) throw new Error("需要 symbol");
   validateStrategy(strategy);
@@ -78,6 +87,7 @@ export function evaluateWindow({
   if (!(initialCapital > 0)) throw new Error("初始資金必須大於 0");
   const comm = Math.max(0, finite(commissionRate, 0.001425));
   const slip = Math.max(0, finite(slippageBps, 5)) / 10_000;
+  if (feeModel !== null && typeof feeModel.calculate !== "function") throw new Error("FeeModel 必須提供 calculate(context)");
 
   let cash = initialCapital;
   let shares = 0;
@@ -99,10 +109,15 @@ export function evaluateWindow({
     const weight = Math.min(1, Math.max(0, finite(allocate(signal), 0)));
     if (weight <= 0) return;
     const price = bar.o * (1 + slip);
-    const count = Math.floor((cash * weight) / (price * (1 + comm)));
+    const budget = cash * weight;
+    const count = feeModel
+      ? feeModelAffordableQty(feeModel, budget, price, instrumentType)
+      : Math.floor((cash * weight) / (price * (1 + comm)));
     if (count <= 0) return;
     const cost = price * count;
-    const fees = cost * comm;
+    const fees = feeModel
+      ? feeFor(feeModel, { side: "buy", price, qty: count, instrumentType, dayTrade: false })
+      : cost * comm;
     const slipCost = count * bar.o * slip;
     cash -= cost + fees;
     shares = count;
@@ -118,7 +133,9 @@ export function evaluateWindow({
     if (shares <= 0) return;
     const price = bar.o * (1 - slip);
     const proceeds = price * shares;
-    const fees = proceeds * comm;
+    const fees = feeModel
+      ? feeFor(feeModel, { side: "sell", price, qty: shares, instrumentType, dayTrade: false })
+      : proceeds * comm;
     const slipCost = shares * bar.o * slip;
     cash += proceeds - fees;
     const grossPnl = (price - entryPrice) * shares;
@@ -150,9 +167,17 @@ export function evaluateWindow({
       const raw = strategy.generateSignal({ bars: history, index: absolute, symbol });
       const signal = normalizeSignal(raw, { symbol, timestamp: evals[j].t });
       const next = signalToTargetWeight(signal, target, { entryThreshold, exitThreshold });
-      if (next === 1 && target === 0) buyAt(evals[j + 1], absolute, signal);
-      if (next === 0 && target === 1) sellAt(evals[j + 1], absolute, "signal");
-      target = next;
+      if (next === 1 && target === 0) {
+        buyAt(evals[j + 1], absolute, signal);
+        // R-031：target 必須反映「真的成交」，沒買成（配置 0／股數取整為 0／現金不足）
+        // 就不能宣稱持有，否則策略會以為在部位而錯過進場。
+        target = shares > 0 ? 1 : 0;
+      } else if (next === 0 && target === 1) {
+        sellAt(evals[j + 1], absolute, "signal");
+        target = 0;
+      } else {
+        target = next;
+      }
     }
     const positionValue = shares * evals[j].c;
     const total = cash + positionValue;
@@ -163,7 +188,9 @@ export function evaluateWindow({
     const bar = evals.at(-1);
     const price = bar.c * (1 - slip);
     const proceeds = price * shares;
-    const fees = proceeds * comm;
+    const fees = feeModel
+      ? feeFor(feeModel, { side: "sell", price, qty: shares, instrumentType, dayTrade: false })
+      : proceeds * comm;
     const slipCost = shares * bar.c * slip;
     cash += proceeds - fees;
     const grossPnl = (price - entryPrice) * shares;
@@ -185,7 +212,10 @@ export function evaluateWindow({
       strategyId: strategy.id, strategyVersion: strategy.version, warmup,
       warmupContextBars: base, evaluationBars: evals.length,
       fill: "next_bar_open", forceClose: "last_close",
-      commissionRate: comm, slippageBps: slip * 10_000,
+      // feeModel 啟用時，實際成本以 feeModel 摘要為準，commissionRate 不再代表實際收取費率。
+      commissionRate: feeModel ? null : comm,
+      feeModel: feeModel ? describeTwFeeModel(feeModel) : null,
+      slippageBps: slip * 10_000,
       entryThreshold, exitThreshold,
     },
   };
@@ -195,7 +225,7 @@ export function evaluateWindow({
  * 每個 variant 拿「評估窗之前」的完整 warmup context（variant.warmup，
  * 非 short 本身），評估窗為末段 evalLength 根；回傳 [{ params, value, trades }]。
  * 任一格不得因 context 不足退化成全零 WARMUP——由測試鎖死，不在這裡靜默。 */
-export function evaluateTrendSurface({ symbol, bars, shorts = [10, 20, 30], evalLength = 60, makeVariant, allocate, commissionRate = 0.001425, slippageBps = 5, initialCapital = 1_000_000 } = {}) {
+export function evaluateTrendSurface({ symbol, bars, shorts = [10, 20, 30], evalLength = 60, makeVariant, allocate, commissionRate = 0.001425, slippageBps = 5, initialCapital = 1_000_000, feeModel = null } = {}) {
   if (!Array.isArray(bars) || bars.length <= evalLength) {
     throw new Error("surface 需要多於評估窗的歷史 K 線");
   }
@@ -206,13 +236,14 @@ export function evaluateTrendSurface({ symbol, bars, shorts = [10, 20, 30], eval
     const variant = makeVariant(short);
     const warmup = Number.isFinite(variant?.warmup) ? variant.warmup : 0;
     const contextBars = warmup > 0 ? beforeTail.slice(-Math.min(warmup, beforeTail.length)) : [];
-    const result = evaluateWindow({ symbol, strategy: variant, allocate, contextBars, evalBars: tail, commissionRate, slippageBps, initialCapital });
+    const result = evaluateWindow({ symbol, strategy: variant, allocate, contextBars, evalBars: tail, commissionRate, slippageBps, initialCapital, feeModel });
     return { params: { short }, value: summarizeResearch(result, {}).netProfit, trades: result.trades.length };
   });
 }
 
-/** 專業回測摘要：樣本不足的欄位回 null（UI 顯示 N/A），不硬算。 */
-export function summarizeResearch(result, { periodsPerYear = 252, riskFreeRate = 0, minSamples = 3 } = {}) {
+/** 專業回測摘要：樣本不足的欄位回 null（UI 顯示 N/A），不硬算。
+ *  feeModel 可選：給值時把模型摘要寫進輸出；未給則沿用 result.assumptions.feeModel。 */
+export function summarizeResearch(result, { periodsPerYear = 252, riskFreeRate = 0, minSamples = 3, feeModel = null } = {}) {
   const { equity, trades } = result;
   const n = equity.length;
   const initial = equity[0] ?? 0;
@@ -231,6 +262,7 @@ export function summarizeResearch(result, { periodsPerYear = 252, riskFreeRate =
     avgExposure: 0, avgHoldingBars: null,
     totalFees: result.totalFees, totalSlippage: result.totalSlippage,
     bestTrade: null, worstTrade: null,
+    feeModel: feeModel ? describeTwFeeModel(feeModel) : (result.assumptions?.feeModel ?? null),
   };
   if (n >= 2 && initial > 0 && periodsPerYear > 0) {
     out.cagrPct = (Math.pow(final / initial, periodsPerYear / (n - 1)) - 1) * 100;
@@ -241,11 +273,13 @@ export function summarizeResearch(result, { periodsPerYear = 252, riskFreeRate =
     const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance = returns.reduce((a, b) => a + (b - avg) ** 2, 0) / returns.length;
     const std = Math.sqrt(variance);
-    const excess = returns.map((r) => r - riskFreeRate);
+    // riskFreeRate 是年化利率：超額報酬與 downside deviation 都用每期利率。
+    const riskFreeRatePerPeriod = perPeriodRate(riskFreeRate, periodsPerYear);
+    const excess = returns.map((r) => r - riskFreeRatePerPeriod);
     const downside = excess.filter((r) => r < 0);
     const downsideDev = downside.length ? Math.sqrt(downside.reduce((a, r) => a + r * r, 0) / downside.length) : 0;
     out.volatilityPct = std * Math.sqrt(periodsPerYear) * 100;
-    if (std > 0) out.sharpe = ((avg - riskFreeRate) / std) * Math.sqrt(periodsPerYear);
+    if (std > 0) out.sharpe = ((avg - riskFreeRatePerPeriod) / std) * Math.sqrt(periodsPerYear);
     if (downsideDev > 0) {
       const avgExcess = excess.reduce((a, b) => a + b, 0) / excess.length;
       out.sortino = (avgExcess / downsideDev) * Math.sqrt(periodsPerYear);
@@ -321,8 +355,11 @@ export const COST_STRESS_MULTIPLIERS = [0.5, 1, 2, 3];
 
 export function runCostStress(baseArgs, summarize, multipliers = COST_STRESS_MULTIPLIERS) {
   const runs = multipliers.map((mult) => {
+    // 有 FeeModel 時把費率也按倍數放大（最低手續費不放大），成本壓力才真的在施壓。
+    const scaledFeeModel = baseArgs.feeModel ? scaleTwFeeModel(baseArgs.feeModel, mult) : null;
     const result = runResearchBacktest({
       ...baseArgs,
+      feeModel: scaledFeeModel,
       commissionRate: baseArgs.commissionRate * mult,
       slippageBps: baseArgs.slippageBps * mult,
     });

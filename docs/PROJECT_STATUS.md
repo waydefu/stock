@@ -1,52 +1,54 @@
 # Project Status（唯一 current truth）
 
-> 本文件是唯一「現在狀態」來源。歷史快照見 `docs/PROJECT_AUDIT.md`
-> （baseline＋歷史，不再設 Current checkpoint）。
+> 本文件是唯一「現在狀態」來源；歷史快照見 `docs/PROJECT_AUDIT.md`。
+> **會過期的數字（HEAD／測試數／閘門數）不再手寫**：改由 CI 的 job summary 自動產生
+> （`scripts/ci-summary.js`，對應 GitHub Actions「Publish CI summary」步驟）。
 > Authority hierarchy：Runtime＋tests ＞ main HEAD ＞ ADR ＞ RISK_REGISTER ＞
 > RESEARCH_LEDGER ＞ PROJECT_ROADMAP ＞ PROJECT_AUDIT（歷史）。
 
-## Current（分支驗證；main HEAD 以 GitHub 為準，合併後以 merge commit 更新）
+## Current
 
-- Last verified main checkpoint：`70bcf79`（PR#33／#34 與 Pages Actions 更新已合併）
-- 本分支：`fix/remote-search-mode`（修正 #34 殘留的 FUGLE_MODE_OFF：預設模擬模式可明確搜尋 0050／006208，報價與歷史 K 線直接進看盤；下單清單仍限內建模擬標的）
-- Tests：287/287 pass、fail 0、cancelled 0（Node 24.19.0）；`check:static` 27 files；`check:ui` 34/34 WARN 0 FAIL 0
-- Quality：以 GitHub required check「Quality」為準（含 Check status sync gate）；禁止在 version-controlled truth 內追逐自身 run ID
-- 前輪 PR：#29 已關閉；#30–#34 已合併。本分支以新 PR 提交。
-- Benchmark：UI 7.9/10（舊 2.0 保留，見 `UI_UX_BENCHMARK.md`）；`score:ui` 100/100 為靜態原始碼證據，不代表使用者流程可用（R-032）
-- Phase 7B／7C：#20–#28 全部 MERGED；`realtimeStream=true`；browser SSE client＋最小 Live UI 已上 main
-- Audit：2026-09-14 snapshot 見 `docs/PROJECT_AUDIT.md`；修正計畫見 `docs/FUTURE_PLAN.md`「稽核後收斂 Track A–D」
-- 搜尋驗證（2026-10-01）：正式 proxy 的 0050 quote／bars HTTP 200；Chromium 本機以擷取的真實 envelope 回放，修正前 FUGLE_MODE_OFF 且零請求，修正後進看盤、報價＋K 線皆請求、資料模式仍 simulation、PAPER 下單清單未增加 0050、無 page error。線上版待本 PR 合併與 Pages 部署。
-- **Next executable**：合併搜尋修正後接 Track A2（proxy／串流防濫用）。
-- Real-data runtime：Render `https://stock-fugle-proxy.onrender.com`；REMOTE_QUOTE_SMOKE=PASS；REAL_HISTORY=PASS；REAL_RESEARCH_SMOKE=PASS（promotion=FAIL，僅研究 gate）；Pages 已注入 proxy URL；
-   串流（2026-09-13）：REAL_STREAM_TRANSPORT=PASS；REAL_STREAM_TRADE=BLOCKED_BY_MARKET_CLOSED；5-min soak 見 R-022
+- 真實狀態看兩處：CI job summary（HEAD、測試數、各閘門結果）與
+  `docs/RISK_REGISTER.md`（每條風險的修復狀態與證據）。
+- 產品邊界：paper／research-only prototype；無 live broker path；公開 Pages 不持任何憑證。
+
+## 收斂進度（Track A–D；計畫與驗收見 `docs/FUTURE_PLAN.md`）
+
+| Track | 項目 | 狀態 |
+|---|---|---|
+| A1 | 台股紙上單帶參考價（R-023） | 完成 |
+| A2 | proxy／串流防濫用（R-024、R-025） | 完成：per-client token bucket、quote 短 TTL 快取、每日上游預算、per-client SSE 上限、upstream 錯誤路由、per-key 串流狀態 |
+| A3 | 文件同步（README／STATUS／RISK／LEDGER 對齊） | 持續進行 |
+| A4 | Live UI 可行動錯誤態（`STREAM_SUBSCRIBE_FAILED`／`RATE_LIMITED`） | 完成：`#stream-alert` ＋ `STREAM_ERROR_ACTION` |
+| B1 | 台股成本模型（R-026） | 完成：`js/tw-fee-model.js`（證交稅＋最低手續費，來源可查）；paper broker 仍 zero-fee |
+| B2 | 市場規則精度（R-028、R-029） | 完成：整數最小單位漲跌停、商品別跳動單位、零股限價 |
+| B3 | 狀態與引擎（R-027、R-030、R-031） | 完成：斷路器持久化、probeStale 排程、target 依成交更新 |
+| B4 | 跨平台相容（F-10） | 完成：跨平台語法檢查、proxy lifecycle 測試 |
+| C1 | Browser E2E 進 CI（R-032） | 完成：`.github/workflows/e2e.yml`＋`tests/e2e/*`（含 R-023 突變回放） |
+| C2 | 治理加固（branch protection／CodeQL／secret scanning／dependency review） | 完成：main branch protection（required `Quality`）、CodeQL workflow、secret scanning 已啟用、dependency review workflow |
+| C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字 |
+| D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 
 ## Scope
 
 paper／research-only prototype；無 live broker path；公開 Pages 不持任何憑證。
 
-## Known gaps
+## Known gaps（非 blocker，按優先序）
 
-### Blockers（2026-09-14 稽核，Track A／B；仍適用於 main@e8b3ef5）
-
-1. 台股紙上下單：PR#33 已合併 `referencePrice`（模擬＝`quote.prev`）與模擬報價合法 tick 取整（R-023）。休市仍回 `MARKET_CLOSED`（D3 未改）；正式站開盤流程 E2E 待補。
-2. 公開 proxy 無存取控制、全域共用限流；資料再散布授權待確認（R-024，Track A2＋決策 D1）
-3. 串流名額可被單一來源佔滿；訂閱錯誤不回傳、不釋放名額（R-025，Track A2；PR#28 已合併，暴露面已開）
-4. 台股回測／研究缺證券交易稅與最低手續費，結論偏樂觀（R-026，Track B1）
-
-### 其他缺口（按優先序）
-
-1. 市場規則精度：漲跌停浮點取整、ETF 升降單位、零股委託類型（R-028、R-029）
-2. 狀態：手動斷路器不持久化（R-027）；server STALE probe 未排程（R-030）；研究引擎 target 與持倉可能脫鉤（R-031）
-3. browser E2E＋完整 WCAG audit＋viewport 幾何實測；閘門以靜態證據為主（R-032）
-4. 真 exchange calendar／corporate-action 調整資料（simplified-weekday 現狀）
-5. matching＋reconciliation（立即成交模型現狀，見 R-003）
-6. server authority／durable audit／secret management（ADR-005 誠實範圍）
-7. provider real-data runtime：Render HTTPS proxy 已部署並通過 quote／history／research smoke；PAPER 下單的 R-023 修正已合併，正式站開盤流程驗收待補。
-8. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
+1. 真 exchange calendar／corporate-action 調整資料（simplified-weekday 現狀）
+2. matching＋reconciliation（立即成交模型現狀，見 R-003）
+3. server authority／durable audit／secret management（ADR-005 誠實範圍）
+4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
+   （見 Track B2 回報的缺口 G-1～G-8）
+5. browser E2E＋完整 WCAG audit＋viewport 幾何實測
+6. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
 
 ## Enforcement（server side）
 
-- Branch protection（main）：**無**（2026-09-14 API 再查驗：404 Branch not protected；啟用建議見決策 D4）
-- Rulesets：**無**
-- 現狀＝policy＋CI 強、server-side enforcement 缺席；啟用為維護者決策項，
-  本文件只記錄、不擅自開。
+- Branch protection（main）：**已啟用**（2026-10-22，API 查驗）：required status check＝`Quality`；
+  不允許 force push／刪除分支；`enforce_admins` 未開（維護者可 bypass）。
+  `Browser E2E` 待該 workflow 上 main 後再加為 required context（避免 PR 卡住等不存在的 check）。
+- CodeQL（code scanning）：workflow 已上 main（`.github/workflows/codeql.yml`，javascript-typescript）。
+- Secret scanning：公開 repo 預設已開（含 push protection），2026-10-22 API 查驗為 `enabled`。
+- Dependency review：`.github/workflows/dependency-review.yml`（PR 檢視依賴變更）。
+- 仍缺：required PR review 數、ruleset、貢獻者身份一致性（見 FUTURE_PLAN Track C2）。

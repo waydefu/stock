@@ -108,13 +108,16 @@ export function createStreamManager({
   staleAfterMs,
   maxSseClients = 50,
   maxSubscriptionKeys = 20,
+  maxSseClientsPerClient = 3,
 } = {}) {
   const t = timers ?? { setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis) };
   const newId = id ?? (() => `ss-${Math.floor(clock())}-${Math.floor(Math.random() * 1e6)}`);
   const log = (...args) => { try { logger?.(...args); } catch { /* logging never breaks streaming */ } };
   const sessionId = newId();
 
-  const subs = new Map(); // key -> {symbol, channel, upstreamId, acked, clients:Set, lastSerial, lastEventAt}
+  const subs = new Map(); // key -> {key, symbol, channel, upstreamId, acked, clients:Set, lastSerial, lastEventAt, state}
+  const clientIds = new Map(); // client -> clientId（per-client 上限用）
+  const clientCounts = new Map(); // clientId -> 目前連線數
   let socket = null;
   let upstreamState = STREAM_STATES.IDLE;
   let reconnectAttempt = 0;
@@ -127,15 +130,41 @@ export function createStreamManager({
 
   const redactedLog = (entry) => log(redactForLog({ sessionId, ...entry }));
 
-  function setState(to) {
+  function setState(to, { propagate = true } = {}) {
     upstreamState = assertStreamTransition(upstreamState, to);
+    if (propagate) {
+      for (const sub of subs.values()) {
+        if (sub.acked) {
+          // 已 ack 的 key 只在「連線層級」的狀態移動：不能倒退成 SUBSCRIBING。
+          if (to === STREAM_STATES.RECONNECTING || to === STREAM_STATES.FAILED || to === STREAM_STATES.CLOSED) setKeyState(sub, to);
+          continue;
+        }
+        setKeyState(sub, to);
+      }
+    }
     broadcastState();
     return upstreamState;
   }
 
+  /* Per-key 狀態（Track A2 / R-025）：一個 key 壞掉不影響其他 key 的 LIVE。
+     轉移不合法的情況（例如新 key 跳過 CONNECTING）強制設定並記錄，不中斷 fan-out。 */
+  function setKeyState(sub, to) {
+    if (!sub) return null;
+    if (sub.state === to) return sub.state;
+    try {
+      sub.state = assertStreamTransition(sub.state ?? STREAM_STATES.IDLE, to);
+    } catch {
+      redactedLog({ key: sub.key, from: sub.state, to, note: "key-state-forced" });
+      sub.state = to;
+    }
+    for (const client of sub.clients) client.sendState(sub.state);
+    return sub.state;
+  }
+
   function broadcastState() {
     for (const sub of subs.values()) {
-      for (const client of sub.clients) client.sendState(upstreamState);
+      const state = sub.state ?? upstreamState;
+      for (const client of sub.clients) client.sendState(state);
     }
   }
 
@@ -250,8 +279,18 @@ export function createStreamManager({
       if (sub) {
         sub.acked = true;
         sub.upstreamId = frame?.data?.id ?? sub.upstreamId;
+        // per-key LIVE：這個 key 自己的 ack 就進 LIVE，不等別的 key。
+        setKeyState(sub, STREAM_STATES.LIVE);
       }
-      if ([...subs.values()].every((s) => s.acked) && upstreamState !== STREAM_STATES.LIVE) setState(STREAM_STATES.LIVE);
+      try {
+        if ([...subs.values()].every((s) => s.acked) && upstreamState !== STREAM_STATES.LIVE) setState(STREAM_STATES.LIVE, { propagate: false });
+      } catch (error) {
+        redactedLog({ note: "global-live-transition-skipped", code: error?.code ?? null });
+      }
+      return;
+    }
+    if (kind === "upstream-error") {
+      handleUpstreamError(frame);
       return;
     }
     if (kind === "unsubscribed") return;
@@ -259,9 +298,64 @@ export function createStreamManager({
       onUpstreamData(frame);
       return;
     }
-    if (kind === "upstream-error" || kind === "malformed" || kind === "unknown") {
+    if (kind === "malformed" || kind === "unknown") {
       redactedLog({ note: "upstream-frame-not-routed", kind });
     }
+  }
+
+  /* Track A2 / R-025：非認證的 upstream error 不再只記 log。
+     能歸屬到 symbol 的錯誤 → 只通知那個 key 的 client、送 STREAM_SUBSCRIBE_FAILED、
+     detach 並釋放名額（其他 key 不受影響，仍可到 LIVE）。
+     無法歸屬的錯誤 → 廣播錯誤碼給所有 client（不靜默），但不釋放 key。 */
+  function handleUpstreamError(frame) {
+    const error = mapUpstreamError(frame);
+    const symbol = typeof frame?.data?.symbol === "string" ? frame.data.symbol.toUpperCase() : null;
+    const key = symbol ? streamKey(symbol, STREAM_CHANNELS.TRADES) : null;
+    let sub = key ? subs.get(key) : null;
+    if (!sub && !symbol) {
+      /* 上游沒有標明是哪個 symbol：若只有一個尚未 ack 的 key，歸因給它
+         （最常見情境就是「訂了一個無效代碼」）。仍無法歸因才廣播。 */
+      const pending = [...subs.values()].filter((s) => !s.acked);
+      if (pending.length === 1) sub = pending[0];
+    }
+    if (!sub) {
+      redactedLog({ code: error.code, note: "upstream-error-unattributed" });
+      broadcastError(error.code, error.message);
+      return;
+    }
+    redactedLog({ key: sub.key, code: error.code, note: "upstream-subscribe-failed" });
+    failKey(sub, error.code, error.message);
+  }
+
+  /* 釋放一個 key：通知 client 錯誤 → detach → 清名額 → 釋出 upstream 訂閱。 */
+  function failKey(sub, code, message) {
+    const clients = [...sub.clients];
+    for (const client of clients) {
+      try { client.sendError(code, message); } catch { /* client gone */ }
+    }
+    for (const client of clients) {
+      sub.clients.delete(client);
+      totalClients = Math.max(0, totalClients - 1);
+      releaseClientCount(client);
+    }
+    if (socket && sub.acked && sub.upstreamId) {
+      try { sendSocket({ event: "unsubscribe", data: { id: sub.upstreamId } }); } catch { /* socket gone */ }
+    }
+    subs.delete(sub.key);
+    if (subs.size === 0) {
+      clearTimer(reconnectTimer);
+      reconnectTimer = null;
+      try { teardownSocket(); } catch { /* already gone */ }
+    }
+  }
+
+  function releaseClientCount(client) {
+    const clientId = clientIds.get(client);
+    if (clientId === undefined) return;
+    clientIds.delete(client);
+    const next = (clientCounts.get(clientId) ?? 1) - 1;
+    if (next <= 0) clientCounts.delete(clientId);
+    else clientCounts.set(clientId, next);
   }
 
   function onUpstreamData(frame) {
@@ -285,7 +379,8 @@ export function createStreamManager({
     }
     if (envelope.meta.sequence !== null) sub.lastSerial = envelope.meta.sequence;
     sub.lastEventAt = clock();
-    if (upstreamState === STREAM_STATES.STALE) setState(STREAM_STATES.LIVE);
+    if (sub.state === STREAM_STATES.STALE) setKeyState(sub, STREAM_STATES.LIVE);
+    if (upstreamState === STREAM_STATES.STALE) setState(STREAM_STATES.LIVE, { propagate: false });
     for (const client of [...sub.clients]) client.sendTrade(envelope, seq.status);
   }
 
@@ -351,12 +446,19 @@ export function createStreamManager({
   }
 
   /* First subscriber creates/attaches upstream; same-key joins fan out. */
-  function subscribe(symbol, channel, client) {
+  function subscribe(symbol, channel, client, { clientId = null } = {}) {
     if (!accepting) fail(STREAM_ERROR_CODE.STREAM_UPSTREAM_CLOSED, "stream 已關閉，不再接受訂閱");
     const clean = assertStreamSymbol(symbol);
     const chan = assertStreamChannel(channel ?? STREAM_CHANNELS.TRADES);
     if (totalClients >= maxSseClients) {
       throw new StreamError(STREAM_ERROR_CODE.STREAM_RATE_LIMITED, `SSE clients 已滿（上限 ${maxSseClients}，prototype 級保護）`);
+    }
+    /* per-client 上限（Track A2 / R-025）：單一來源不能佔滿全域名額。 */
+    if (clientId !== null && clientId !== undefined) {
+      const used = clientCounts.get(clientId) ?? 0;
+      if (used >= maxSseClientsPerClient) {
+        throw new StreamError(STREAM_ERROR_CODE.STREAM_RATE_LIMITED, `此用戶的 SSE 連線已滿（上限 ${maxSseClientsPerClient}）`);
+      }
     }
     const key = streamKey(clean, chan);
     let sub = subs.get(key);
@@ -364,12 +466,19 @@ export function createStreamManager({
       if (subs.size >= maxSubscriptionKeys) {
         throw new StreamError(STREAM_ERROR_CODE.STREAM_RATE_LIMITED, `upstream 訂閱已滿（上限 ${maxSubscriptionKeys}，prototype 級保護）`);
       }
-      sub = { symbol: clean, channel: chan, upstreamId: null, acked: false, clients: new Set(), lastSerial: null, lastEventAt: null };
+      sub = {
+        key, symbol: clean, channel: chan, upstreamId: null, acked: false,
+        clients: new Set(), lastSerial: null, lastEventAt: null,
+        state: initialKeyState(),
+      };
       subs.set(key, sub);
     }
     sub.clients.add(client);
     totalClients += 1;
-    client.sendState(upstreamState);
+    if (clientId !== null && clientId !== undefined) {
+      clientIds.set(client, clientId);
+      clientCounts.set(clientId, (clientCounts.get(clientId) ?? 0) + 1);
+    }
     if (upstreamState === STREAM_STATES.CLOSED) {
       // Server-level reuse after full cleanup: CLOSED is terminal for one
       // lifecycle, so a brand-new lifecycle restarts from IDLE (not a
@@ -385,9 +494,19 @@ export function createStreamManager({
         // (the auth-ok fan-out only covers keys present then). Global state
         // does NOT flap to SUBSCRIBING — per-key `acked` tracks the rest.
         sendSocket({ event: "subscribe", data: { channel: sub.channel, symbol: sub.symbol } });
+        if (sub.state === STREAM_STATES.IDLE) setKeyState(sub, STREAM_STATES.SUBSCRIBING);
       }
     }
-    return { key, state: upstreamState, sharedUpstream: true };
+    client.sendState(sub.state ?? upstreamState);
+    return { key, state: sub.state ?? upstreamState, sharedUpstream: true };
+  }
+
+  /* 新 key 的起始狀態：沒有 socket 從 IDLE 起步；socket 已開則沿用當前連線階段。 */
+  function initialKeyState() {
+    if (!socket) return STREAM_STATES.IDLE;
+    if (upstreamState === STREAM_STATES.CONNECTING) return STREAM_STATES.CONNECTING;
+    if (upstreamState === STREAM_STATES.AUTHENTICATING) return STREAM_STATES.AUTHENTICATING;
+    return STREAM_STATES.SUBSCRIBING;
   }
 
   function detach(client) {
@@ -396,6 +515,7 @@ export function createStreamManager({
       if (!sub.clients.delete(client)) continue;
       found = true;
       totalClients = Math.max(0, totalClients - 1);
+      releaseClientCount(client);
       if (sub.clients.size === 0) {
         subs.delete(key);
         if (socket && sub.acked && sub.upstreamId) sendSocket({ event: "unsubscribe", data: { id: sub.upstreamId } });
@@ -421,10 +541,23 @@ export function createStreamManager({
 
   function probeStale() {
     if (upstreamState !== STREAM_STATES.LIVE && upstreamState !== STREAM_STATES.STALE) return upstreamState;
-    const latest = subs.size ? Math.max(...[...subs.values()].map((s) => s.lastEventAt ?? -Infinity)) : null;
-    const stale = isStreamStale({ lastEventAt: Number.isFinite(latest) ? latest : null, now: clock(), ...(staleAfterMs ? { staleAfterMs } : {}) });
-    if (stale && upstreamState === STREAM_STATES.LIVE) setState(STREAM_STATES.STALE);
-    if (!stale && upstreamState === STREAM_STATES.STALE) setState(STREAM_STATES.LIVE);
+    const now = clock();
+    let anyFresh = false;
+    for (const sub of subs.values()) {
+      const stale = isStreamStale({ lastEventAt: Number.isFinite(sub.lastEventAt) ? sub.lastEventAt : null, now, ...(staleAfterMs ? { staleAfterMs } : {}) });
+      if (stale) {
+        if (sub.state === STREAM_STATES.LIVE) setKeyState(sub, STREAM_STATES.STALE);
+      } else {
+        anyFresh = true;
+        if (sub.state === STREAM_STATES.STALE) setKeyState(sub, STREAM_STATES.LIVE);
+      }
+    }
+    try {
+      if (subs.size > 0 && !anyFresh && upstreamState === STREAM_STATES.LIVE) setState(STREAM_STATES.STALE, { propagate: false });
+      else if (anyFresh && upstreamState === STREAM_STATES.STALE) setState(STREAM_STATES.LIVE, { propagate: false });
+    } catch (error) {
+      redactedLog({ note: "global-stale-transition-skipped" });
+    }
     return upstreamState;
   }
 
@@ -439,10 +572,12 @@ export function createStreamManager({
       sub.clients.clear();
     }
     subs.clear();
+    clientIds.clear();
+    clientCounts.clear();
     totalClients = 0;
     teardownSocket();
     if (upstreamState !== STREAM_STATES.CLOSED) {
-      try { setState(STREAM_STATES.CLOSED); } catch { upstreamState = STREAM_STATES.CLOSED; }
+      try { setState(STREAM_STATES.CLOSED, { propagate: false }); } catch { upstreamState = STREAM_STATES.CLOSED; }
     }
     return { clients, keys, state: upstreamState };
   }
@@ -452,7 +587,9 @@ export function createStreamManager({
       state: upstreamState,
       sessionId,
       subscriptionKeys: [...subs.keys()],
+      keyStates: Object.fromEntries([...subs.values()].map((sub) => [sub.key, sub.state])),
       totalClients,
+      clientStreams: Object.fromEntries(clientCounts),
       reconnectAttempt,
       lastHeartbeatAt,
       hasSocket: socket !== null,

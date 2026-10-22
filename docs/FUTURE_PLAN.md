@@ -256,7 +256,9 @@ B. 治理加固（全部要明確批准才做，逐項開 PR）：
 
 ### Track A — 止血（下一可執行階段）
 
-> **現況（2026-09-25）**：Phase 7C／PR#28 已上 main。下一個可合併的程式 PR＝**A1**（R-023）。
+> **現況（2026-10-22）**：Track A1～A4、B2～B4、C1（E2E 進 CI）、C2（治理）、C3（狀態自動化）、
+> D2（TWSE 官方休市日）已完成並有證據。**下一個可合併的程式 PR＝B1（R-026 台股成本模型）**；
+> B1 之後只剩決策點與商品別規則缺口（Track B2 的 G-1～G-8）。
 
 目標：讓 production 主流程可用，並在更多流量進來前收掉公開 proxy 的濫用面。
 
@@ -283,7 +285,7 @@ npm run check:syntax && npm test && npm run check:static && npm run check:ui && 
 - [ ] preview 與 confirm 拒絕碼一致；US 路徑行為不變
 - [ ] R-023 附修復證據
 
-#### A2 proxy 與串流防濫用（M）
+#### A2 proxy 與串流防濫用（M）✅ 已完成（2026-10-22）
 
 ```bash
 git checkout -b fix/proxy-abuse-limits origin/main
@@ -307,18 +309,20 @@ npm test && npm run check:static && git diff --check
 - [ ] 日誌不含 key（沿用 sentinel 測試）
 - [ ] R-024、R-025 附修復證據；決策 D1 已記錄
 
-#### A3 文件同步（S）
+#### A3 文件同步（S）✅ 已完成（2026-10-22；README／STATUS／RISK／LEDGER 已對齊）
 
-- `README.md`：定位改為「模擬資料＋可選 Fugle 真實行情（研究用）」；測試數改指向 `docs/PROJECT_STATUS.md`；架構清單補 `server/`、`js/fugle-proxy-adapter.js`、`js/stream-contract.js` 等
+- `README.md`：定位改為「模擬資料＋可選 Fugle 真實行情（研究用）」；測試數改指向 `docs/PROJECT_STATUS.md` 與 CI job summary；架構清單補 `server/`、`js/fugle-proxy-adapter.js`、`js/stream-contract.js` 等
 - `docs/RISK_REGISTER.md`：R-024 附 Fugle 條款確認結果
 
 ```bash
 grep -n "107 tests\|全部行情都是本機種子" README.md || echo "README 已同步"
 ```
 
-#### A4 Live UI 錯誤態補齊（S；PR#28 已於 2026-09-22 合併）
+#### A4 Live UI 錯誤態補齊（S；PR#28 已於 2026-09-22 合併）✅ 已完成（2026-10-22）
 
 決策 D5 過期：#28 已在 A2 之前合併。後續改為在 A2 合併後，於 Live UI 補 `STREAM_SUBSCRIBE_FAILED`／`RATE_LIMITED` 可行動狀態（獨立小 PR，不重開 #28）。
+→ 已落地：`#stream-alert` 可行動狀態區塊（`statePanel("error")`）＋`STREAM_ERROR_ACTION` 下一步對照表；
+`check:ui` 第 35 項鎖住；終端錯誤時「開始串流」按鈕恢復可按（手動重試）。
 
 ---
 
@@ -328,7 +332,7 @@ grep -n "107 tests\|全部行情都是本機種子" README.md || echo "README �
 
 對應風險：R-026、R-027、R-028、R-029、R-030、R-031。
 
-#### B1 台股成本模型（M）
+#### B1 台股成本模型（M）✅ 已完成（2026-10-22）
 
 ```bash
 git checkout -b feat/tw-cost-model origin/main
@@ -343,9 +347,16 @@ npm test && npm run check:ui && git diff --check
 
 驗收：golden cases 全過；假設面板顯示稅率；research 結論以新成本重記（promotion 結果若改變照實寫）。
 
+→ 已落地：`js/tw-fee-model.js`（`createTwFeeModel`／`describeTwFeeModel`／`feeModelAffordableQty`／`scaleTwFeeModel`）、
+`js/backtest.js`／`js/research.js` 可接 feeModel（不給＝既有行為逐位元不變）、`js/app.js` 假設面板顯示稅率與最低手續費、
+`tests/fee-model.test.js`（20 個 golden case）。**未採用**「手續費率上限 0.3%」與「28% 折扣→0.1425%」：
+官方文件只說費率由主管機關核定、0.1425% 是事前通知門檻，故費率參數化並標來源。
+真實資料驗證（`npm run smoke:research:remote`，2026-10-22）：REMOTE_RESEARCH_SMOKE=PASS，232 根真實日 K、
+OOS 交易 1 筆、OOS 損益 +11,236（含稅費 1,522）、promotion=FAIL（結論不變）。
+
 決策點：paper broker 是否同步改用 TW FeeModel（R-018 目前為 zero-fee paper）。
 
-#### B2 市場規則修正（S）
+#### B2 市場規則修正（S）✅ 已完成（2026-10-22）
 
 ```bash
 git checkout -b fix/market-rule-precision origin/main
@@ -358,7 +369,7 @@ npm test && git diff --check
 
 驗收：窮舉 0 mismatch；ETF 規則在 RESEARCH_LEDGER 有來源與查驗日期。
 
-#### B3 狀態與引擎（S）
+#### B3 狀態與引擎（S）✅ 已完成（2026-10-22）
 
 - 斷路器 tripped／reason 寫入 versioned localStorage，加 reload 測試（R-027；決策 D2）
 - `server/start-market-proxy.js` 以 unref interval 排程 `probeStale()`，shutdown 時清除（R-030）
@@ -367,7 +378,7 @@ npm test && git diff --check
 
 驗收：reload 後斷路器維持凍結；stream 測試涵蓋 LIVE→STALE→LIVE 由排程觸發。
 
-#### B4 跨平台（S）
+#### B4 跨平台（S）✅ 已完成（2026-10-22）
 
 - `tests/proxy-runtime.test.js`：win32 以 `exit`／`signal` 事件判定程序結束（不 skip）
 - `check:syntax` 改為 Node 腳本，不依賴 find／xargs
@@ -383,7 +394,7 @@ npm test && git diff --check
 
 對應風險：R-032；治理項需明確批准（見 Phase 7 B 與決策 D4、D6）。
 
-#### C1 Browser E2E 進 CI（M，依賴與 CI 門檻變更需批准）
+#### C1 Browser E2E 進 CI（M，依賴與 CI 門檻變更需批准）✅ 已完成（2026-10-22）
 
 ```bash
 git checkout -b ci/browser-e2e origin/main
@@ -398,15 +409,23 @@ git checkout -b ci/browser-e2e origin/main
 
 驗收：E2E 在 ubuntu runner 穩定通過；回放 R-023 時確實紅燈。
 
-#### C2 治理加固（S，逐項批准）
+→ 已落地：`.github/workflows/e2e.yml`（Playwright 只在 CI 安裝，不進 runtime）、`tests/e2e/harness.js`
+（本機靜態站＋真實 proxy＋fixture 上游）、`tests/e2e/run-e2e.js`（下單／斷路器 reload／報價／串流重連）、
+`tests/e2e/mutation-check.js`（回放 R-023 → E2E 必須變紅 → 還原後再全綠）。
 
-- main branch protection＋required `Quality`（與 C1 的 E2E）
-- CodeQL＋secret scanning
+#### C2 治理加固（S，逐項批准）✅ 已完成（2026-10-22）
+
+- main branch protection＋required `Quality`（API 查驗已啟用；`Browser E2E` 待該 workflow 上 main 後再加）
+- CodeQL（code scanning）workflow＋secret scanning（公開 repo 預設已開，push protection 亦已開）
 - commit 身份一致（不再出現 `root@localhost.localdomain`）；刪除已合併分支
 
 驗收：每項有「批准人／日期／理由」；未批准的不做。
 
-#### C3 狀態自動化＋文件收斂（M）
+→ 已落地（批准人＝維護者，指示「都處理掉」，日期 2026-10-22）：branch protection（required `Quality`、
+禁止 force push／刪除、`enforce_admins` 不開）、`.github/workflows/codeql.yml`、
+`.github/workflows/dependency-review.yml`。仍缺 required PR review 數與 ruleset。
+
+#### C3 狀態自動化＋文件收斂（M）✅ 已完成（2026-10-22）
 
 - CI 在 job summary 輸出 HEAD、tests、gates；`docs/PROJECT_STATUS.md` 只保留 scope、known gaps、enforcement，不再手寫會過期的數字
 - `scripts/check-status.js` 隨之調整：檢查「變更是否需要更新 gaps／scope」，不再要求手寫 HEAD
@@ -414,14 +433,20 @@ git checkout -b ci/browser-e2e origin/main
 
 驗收：合併任一 PR 後，STATUS 不需人工補 HEAD 也不會與 main 矛盾。
 
+→ 已落地：`scripts/ci-summary.js`（CI job summary 產 HEAD／測試數／閘門結果）、
+`scripts/check-status.js`（內容契約：須有 Scope／Known gaps／Enforcement，且不得手寫過期數字）、
+`docs/PROJECT_STATUS.md` 收斂成 scope／gaps／enforcement＋Track 進度表。
+
 ---
 
 ### Track D — 產品與架構（第 2 個月起，逐項決策）
 
-1. 依頁籤拆分 `js/app.js`（931 行），每拆一頁 E2E 維持綠燈（M）
-2. TWSE 休市日曆與除權息調整資料（R-013）（M）
-3. 以真實串流驅動紙上限價撮合＋reconciliation（R-003）（L）
-4. server-side 帳本與登入：只在多人使用需求確立後啟動（ADR-005 方案 D）（L）
+1. 依頁籤拆分 `js/app.js`（931 行），每拆一頁 E2E 維持綠燈（M）→ 待做（E2E 已就緒可當護欄）
+2. TWSE 休市日曆與除權息調整資料（R-013）（M）→ **休市日已完成**（`js/tw-market-holidays.js`，TWSE 官方 2026 快照）；
+   除權息調整資料仍待做
+3. 以真實串流驅動紙上限價撮合＋reconciliation（R-003）（L）→ 待決策（會改變紙上成交語意，需先定義撮合模型）
+4. server-side 帳本與登入：只在多人使用需求確立後啟動（ADR-005 方案 D）（L）→ 待決策（需要 IAM／secret，
+   目前沒有多人使用需求；不擅自啟動）
 
 ---
 
@@ -429,12 +454,12 @@ git checkout -b ci/browser-e2e origin/main
 
 | ID | 決策 | 建議 | 批准人／日期／理由 |
 |---|---|---|---|
-| D1 | 公開 proxy 維持完全公開，或加前門（短效 token／僅限自用） | 先完成 A2；Fugle 條款書面確認前改為僅限自用 | 待定 |
-| D2 | 斷路器觸發後是否允許減碼／平倉單 | 允許降低曝險、禁止新增曝險 | 待定 |
-| D3 | 台股紙上單是否強制真實交易時段 | 模擬資料加「模擬時鐘」模式；Fugle 模式維持真實時段 | 待定 |
-| D4 | 啟用 main branch protection＋required checks | 啟用（Track C2） | 待定 |
-| D5 | PR#28 是否在 A2 合併後才合併 | 原建議「是」 | **已過期**：#28 於 2026-09-22 合併；改走 A4 錯誤態補齊 |
-| D6 | Browser E2E 工具引入方式 | Playwright 只在 CI 安裝，不進 runtime | 待定 |
+| D1 | 公開 proxy 維持完全公開，或加前門（短效 token／僅限自用） | 先完成 A2；Fugle 條款書面確認前改為僅限自用 | **待定**（A2 已完成：程式面防濫用到位；仍需 Fugle 條款確認） |
+| D2 | 斷路器觸發後是否允許減碼／平倉單 | 允許降低曝險、禁止新增曝險 | **待定**（R-027 已修：斷路器持久化，reload 仍凍結） |
+| D3 | 台股紙上單是否強制真實交易時段 | 模擬資料加「模擬時鐘」模式；Fugle 模式維持真實時段 | **待定**（R-023 修復後維持真實時段語義） |
+| D4 | 啟用 main branch protection＋required checks | 啟用（Track C2） | **已決定 2026-10-22**（維護者指示「都處理掉」）：branch protection＋required `Quality`；`Browser E2E` 待 workflow 上 main 後再加；`enforce_admins` 不開 |
+| D5 | PR#28 是否在 A2 合併後才合併 | 原建議「是」 | **已過期**：#28 於 2026-09-22 合併；改走 A4 錯誤態補齊（已完成） |
+| D6 | Browser E2E 工具引入方式 | Playwright 只在 CI 安裝，不進 runtime | **已決定 2026-10-22**：Playwright 1.64.1 只在 CI workflow 安裝，runtime 仍零依賴 |
 
 ---
 

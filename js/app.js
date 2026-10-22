@@ -19,6 +19,7 @@ import { SEARCH_ACTIONS, describeSearchAction, findLocalSymbol, resolveSearchQue
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { SseStreamClient } from "./sse-stream-client.js";
+import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
 import { fixedFraction, fullNotional } from "./portfolio.js";
@@ -51,7 +52,7 @@ let searchPending = false; // 遠端驗證中再按 Enter：忽略，不重複�
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
 const broker = new PaperBroker({ storage });
 const marketData = selectAdapter("simulation");
-const risk = new RiskEngine(DEFAULT_RISK);
+const risk = new RiskEngine(DEFAULT_RISK, { storage });
 const audit = new AuditLog({ storage });
 const registry = buildDefaultRegistry();
 const PAGE_ORDER = ["dashboard", "chart", "screener", "backtest", "trade", "risk"];
@@ -308,8 +309,9 @@ function renderBacktest() {
     commissionRate: (Number($("#backtest-commission").value) || 0) / 100,
     slippageBps: Number($("#backtest-slippage").value) || 0,
   };
+  const feeModel = feeModelForSymbol(state.symbol, options.commissionRate);
   let result;
-  try { result = runBacktest(marketData.getBars(state.symbol), strategy, options); }
+  try { result = runBacktest(marketData.getBars(state.symbol), strategy, { ...options, feeModel }); }
   catch (error) {
     $("#backtest-metrics").innerHTML = statePanel("error", "回測無法執行", error.message);
     $("#backtest-assumptions").innerHTML = statePanel("error", "模型假設不可用", "修正輸入參數後重新執行。");
@@ -326,16 +328,40 @@ function renderBacktest() {
     ["Sharpe", m.sharpeInsufficient ? "樣本不足" : formatMetric(m.sharpe), m.sharpeInsufficient ? "neutral" : m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
-  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${(options.commissionRate * 100).toFixed(4)}%</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
+  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${feeModel ? escapeHtml(feeAssumptionText(feeModel)) : `${(options.commissionRate * 100).toFixed(4)}%（簡化模型，未含稅與最低額）`}</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>年化 risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
 function researchCosts() {
+  const commissionRate = (Number($("#backtest-commission").value) || 0) / 100;
   return {
-    commissionRate: (Number($("#backtest-commission").value) || 0) / 100,
+    commissionRate,
     slippageBps: Number($("#backtest-slippage").value) || 0,
     initialCapital: Number($("#backtest-capital").value) || 1_000_000,
+    feeModel: feeModelForSymbol(state.symbol, commissionRate),
   };
+}
+
+/* 台股成本模型（Track B1）：每筆手續費（含最低額）＋賣方證券交易稅。
+   US 費用未建模 → 不啟用 fee model，維持原本的簡化手續費（誠實標示，不假裝涵蓋）。 */
+function feeModelForSymbol(symbol, commissionRate) {
+  const meta = getSymbol(symbol);
+  if (!meta || meta.market !== "TW") return null;
+  if (!Number.isFinite(commissionRate) || commissionRate <= 0) return null;
+  return createTwFeeModel({
+    commissionRate,
+    minCommission: DEFAULT_TW_FEE_ASSUMPTIONS.minCommission,
+    instrumentType: TW_INSTRUMENT.STOCK,
+  });
+}
+
+/* 假設面板用的費用說明（純文字，來源與查閱日期一起顯示）。 */
+function feeAssumptionText(feeModel) {
+  if (!feeModel) return null;
+  const d = describeTwFeeModel(feeModel);
+  const tax = d.sellTaxRateByInstrument?.[d.instrumentType] ?? 0;
+  return `${(d.effectiveCommissionRate * 100).toFixed(4)}%／筆（最低 ${d.minCommission} 元）＋賣方證交稅 ${(tax * 100).toFixed(2)}%`
+    + `（來源：《證券交易稅條例》第 2 條、營業細則第 94 條，查閱 ${d.accessed}）`;
 }
 
 function researchAllocate(def, frac) {
@@ -381,7 +407,9 @@ function renderResearchBacktest(strategyId) {
     ["暖機", `${def.warmup} 根（含 warmup 前不交易）`],
     ["成交", "立即紙上模擬成交（next-bar-open）"],
     ["配置", def.id === "buyHold" ? "全額 buy&hold 基準" : `固定比例 ${(frac * 100).toFixed(0)}%（Portfolio 層決定，策略不碰股數）`],
-    ["手續費／滑價", `${(costs.commissionRate * 100).toFixed(4)}%／${costs.slippageBps} bp`],
+    ["手續費／滑價", costs.feeModel
+      ? `${escapeHtml(feeAssumptionText(costs.feeModel))}／${costs.slippageBps} bp`
+      : `${(costs.commissionRate * 100).toFixed(4)}%（簡化模型，未含稅與最低額）／${costs.slippageBps} bp`],
     ["IS／OOS", `${split.is.length}／${split.oos.length} 根（時序切分，OOS 為後段）`],
     ["基準比較", `Cash ${money(bench.cash.netProfit, ccy)}・Buy&Hold ${money(bench.buyHold.netProfit, ccy)}（同資金同成本）`],
     ["費用合計", `手續費 ${money(full.totalFees, ccy)}・滑價 ${money(full.totalSlippage, ccy)}`],
@@ -546,6 +574,7 @@ async function renderFugleQuote() {
       ["成交量", `<span class="mono">${q.volume === null ? "N/A" : fmtInt(q.volume)}</span>`],
       ["Provider 時間", fmtTaipeiTime(q.timestamp)],
       ["收到時間", fmtTaipeiTime(m.receivedAt)],
+      ["資料來源", `${escapeHtml(m.provider)}・${escapeHtml(m.dataKind)}・norm-v${m.normalizationVersion}`],
       ["Freshness", `${m.freshnessStatus} ${freshBadge}`],
       ["交易時段", session ? session.name : "休市"],
       ["Provider 狀態", adapter.getStatus().state],
@@ -635,9 +664,22 @@ const STREAM_ERROR_TEXT = {
   STREAM_UPSTREAM_CLOSED: "上游斷線，瀏覽器自動重連中",
   STREAM_TIMEOUT: "逾時，瀏覽器自動重連中",
   INVALID_SYMBOL: "商品代碼不正確，請修正標的",
+  RATE_LIMITED: "請求過於頻繁（proxy 限流），不自動重連；請稍候再按「開始串流」",
   FUGLE_MODE_OFF: "目前是模擬模式",
   PROXY_NOT_CONFIGURED: "Fugle mode unavailable：尚未設定 proxy URL",
   UNSUPPORTED_CAPABILITY: "目前瀏覽器不支援 EventSource，不偽裝連線",
+};
+
+/* Track A4：終端錯誤要給「可行動」狀態，不是只有一行 status。
+   每一種錯誤都對應一個明確的下一步（改標的／等待／找維運／重試）。 */
+const STREAM_ERROR_ACTION = {
+  STREAM_SUBSCRIBE_FAILED: "請確認代號是否為有效的 Fugle 商品（例：2330、0050），或改用其他標的後按「開始串流」重試。",
+  STREAM_RATE_LIMITED: "本機連線數已達上限，請先按「停止」關閉其他分頁的串流，再按「開始串流」重試。",
+  RATE_LIMITED: "請等待約一分鐘再重試；若持續發生，代表同一來源請求過於頻繁。",
+  STREAM_AUTH_FAILED: "這是部署端問題：金鑰或 Fugle 方案不足，請通知維護者後再試。",
+  STREAM_RECONNECT_EXHAUSTED: "上游連續失敗，請稍候按「開始串流」重試。",
+  STREAM_SCHEMA_INVALID: "上游資料格式異常，請通知維護者（不要在此重試轟擊上游）。",
+  INVALID_SYMBOL: "請修正上方標的欄位後重試。",
 };
 let streamClient = null;
 let streamLastStatusText = "";
@@ -645,12 +687,19 @@ let streamLastStatusText = "";
 function describeStreamText(snap) {
   if (!snap || !snap.symbol) return "尚未啟動；切換「Fugle 真實行情」後可開始（瀏覽器經 proxy 收 SSE，不直連上游、不持金鑰）。";
   const staleMark = snap.eventCount === 0 ? "尚無逐筆" : (snap.marketStale ? "STALE" : "FRESH");
-  const base = `傳輸 ${snap.transport}・上游 ${snap.upstream ?? "未知"}・${snap.symbol}・逐筆 ${snap.eventCount}・新鮮度 ${staleMark}・來源 FUGLE trades（經 proxy）・執行 PAPER`;
+  const base = `傳輸 ${snap.transport}・上游 ${snap.upstream ?? "未知"}・${snap.symbol}・新鮮度 ${staleMark}・來源 FUGLE trades（經 proxy）・執行 PAPER`;
   if (snap.error) {
     const hint = STREAM_ERROR_TEXT[snap.error.code] ?? "未知錯誤";
     return `${base}・錯誤 ${snap.error.code}：${hint}${snap.error.terminal ? "（已停止，需手動重試）" : "（自動重連中）"}`;
   }
   return base;
+}
+
+/* 逐筆數量放在獨立、aria-live=off 的元素：避免高頻成交朗讀到螢幕閱讀器。 */
+function paintStreamCount(snap) {
+  const counter = $("#stream-count");
+  if (!counter) return;
+  counter.textContent = `逐筆 ${snap?.eventCount ?? 0}`;
 }
 
 function paintStreamLatest(trade) {
@@ -660,6 +709,19 @@ function paintStreamLatest(trade) {
   const price = Number.isFinite(trade?.trade?.price) ? fmtPrice(trade.trade.price) : "N/A";
   const fresh = snap.marketStale ? "STALE" : (trade.freshnessStatus ?? "UNKNOWN");
   latest.textContent = `${trade.symbol} 最新 ${price}・${fmtTaipeiTime(trade.providerTimestamp)}・${fresh}・seq ${trade.sequence ?? "?"}`;
+}
+
+function renderStreamAlert(snap) {
+  const box = $("#stream-alert");
+  if (!box) return;
+  const error = snap?.error;
+  if (!error) {
+    box.innerHTML = "";
+    return;
+  }
+  const hint = STREAM_ERROR_TEXT[error.code] ?? "未知錯誤";
+  const action = STREAM_ERROR_ACTION[error.code] ?? "請按「開始串流」手動重試；若持續發生，請通知維護者。";
+  box.innerHTML = statePanel("error", `串流中止［${error.code}］${error.terminal ? "（需手動重試）" : "（自動重連中）"}`, `${hint}。${action}`);
 }
 
 function updateStreamPanel() {
@@ -680,12 +742,15 @@ function updateStreamPanel() {
     status.textContent = text;
     streamLastStatusText = text;
   }
+  renderStreamAlert(snap);
+  paintStreamCount(snap);
   const trades = streamClient ? streamClient.recentTrades() : [];
   if (trades.length) paintStreamLatest(trades[trades.length - 1]);
 }
 
 function renderStreamTrade(trade) {
   paintStreamLatest(trade);
+  if (streamClient) paintStreamCount(streamClient.getSnapshot());
   const box = $("#stream-trades");
   if (!box || !trade) return;
   const empty = box.querySelector(".state-block");
@@ -733,6 +798,7 @@ function startStream() {
     streamLastStatusText = "";
     const status = $("#stream-status");
     if (status) status.textContent = `串流啟動失敗［${code}］：${STREAM_ERROR_TEXT[code] ?? "未知錯誤"}維持 Fugle 模式，不切回模擬。`;
+    renderStreamAlert({ error: { code, terminal: true } });
     auditEvent("STREAM_ERROR", { symbol: want, code });
   }
   updateStreamPanel();
@@ -1082,7 +1148,9 @@ function renderRisk(target = "#audit-log") {
   const status = risk.status();
   $("#risk-state").textContent = status.tripped ? "已凍結" : "運作中";
   $("#risk-state").className = `kpi ${status.tripped ? "down" : "up"}`;
-  $("#risk-reason").textContent = status.reason || "所有紙上訂單仍需先經風控";
+  $("#risk-reason").textContent = status.tripped
+    ? `${status.reason || "斷路器已啟動"}${status.persisted ? "（已保存，重新整理後仍凍結）" : ""}`
+    : "所有紙上訂單仍需先經風控";
   const canManage = permissionsFor(state.role).includes("risk:trip");
   $("#kill-switch").disabled = !canManage || status.tripped;
   $("#reset-risk").disabled = !permissionsFor(state.role).includes("risk:reset") || !status.tripped;

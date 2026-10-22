@@ -34,6 +34,23 @@
 | Volatility-managed portfolios：波動高時降險可提高 Sharpe；受限版本測試 leverage cap 1／1.5 | [100][101] | Primary：Journal of Finance＋NBER working paper | VolatilityTargetingOverlay（capped leverage） | Published research，stable | 低波動不變無限槓桿：maxLeverage 必須有限；本 repo 只做單標的 overlay，未做多因子。 |
 | 時間序列動量／橫截面動量／價值動量／配對交易／data-snooping 的 canonical 引用（本輪未重讀全文，只記研究假說出處） | [102][103][104][105][106][107][108] | Journals（JFE／JF／RFS／Econometrica）＋AQR 白皮書 | multi-horizon trend hypothesis；pairs／regime／White 檢驗留待後續 | Canonical references，需實作前重查 | 多 horizon 組合只為穩健高原，不宣稱機構級；pairs／regime 未達資料門檻不實作。 |
 | GitHub Actions secure use：least privilege、secret handling、workflow security | [94] | GitHub official secure-use reference | CI／supply chain | Security guidance evolves | permissions read-only；action refs immutable；Dependabot 更新 pinned refs。 |
+| TWSE 股票價格升降單位分六段（未滿 10 元 0.01／10–未滿 50 元 0.05／50–未滿 100 元 0.10／100–未滿 500 元 0.50／500–未滿 1000 元 1.00／1000 元以上 5.00） | [125] | 臺灣證券交易所營業細則第62條 | MarketRules 商品別 tick 表 | Highly time-sensitive（查閱 2026-10-22） | 實作為股票表 `TW_STOCK_TICK_SCHEDULE`；`getTickSize("TW", price)` 預設即此表，既有呼叫端行為不變。 |
+| ETF／主動式 ETF／REITs 每受益權單位未滿 50 元升降單位 0.01、50 元以上 0.05；封閉型基金準用上市股票表 | [126] | 臺灣證券交易所受益憑證買賣辦法第7條 | MarketRules 商品別 tick 表 | Highly time-sensitive（查閱 2026-10-22） | 實作為 `TW_ETF_TICK_SCHEDULE`（0.01／0.05）；商品別 etf／etn／reit 走此表，closedfund 走股票表。 |
+| 集中市場升降單位總表：認購(售)權證與認股權憑證 0–5:0.01、5–10:0.05、10–50:0.10、50–100:0.50、100–500:1.00、500 以上:5.00 | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、升降單位」 | MarketRules 商品別 tick 表 | Highly time-sensitive（查閱 2026-10-22） | 實作為 `TW_WARRANT_TICK_SCHEDULE`；權證在 5–10 元已是 0.05，與股票表不同，不可混用。 |
+| 每日漲跌停＝開盤競價基準×110%／×90% 再依升降單位對齊（漲停取不超過上限之最大合法值、跌停取不低於下限之最小合法值；官方範例 40.60→漲停 44.65／跌停 36.55） | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、每日有價證券漲跌停價格計算範例」 | MarketRules 漲跌停計算 | Highly time-sensitive（查閱 2026-10-22） | `calculatePriceLimits()` 改以整數最小單位運算並採 floor／ceil，取代浮點 `Math.floor/Math.ceil`；300,000 檔窮舉 0 mismatch。 |
+| 股票每日市價升降幅度以開盤競價基準 10% 為限；升降幅度限度未滿最小升降單位者按最小升降單位計算 | [97] | 臺灣證券交易所營業細則第63條 | MarketRules 漲跌幅 | Highly time-sensitive（查閱 2026-10-22） | `dailyPriceLimitPct = 10` 維持；「低位價下限以最小升降單位為限」尚未建模（明確缺口）。 |
+| 零股交易買賣申報應以限價為之，且限當日有效 | [96] | 臺灣證券交易所上市股票零股交易辦法第3條 | MarketRules 零股委託限制 | Highly time-sensitive（查閱 2026-10-22） | `validateOrderTypeInSession(market, orderType, ts, lot)` 於 TW＋oddLot＋非限價單回 `ODD_LOT_LIMIT_ONLY`；risk 層傳 lot 原文。 |
+| 盤中零股交易委託以限價為之且限當日有效（申報 9:00–13:30、9:10 起每 5 秒集合競價） | [98] | 臺灣證券交易所「集中市場交易制度介紹／肆、盤中零股交易」 | MarketRules 零股制度 | Highly time-sensitive（查閱 2026-10-22） | 零股限價規則已實作；零股專屬申報時段與集合競價制度尚未建模（明確缺口）。 |
+| 受益憑證每日升降幅度準用上市股票（10%），但國外成分 ETF／期貨信託 ETF／境外指數股票型基金／國外成分主動式 ETF 無升降幅度限制；槓桿反向 ETF 為 10%×倍數 | [126] | 臺灣證券交易所受益憑證買賣辦法第8條 | MarketRules 漲跌幅 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：`dailyPriceLimitPct` 目前一律 10%（明確缺口，需商品別每日升降幅度資料模型）。 |
+| 權證漲跌停非 ±10%，以標的證券當日漲跌停價換算；指數型權證以前一日標的指數收盤×每點對應金額×行使比例×10% 計算 | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、每日升降幅度」 | MarketRules 漲跌停 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：權證只支援 tick 表，漲跌停仍走一般 ±10% 公式（明確缺口，需標的證券漲跌停價）。 |
+| TWSE 市場開休市日期（2026 年度：24 個市場無交易日，含春節 2/12–2/20、和平紀念日補假 2/27、兒童節掃墓節 4/3–4/6、勞動節 5/1、端午節 6/19、中秋節 9/25、教師節 9/28、國慶日補假 10/9、光復節補假 10/26、行憲紀念日 12/25） | [127] | 臺灣證券交易所「市場開休市日期」開放資料 | MarketCalendar（TW 休市日） | Highly time-sensitive（查閱 2026-10-22，涵蓋 2026-01-01..2026-12-31） | `js/tw-market-holidays.js` 為官方快照；`MarketHolidayCalendar` 用於台股交易時段判斷，涵蓋範圍外退回 weekday 規則並在 policy 明講。 |
+| 台股證券交易稅：向出賣人按每次交易成交價格課徵；股票千分之三、公司債及其他經政府核准之有價證券（ETF／受益憑證）千分之一 | [128] | 《證券交易稅條例》第 1 條、第 2 條（財政部／全國法規資料庫，修正日期民國 114 年 1 月 2 日） | TW FeeModel 賣方稅率、稅基＝成交金額（不含手續費） | Time-sensitive（稅率與免稅期間會修法） | 股票 0.3%、ETF／受益憑證 0.1%，只對賣方；買方 0。 |
+| 台股當日沖銷證券交易稅千分之一點五，且僅適用「上市或上櫃股票」同一帳戶同一營業日現款買進＋現券賣出同種類同數量者 | [128] | 《證券交易稅條例》第 2-2 條 | TW FeeModel 當沖稅率 | Time-sensitive（受託買賣 106/4/28 起、證券商自行買賣 107/4/28 起，至 116/12/31 止） | 當沖股票賣方 0.15%；ETF／受益憑證不適用第 2-2 條，仍用 0.1%。 |
+| 公司債／金融債券與債券指數股票型基金受益憑證之證券交易稅暫停徵收；權證避險專戶千分之一 | [128] | 《證券交易稅條例》第 2-1 條、第 2-3 條 | TW FeeModel 稅率表邊界 | Time-sensitive（暫停徵至 115/12/31） | 本 repo 只建模股票／ETF／受益憑證；債券與避險專戶未建模，UI 不得宣稱涵蓋。 |
+| 手續費率之授權基礎：集中交易市場由證券交易所申報主管機關核定，非集中交易市場由證券商同業公會申報主管機關核定 | [129] | 《證券交易法》第 85 條 | TW FeeModel commissionRate 的法源 | Stable（授權架構） | 費率是「申報核定」而非法定固定值 → 模型把費率做成可設定參數，預設值須標來源。 |
+| 手續費：經紀商依客戶成交金額自行訂定費率標準、折讓與每筆委託最低費用，實施前報證交所備查；所訂費率逾成交金額千分之一點四二五者應於委託前通知委託人並留存紀錄 | [130] | 臺灣證券交易所營業細則第 94 條（修正 115/09/24） | TW FeeModel 的手續費率、最低手續費、折讓 | Time-sensitive（費率與門檻會調整） | 0.1425% 是「事前通知門檻」不是硬上限；折讓與每筆最低費用由券商自訂 → 預設 0.1425%、不假設折讓、最低 20 元，並在 assumptions 標明來源與查閱日。 |
+| 證券商同業公會自律：會員手續費率於主管機關核定之上限範圍內自行訂定；逾千分之 1.425 應於委託前通知客戶 | [131] | 中華民國證券商業同業公會「會員受託買賣有價證券收取手續費自律規則」第 2 條、第 6 條 | TW FeeModel 折讓與最低費用 | Time-sensitive | 「核定上限」的數值在自律規則中未列，實作不得自行編造上限數字。 |
+| 市場實務（券商收費標準）：台股現股買賣手續費以成交金額乘千分之 1.425 計算，電子交易另有折扣；每筆手續費不足 20 元以 20 元計收 | [132] | 元大證券官方交易手續費說明（券商收費標準／受託契約條款） | TW FeeModel 最低手續費 20 元 | Time-sensitive（券商可各自訂定，須逐家確認） | 最低 20 元是市場慣例而非法律明定，模型把 minCommission 做成參數；本輪未建模零股 1 元低消與電子下單折扣。 |
 ## Evidence policy
 
 - Government／exchange／regulator > official broker/API docs > official design system > primary repo > secondary comparison。
@@ -43,7 +60,9 @@
 
 ## Current unverified external work
 
-- TWSE 最新交易規則、tick schedule、odd-lot、corporate-action effective dates。
+- TWSE 商品別「每日升降幅度」規則（受益憑證買賣辦法第8條：無升降幅度 ETF、槓桿反向 ETF 倍數）尚未建模；權證漲跌停換算公式、上櫃（TPEx）規則、債券 tick 表亦未建模（見 FUTURE_PLAN Track B2 缺口 G-1～G-4）。
+- 盤中／盤後零股專屬申報時段與集合競價制度尚未建模（G-5）；新上市首五日無漲跌幅限制未建模（G-7）。
+- TWSE 市場休市日快照目前只涵蓋 2026 年度（[127]）；2027 年度公告後需更新 `js/tw-market-holidays.js`，範圍外一律退回 weekday 規則。
 - Fugle／Shioaji／Alpaca／IBKR 當前 adapter limits 與 paper 行為。
 - GitHub Actions secret scanning、code scanning、dependency review policy（immutable SHA pin＋Dependabot 已於 v7 落地並綠燈）。
 - AQR 白皮書 URL（[103]／[107]）為記憶重建、本輪未能開啟驗證；任何實作引用前必須重查官方頁，不得直接採用。
@@ -112,3 +131,11 @@
 [122] https://developer.fugle.tw/docs/pricing
 [123] https://developer.fugle.tw/docs/data/websocket-api/getting-started
 [124] https://developer.fugle.tw/docs/data/websocket-api/market-data-channels/trades
+[125] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=62
+[126] https://twse-regulation.twse.com.tw/TW/law/DAT0201.aspx?FLCODE=FL007114
+[127] https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json&queryYear=2026
+[128] https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=G0340078
+[129] https://law.moj.gov.tw/LawClass/LawSingle.aspx?Pcode=G0400001&FLNO=85
+[130] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=94
+[131] https://www.twsa.org.tw/DOC/970709.html
+[132] https://www.yuanta.com.tw/eYuanta/Securities/Node/Index?MainId=00415

@@ -338,3 +338,29 @@ test("start after FAILED opens a fresh generation", () => {
   assert.equal(client.getSnapshot().transport, SSE_TRANSPORTS.CONNECTING);
   assert.equal(client.getSnapshot().error, null);
 });
+
+test("預設 EventSource 工廠用 new 呼叫 class（瀏覽器的 EventSource 不能直接呼叫）", () => {
+  const original = globalThis.EventSource;
+  const created = [];
+  class FakeEventSource {
+    constructor(url) {
+      this.url = url;
+      this.listeners = new Map();
+      created.push(url);
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    close() {}
+  }
+  globalThis.EventSource = FakeEventSource;
+  try {
+    const client = new SseStreamClient({ baseUrl: "https://proxy.local" });
+    const snapshot = client.start("2330");
+    assert.equal(created.length, 1, "應建立一個 EventSource");
+    assert.ok(created[0].includes("/api/market/stream?symbol=2330"));
+    assert.equal(snapshot.transport, SSE_TRANSPORTS.CONNECTING);
+  } finally {
+    if (original === undefined) delete globalThis.EventSource;
+    else globalThis.EventSource = original;
+  }
+});

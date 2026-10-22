@@ -1,5 +1,9 @@
 # Delivery Report
 
+> **歷史文件（Track C3）**：本文件記錄 2026-09-10（PR#9）那一輪的交付快照，不再更新。
+> 現況以 `docs/PROJECT_STATUS.md`（唯一 current truth）與 `docs/PROJECT_AUDIT.md`（稽核快照）為準；
+> 會過期的數字（HEAD／測試數／閘門結果）改由 CI job summary 自動產生。
+
 ## 狀態
 
 - Repository：`https://github.com/waydefu/stock`

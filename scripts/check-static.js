@@ -15,6 +15,7 @@ const required = [
   "js/market-rules.js",
   "js/session-clock.js",
   "js/trading-calendar.js",
+  "js/tw-market-holidays.js",
   "js/corporate-actions.js",
   "js/charts.js",
   "js/backtest.js",

@@ -23,8 +23,8 @@ function okJson(payload, { status = 200, headers = {} } = {}) {
   return { ok: status >= 200 && status < 300, status, headers: { get: (n) => headers[n.toLowerCase()] ?? null }, async json() { return payload; } };
 }
 
-function fakeReq(method, path, headers = {}) {
-  return { method, url: path, headers };
+function fakeReq(method, path, headers = {}, remoteAddress = null) {
+  return { method, url: path, headers, socket: remoteAddress ? { remoteAddress } : null };
 }
 
 function fakeRes() {
@@ -35,8 +35,8 @@ function fakeRes() {
   return res;
 }
 
-async function call(proxy, method, path, headers = {}) {
-  const req = fakeReq(method, path, headers);
+async function call(proxy, method, path, headers = {}, remoteAddress = null) {
+  const req = fakeReq(method, path, headers, remoteAddress);
   const res = fakeRes();
   await proxy.handler(req, res);
   return { status: res.statusCode, headers: res.headers, json: JSON.parse(res.body || "{}") };
@@ -209,7 +209,7 @@ test("loopback integration serves real HTTP without external network", async () 
   }
 });
 
-test("per-process rate limiter sheds load with 429 instead of hitting upstream", async () => {
+test("per-client token bucket sheds load with 429 instead of hitting upstream", async () => {
   let upstreamCalls = 0;
   const { proxy } = testProxy(async () => {
     upstreamCalls += 1;
@@ -222,7 +222,91 @@ test("per-process rate limiter sheds load with 429 instead of hitting upstream",
   const shed = await call(proxy, "GET", "/api/market/quote?symbol=2330");
   assert.equal(shed.status, 429);
   assert.equal(shed.json.error.code, "RATE_LIMITED");
-  assert.equal(upstreamCalls, 2);
+  assert.equal(shed.headers["retry-after"], 30);
+  // 第三次被擋下，沒有再打上游（前兩次只有第一次真的打上游：第二次命中 quote 快取）。
+  assert.equal(upstreamCalls, 1);
+});
+
+test("one client exhausting its bucket never blocks another client", async () => {
+  const { proxy } = testProxy(async () => okJson(QUOTE_UPSTREAM), {
+    rateLimit: { capacity: 2, refillPerSecond: 1 },
+    clock: () => 1000,
+  });
+  for (let i = 0; i < 3; i += 1) {
+    const hit = await call(proxy, "GET", "/api/market/quote?symbol=2330", {}, "10.0.0.1");
+    if (i < 2) assert.equal(hit.status, 200);
+    else assert.equal(hit.status, 429);
+  }
+  const other = await call(proxy, "GET", "/api/market/quote?symbol=2330", {}, "10.0.0.2");
+  assert.equal(other.status, 200);
+});
+
+test("client key ignores X-Forwarded-For unless TRUST_PROXY is on", async () => {
+  const untrusted = testProxy(async () => okJson(QUOTE_UPSTREAM), {
+    rateLimit: { capacity: 1, refillPerSecond: 1 },
+    clock: () => 1000,
+  });
+  const first = await call(untrusted.proxy, "GET", "/api/market/quote?symbol=2330", { "x-forwarded-for": "203.0.113.9" }, "10.0.0.1");
+  const spoofed = await call(untrusted.proxy, "GET", "/api/market/quote?symbol=2330", { "x-forwarded-for": "203.0.113.9" }, "10.0.0.1");
+  assert.equal(first.status, 200);
+  assert.equal(spoofed.status, 429, "未開 TRUST_PROXY 時，X-Forwarded-For 不得改變 client bucket");
+
+  const trusted = testProxy(async () => okJson(QUOTE_UPSTREAM), {
+    rateLimit: { capacity: 1, refillPerSecond: 1 },
+    clock: () => 1000,
+    trustProxy: true,
+  });
+  const viaProxyA = await call(trusted.proxy, "GET", "/api/market/quote?symbol=2330", { "x-forwarded-for": "203.0.113.9" }, "10.0.0.1");
+  const viaProxyB = await call(trusted.proxy, "GET", "/api/market/quote?symbol=2330", { "x-forwarded-for": "203.0.113.10" }, "10.0.0.1");
+  assert.equal(viaProxyA.status, 200);
+  assert.equal(viaProxyB.status, 200, "TRUST_PROXY=1 時依 X-Forwarded-For 第一段分流");
+});
+
+test("quote cache serves the same symbol from cache inside the TTL", async () => {
+  let upstreamCalls = 0;
+  let now = 1_000;
+  const { proxy } = testProxy(async () => {
+    upstreamCalls += 1;
+    return okJson(QUOTE_UPSTREAM);
+  }, { clock: () => now, quoteCacheTtlMs: 4_000 });
+  const first = await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  assert.equal(first.status, 200);
+  assert.equal(first.json.meta.cached, false);
+  const second = await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  assert.equal(second.status, 200);
+  assert.equal(second.json.meta.cached, true);
+  assert.equal(second.json.data.price, 568);
+  assert.equal(upstreamCalls, 1, "TTL 內同代碼只打一次上游");
+
+  now += 5_000;
+  const third = await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  assert.equal(third.status, 200);
+  assert.equal(third.json.meta.cached, false);
+  assert.equal(upstreamCalls, 2, "TTL 過期後重新打上游");
+});
+
+test("daily upstream budget sheds with 429 and stops calling upstream", async () => {
+  let upstreamCalls = 0;
+  const { proxy, logs } = testProxy(async () => {
+    upstreamCalls += 1;
+    return okJson(QUOTE_UPSTREAM);
+  }, { dailyUpstreamBudget: 2, clock: () => 1_700_000_000_000 });
+  await call(proxy, "GET", "/api/market/quote?symbol=2330");
+  await call(proxy, "GET", "/api/market/quote?symbol=2331");
+  const budgeted = await call(proxy, "GET", "/api/market/quote?symbol=2332");
+  assert.equal(budgeted.status, 429);
+  assert.equal(budgeted.json.error.code, "RATE_LIMITED");
+  assert.equal(upstreamCalls, 2, "預算用盡後不得再打上游");
+  assert.ok(logs.some((entry) => entry.domainCode === "RATE_LIMITED"));
+});
+
+test("logs carry a hashed client id and never the raw client key", async () => {
+  const { proxy, logs } = testProxy(async () => okJson(QUOTE_UPSTREAM), { clock: () => 1_000 });
+  await call(proxy, "GET", "/api/market/quote?symbol=2330", {}, "203.0.113.77");
+  assert.equal(logs.length, 1);
+  assert.equal(typeof logs[0].clientId, "string");
+  assert.ok(!JSON.stringify(logs).includes("203.0.113.77"), "log 不得出現原始 IP");
+  assert.equal(logs[0].latencyMs, 0, "latency 用注入的 clock");
 });
 
 test("health endpoint reports liveness without secrets or internals", async () => {

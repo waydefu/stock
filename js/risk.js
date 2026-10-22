@@ -16,6 +16,10 @@ const ROLE_PERMISSIONS = {
 };
 
 const AUDIT_STORAGE_KEY = "tw-us-stock-audit-v1";
+/* R-027：斷路器狀態要跨 reload 存活（versioned localStorage）。
+   未知版本 → 視為未啟動（安全重置），不靜默沿用舊資料。 */
+const KILL_SWITCH_STORAGE_KEY = "tw-us-stock-killswitch-v1";
+const KILL_SWITCH_VERSION = 1;
 
 export function permissionsFor(role) { return [...(ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS.observer)]; }
 
@@ -23,8 +27,19 @@ export class RiskEngine {
   #config;
   #tripped = false;
   #reason = "";
+  #storage;
+  #now;
 
-  constructor(config = {}) { this.#config = { ...DEFAULT_RISK, ...config }; }
+  constructor(config = {}, { storage = null, now = () => Date.now() } = {}) {
+    this.#config = { ...DEFAULT_RISK, ...config };
+    this.#storage = storage;
+    this.#now = now;
+    const persisted = loadKillSwitch(storage);
+    if (persisted?.tripped) {
+      this.#tripped = true;
+      this.#reason = persisted.reason || "斷路器於上一個工作階段被啟動";
+    }
+  }
 
   /**
    * 風控決策的評估時點（evaluation time）來源：
@@ -64,15 +79,21 @@ export class RiskEngine {
       }
 
       // Session validation for TW only — evaluated at commit time, never at stale preview time.
+      // lot 傳「原文」：未指定就不套用零股規則（defaultLotForMarket("TW") 是 oddLot，
+      // 若用預設值補齊會把所有台股市價單都擋下，語意會錯）。
       const evaluationTs = context.now ?? order.timestamp ?? Date.now();
-      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", evaluationTs);
+      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", evaluationTs, order.lot);
       if (!sessionDecision.ok) {
         return { ok: false, code: sessionDecision.code === "OUTSIDE_TRADING_HOURS" ? "MARKET_CLOSED" : sessionDecision.code, reason: sessionDecision.reason };
       }
     }
 
     const dailyPnl = Number(account?.dailyPnl ?? 0);
-    const dailyLossPct = Math.abs(Math.min(0, dailyPnl)) / equity;
+    // 日損分母用「session 開盤 equity」（dailyLossReferenceEquity），
+    // 不是當下 equity：否則虧損時分母會跟著縮水，觸發點語意不一致（F-13）。
+    const referenceEquity = Number(account?.dailyLossReferenceEquity ?? equity);
+    const denominator = Number.isFinite(referenceEquity) && referenceEquity > 0 ? referenceEquity : equity;
+    const dailyLossPct = Math.abs(Math.min(0, dailyPnl)) / denominator;
     if (dailyLossPct >= this.#config.maxDailyLossPct) {
       this.trip(`日損 ${roundPct(dailyLossPct)}% 達到 ${roundPct(this.#config.maxDailyLossPct)}% 上限`);
       return { ok: false, code: "DAILY_LOSS_LIMIT", reason: "已達日損斷路器上限，請風控官確認後重置" };
@@ -92,10 +113,35 @@ export class RiskEngine {
     return { ok: true, code: "APPROVED", reason: "通過紙上交易風控" };
   }
 
-  trip(reason = "manual") { this.#tripped = true; this.#reason = String(reason); }
-  reset() { this.#tripped = false; this.#reason = ""; }
+  trip(reason = "manual") { this.#tripped = true; this.#reason = String(reason); this.#persist(); }
+  reset() { this.#tripped = false; this.#reason = ""; this.#persist(); }
   isTripped() { return this.#tripped; }
-  status() { return { tripped: this.#tripped, reason: this.#reason, config: { ...this.#config } }; }
+  status() { return { tripped: this.#tripped, reason: this.#reason, config: { ...this.#config }, persisted: Boolean(this.#storage) }; }
+
+  #persist() {
+    if (!this.#storage) return;
+    try {
+      this.#storage.setItem(KILL_SWITCH_STORAGE_KEY, JSON.stringify({
+        version: KILL_SWITCH_VERSION,
+        tripped: this.#tripped,
+        reason: this.#reason,
+        updatedAt: this.#now(),
+      }));
+    } catch { /* local persistence is best effort；trip 本身仍生效 */ }
+  }
+}
+
+function loadKillSwitch(storage) {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(KILL_SWITCH_STORAGE_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (payload?.version !== KILL_SWITCH_VERSION || typeof payload.tripped !== "boolean") return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function roundPct(value) { return (value * 100).toFixed(2); }

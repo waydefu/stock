@@ -3,6 +3,8 @@
 "use strict";
 
 import { rollingHigh, rsi, sma } from "./data.js";
+import { feeFor, perPeriodRate } from "./accounting.js";
+import { describeTwFeeModel, feeModelAffordableQty } from "./tw-fee-model.js";
 
 export const STRATEGIES = {
   maCross: "均線交叉",
@@ -70,6 +72,8 @@ function signalFor(strategy, bars, i, options, prepared) {
  * @param {Array<{t:number,o:number,h:number,l:number,c:number,v:number}>} bars
  * @param {string|Function} strategy
  * @param {object} options
+ * @param {object|null} options.feeModel 選用成本模型（見 js/accounting.js createTwFeeModel）。
+ *   null（預設）＝沿用原本的 flat commissionRate、沒有證券交易稅；給值時費用改由 FeeModel 計算。
  * @returns {{trades:Array, equity:number[], metrics:object, assumptions:object}}
  */
 export function runBacktest(bars, strategy = "maCross", options = {}) {
@@ -86,6 +90,10 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   const slippageBps = Math.max(0, finite(options.slippageBps, 5));
   const positionPct = Math.min(1, Math.max(0.01, finite(options.positionPct, 0.25)));
   const slip = slippageBps / 10_000;
+  // 選用成本模型：null 時完全維持既有 flat 手續費行為（數字不變）。
+  const feeModel = options.feeModel ?? null;
+  if (feeModel !== null && typeof feeModel.calculate !== "function") throw new Error("FeeModel 必須提供 calculate(context)");
+  const instrumentType = options.instrumentType ?? undefined;
   let cash = initialCapital;
   let qty = 0;
   let entryPrice = 0;
@@ -102,10 +110,14 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     if (qty > 0) return;
     const price = bar.o * (1 + slip);
     const budget = cash * positionPct;
-    const candidate = Math.floor(budget / (price * (1 + commissionRate)));
+    const candidate = feeModel
+      ? feeModelAffordableQty(feeModel, budget, price, instrumentType)
+      : Math.floor(budget / (price * (1 + commissionRate)));
     if (candidate <= 0) return;
     const cost = price * candidate;
-    const fees = cost * commissionRate;
+    const fees = feeModel
+      ? feeFor(feeModel, { side: "buy", price, qty: candidate, instrumentType, dayTrade: false })
+      : cost * commissionRate;
     cash -= cost + fees;
     qty = candidate;
     entryPrice = price;
@@ -118,7 +130,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     if (qty <= 0) return;
     const price = bar.o * (1 - slip);
     const proceeds = price * qty;
-    const fees = proceeds * commissionRate;
+    const fees = feeModel
+      ? feeFor(feeModel, { side: "sell", price, qty, instrumentType, dayTrade: false })
+      : proceeds * commissionRate;
     cash += proceeds - fees;
     const grossPnl = (price - entryPrice) * qty;
     const totalFees = entryFees + fees;
@@ -159,7 +173,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     const bar = bars.at(-1);
     const price = bar.c * (1 - slip);
     const proceeds = price * qty;
-    const fees = proceeds * commissionRate;
+    const fees = feeModel
+      ? feeFor(feeModel, { side: "sell", price, qty, instrumentType, dayTrade: false })
+      : proceeds * commissionRate;
     cash += proceeds - fees;
     const grossPnl = (price - entryPrice) * qty;
     const totalFees = entryFees + fees;
@@ -198,7 +214,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   const variance = returns.length ? returns.reduce((a, b) => a + (b - avg) ** 2, 0) / returns.length : 0;
   const std = Math.sqrt(variance);
   const sharpeInsufficient = returns.length < minSharpeSamples;
-  const excessAvg = avg - riskFreeRate;
+  // riskFreeRate 是「年化」利率（UI 也以年化 % 顯示）：超額報酬要用每期利率。
+  const riskFreeRatePerPeriod = perPeriodRate(riskFreeRate, periodsPerYear);
+  const excessAvg = avg - riskFreeRatePerPeriod;
   const metrics = {
     initialCapital,
     finalCapital,
@@ -219,7 +237,21 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
     trades,
     equity,
     metrics,
-    assumptions: { strategy, commissionRate, slippageBps, positionPct, periodsPerYear, riskFreeRate, minSharpeSamples, fill: "next_bar_open", forceClose: "last_close" },
+    assumptions: {
+      strategy,
+      // feeModel 啟用時，實際成本以 feeModel 摘要為準，commissionRate 不再代表實際收取費率。
+      commissionRate: feeModel ? null : commissionRate,
+      feeModel: feeModel ? describeTwFeeModel(feeModel) : null,
+      slippageBps,
+      positionPct,
+      periodsPerYear,
+      riskFreeRate,
+      riskFreeRatePerPeriod,
+      riskFreeRateBasis: "annual",
+      minSharpeSamples,
+      fill: "next_bar_open",
+      forceClose: "last_close",
+    },
     closes,
   };
 }
