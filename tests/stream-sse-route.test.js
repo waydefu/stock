@@ -99,9 +99,9 @@ function setupProxy(mgr) {
   return { proxy, logs };
 }
 
-async function getStream(proxy, path, headers = {}) {
+async function getStream(proxy, path, headers = {}, remoteAddress = null) {
   const res = fakeSseRes();
-  await proxy.handler({ method: "GET", url: path, headers }, res);
+  await proxy.handler({ method: "GET", url: path, headers, socket: remoteAddress ? { remoteAddress } : null }, res);
   return res;
 }
 
@@ -252,4 +252,21 @@ test("route leaves no timers or clients after all closes", async () => {
   res.fireClose();
   assert.equal(ctx.mgr.debug().totalClients, 0);
   assert.equal(ctx.timers.pendingCount(), 0);
+});
+
+test("stream route enforces a per-client SSE cap without blocking other clients", async () => {
+  const { mgr } = setupManager({ maxSseClientsPerClient: 2 });
+  const { proxy } = setupProxy(mgr);
+  const first = await getStream(proxy, "/api/market/stream?symbol=2330", {}, "10.0.0.1");
+  const second = await getStream(proxy, "/api/market/stream?symbol=2331", {}, "10.0.0.1");
+  const third = await getStream(proxy, "/api/market/stream?symbol=2332", {}, "10.0.0.1");
+  assert.ok(!first.body.includes("STREAM_RATE_LIMITED"));
+  assert.ok(!second.body.includes("STREAM_RATE_LIMITED"));
+  assert.ok(third.body.includes("STREAM_RATE_LIMITED"), "同一 client 超過 per-client 上限被拒");
+  const other = await getStream(proxy, "/api/market/stream?symbol=2333", {}, "10.0.0.2");
+  assert.ok(!other.body.includes("STREAM_RATE_LIMITED"), "其他 client 不受影響");
+  first.fireClose();
+  second.fireClose();
+  third.fireClose();
+  other.fireClose();
 });

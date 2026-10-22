@@ -403,3 +403,68 @@ test("symbol and channel validation", () => {
   assert.throws(() => assertStreamSymbol("x".repeat(40)), (e) => e.code === STREAM_ERROR_CODE.STREAM_SCHEMA_INVALID);
   assert.throws(() => assertStreamChannel("books"), (e) => e.code === STREAM_ERROR_CODE.STREAM_SCHEMA_INVALID);
 });
+
+test("per-client SSE cap rejects only the offending client", () => {
+  const ctx = setup({ maxSseClientsPerClient: 2 });
+  const a = makeSink();
+  const b = makeSink();
+  const c = makeSink();
+  ctx.mgr.subscribe("2330", "trades", a, { clientId: "client-a" });
+  ctx.mgr.subscribe("2331", "trades", b, { clientId: "client-a" });
+  assert.throws(
+    () => ctx.mgr.subscribe("2332", "trades", c, { clientId: "client-a" }),
+    (error) => error.code === STREAM_ERROR_CODE.STREAM_RATE_LIMITED,
+  );
+  const other = makeSink();
+  ctx.mgr.subscribe("2333", "trades", other, { clientId: "client-b" });
+  assert.equal(ctx.mgr.debug().totalClients, 3);
+  assert.equal(ctx.mgr.debug().clientStreams["client-a"], 2);
+  assert.equal(ctx.mgr.debug().clientStreams["client-b"], 1);
+});
+
+test("upstream subscribe failure releases only that key and keeps the other key live", () => {
+  const ctx = setup();
+  const bad = makeSink();
+  const good = makeSink();
+  const ws = goLive(ctx, bad, "2330");
+  ctx.mgr.subscribe("2331", "trades", good);
+  ws.receive({ event: "subscribed", data: { id: "cid-2", channel: "trades", symbol: "2331" } });
+  assert.equal(ctx.mgr.debug().keyStates["FUGLE:TW:2331:trades"], "LIVE");
+
+  ws.receive({ event: "error", data: { message: "symbol not found", symbol: "2330" } });
+
+  assert.ok(bad.events.some((e) => e.e === "error" && e.code === STREAM_ERROR_CODE.STREAM_SUBSCRIBE_FAILED), "失敗的 client 收到 STREAM_SUBSCRIBE_FAILED");
+  assert.ok(!good.events.some((e) => e.e === "error"), "其他 key 的 client 不受影響");
+  assert.equal(ctx.mgr.debug().subscriptionKeys.includes("FUGLE:TW:2330:trades"), false, "失敗的 key 已釋放");
+  assert.equal(ctx.mgr.debug().totalClients, 1);
+  assert.equal(ctx.mgr.debug().keyStates["FUGLE:TW:2331:trades"], "LIVE", "其他 key 仍是 LIVE");
+});
+
+test("upstream error without symbol is attributed to the single pending key", () => {
+  const ctx = setup();
+  const sink = makeSink();
+  ctx.mgr.subscribe("2330", "trades", sink);
+  const ws = ctx.sockets[0];
+  ws.open();
+  ws.receive({ event: "authenticated", data: {} });
+  ws.receive({ event: "error", data: { message: "invalid symbol" } });
+  assert.ok(sink.events.some((e) => e.e === "error" && e.code === STREAM_ERROR_CODE.STREAM_SUBSCRIBE_FAILED));
+  assert.equal(ctx.mgr.debug().subscriptionKeys.length, 0);
+  assert.equal(ctx.mgr.debug().totalClients, 0);
+});
+
+test("one key reaches LIVE without waiting for the other key", () => {
+  const ctx = setup();
+  const a = makeSink();
+  const b = makeSink();
+  ctx.mgr.subscribe("2330", "trades", a);
+  ctx.mgr.subscribe("2331", "trades", b);
+  const ws = ctx.sockets.at(-1);
+  ws.open();
+  ws.receive({ event: "authenticated", data: {} });
+  ws.receive({ event: "subscribed", data: { id: "cid-1", channel: "trades", symbol: "2330" } });
+  assert.equal(ctx.mgr.debug().keyStates["FUGLE:TW:2330:trades"], "LIVE");
+  assert.notEqual(ctx.mgr.debug().keyStates["FUGLE:TW:2331:trades"], "LIVE");
+  assert.ok(a.events.some((e) => e.e === "state" && e.state === "LIVE"));
+  assert.ok(!b.events.some((e) => e.e === "state" && e.state === "LIVE"));
+});
