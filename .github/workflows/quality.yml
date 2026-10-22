@@ -45,7 +45,9 @@ jobs:
         run: npm run check:syntax
 
       - name: Run deterministic unit tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/test-output.txt"
 
       - name: Check required static files and module paths
         run: npm run check:static
@@ -55,6 +57,12 @@ jobs:
 
       - name: Check status sync gate
         run: npm run check:status
+
+      - name: Publish CI summary
+        if: always()
+        env:
+          TEST_OUTPUT_FILE: ${{ runner.temp }}/test-output.txt
+        run: node scripts/ci-summary.js
 
       - name: Smoke-test static server
         run: |
