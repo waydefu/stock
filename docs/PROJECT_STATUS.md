@@ -66,3 +66,5 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 - Secret scanning：公開 repo 預設已開（含 push protection），2026-10-22 API 查驗為 `enabled`。
 - Dependency review：`.github/workflows/dependency-review.yml`（PR 檢視依賴變更）。
 - 仍缺：required PR review 數、ruleset、貢獻者身份一致性（見 FUTURE_PLAN Track C2）。
+- `check:status` 門禁：改了程式／測試／閘門的 PR 必須同步本文件；Dependabot 的機械式版本更新豁免這項
+  （內容契約照跑），避免為無關的 action 升級而改文件。

@@ -87,6 +87,13 @@ function main() {
     console.log("CHECK-STATUS PASS：未觸及程式／測試／閘門");
     return;
   }
+  // Dependabot 的機械式版本更新不改 scope／gaps，不該要求人手改文件；
+  // 但內容契約（不得手寫過期數字）仍照跑。
+  const headRef = process.env.GITHUB_HEAD_REF ?? "";
+  if (headRef.startsWith("dependabot/")) {
+    console.log("CHECK-STATUS PASS：dependabot 機械式更新，不要求同步 STATUS（內容契約已檢查）");
+    return;
+  }
   if (files.includes(STATUS_FILE)) {
     console.log(`CHECK-STATUS PASS：${STATUS_FILE} 已同步`);
     return;
