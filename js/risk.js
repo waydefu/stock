@@ -79,8 +79,10 @@ export class RiskEngine {
       }
 
       // Session validation for TW only — evaluated at commit time, never at stale preview time.
+      // lot 傳「原文」：未指定就不套用零股規則（defaultLotForMarket("TW") 是 oddLot，
+      // 若用預設值補齊會把所有台股市價單都擋下，語意會錯）。
       const evaluationTs = context.now ?? order.timestamp ?? Date.now();
-      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", evaluationTs);
+      const sessionDecision = validateOrderTypeInSession(order.market, order.orderType ?? "limit", evaluationTs, order.lot);
       if (!sessionDecision.ok) {
         return { ok: false, code: sessionDecision.code === "OUTSIDE_TRADING_HOURS" ? "MARKET_CLOSED" : sessionDecision.code, reason: sessionDecision.reason };
       }

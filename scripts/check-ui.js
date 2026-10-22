@@ -571,6 +571,19 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("stream-bridge-boundary", problems.join("；"));
 }
 
+// 35. Live UI 終端錯誤要可行動：STREAM_SUBSCRIBE_FAILED／RATE_LIMITED 都要有
+//     對應文案與下一步，且有獨立的 alert 容器（不能只寫一行 status）
+{
+  const problems = [];
+  if (!/id="stream-alert"/.test(html)) problems.push("index.html 缺 stream-alert 容器（可行動錯誤態）");
+  if (!/STREAM_SUBSCRIBE_FAILED/.test(app)) problems.push("app 缺 STREAM_SUBSCRIBE_FAILED 文案");
+  if (!/STREAM_ERROR_ACTION/.test(app)) problems.push("app 缺可行動錯誤對照表（STREAM_ERROR_ACTION）");
+  if (!/RATE_LIMITED/.test(app)) problems.push("app 缺 RATE_LIMITED（proxy 限流）文案");
+  if (!/statePanel\("error"/.test(app)) problems.push("app 的串流錯誤未用 statePanel(\"error\") 呈現");
+  if (problems.length === 0) ok("stream-actionable-errors");
+  else fail("stream-actionable-errors", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);

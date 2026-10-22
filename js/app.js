@@ -635,9 +635,22 @@ const STREAM_ERROR_TEXT = {
   STREAM_UPSTREAM_CLOSED: "上游斷線，瀏覽器自動重連中",
   STREAM_TIMEOUT: "逾時，瀏覽器自動重連中",
   INVALID_SYMBOL: "商品代碼不正確，請修正標的",
+  RATE_LIMITED: "請求過於頻繁（proxy 限流），不自動重連；請稍候再按「開始串流」",
   FUGLE_MODE_OFF: "目前是模擬模式",
   PROXY_NOT_CONFIGURED: "Fugle mode unavailable：尚未設定 proxy URL",
   UNSUPPORTED_CAPABILITY: "目前瀏覽器不支援 EventSource，不偽裝連線",
+};
+
+/* Track A4：終端錯誤要給「可行動」狀態，不是只有一行 status。
+   每一種錯誤都對應一個明確的下一步（改標的／等待／找維運／重試）。 */
+const STREAM_ERROR_ACTION = {
+  STREAM_SUBSCRIBE_FAILED: "請確認代號是否為有效的 Fugle 商品（例：2330、0050），或改用其他標的後按「開始串流」重試。",
+  STREAM_RATE_LIMITED: "本機連線數已達上限，請先按「停止」關閉其他分頁的串流，再按「開始串流」重試。",
+  RATE_LIMITED: "請等待約一分鐘再重試；若持續發生，代表同一來源請求過於頻繁。",
+  STREAM_AUTH_FAILED: "這是部署端問題：金鑰或 Fugle 方案不足，請通知維護者後再試。",
+  STREAM_RECONNECT_EXHAUSTED: "上游連續失敗，請稍候按「開始串流」重試。",
+  STREAM_SCHEMA_INVALID: "上游資料格式異常，請通知維護者（不要在此重試轟擊上游）。",
+  INVALID_SYMBOL: "請修正上方標的欄位後重試。",
 };
 let streamClient = null;
 let streamLastStatusText = "";
@@ -662,6 +675,19 @@ function paintStreamLatest(trade) {
   latest.textContent = `${trade.symbol} 最新 ${price}・${fmtTaipeiTime(trade.providerTimestamp)}・${fresh}・seq ${trade.sequence ?? "?"}`;
 }
 
+function renderStreamAlert(snap) {
+  const box = $("#stream-alert");
+  if (!box) return;
+  const error = snap?.error;
+  if (!error) {
+    box.innerHTML = "";
+    return;
+  }
+  const hint = STREAM_ERROR_TEXT[error.code] ?? "未知錯誤";
+  const action = STREAM_ERROR_ACTION[error.code] ?? "請按「開始串流」手動重試；若持續發生，請通知維護者。";
+  box.innerHTML = statePanel("error", `串流中止［${error.code}］${error.terminal ? "（需手動重試）" : "（自動重連中）"}`, `${hint}。${action}`);
+}
+
 function updateStreamPanel() {
   const startBtn = $("#stream-start");
   const stopBtn = $("#stream-stop");
@@ -680,6 +706,7 @@ function updateStreamPanel() {
     status.textContent = text;
     streamLastStatusText = text;
   }
+  renderStreamAlert(snap);
   const trades = streamClient ? streamClient.recentTrades() : [];
   if (trades.length) paintStreamLatest(trades[trades.length - 1]);
 }
@@ -733,6 +760,7 @@ function startStream() {
     streamLastStatusText = "";
     const status = $("#stream-status");
     if (status) status.textContent = `串流啟動失敗［${code}］：${STREAM_ERROR_TEXT[code] ?? "未知錯誤"}維持 Fugle 模式，不切回模擬。`;
+    renderStreamAlert({ error: { code, terminal: true } });
     auditEvent("STREAM_ERROR", { symbol: want, code });
   }
   updateStreamPanel();

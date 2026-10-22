@@ -124,3 +124,20 @@ test("stale probe 失敗不會讓 proxy 主流程中斷", () => {
   });
   assert.doesNotThrow(() => scheduled());
 });
+
+test("台股零股市價單被拒（零股只收限價），整股市價單不受影響", () => {
+  const risk = new RiskEngine();
+  const account = { equity: 1_000_000, cash: 1_000_000, positions: {}, dailyPnl: 0, dailyLossReferenceEquity: 1_000_000 };
+  const base = { market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100, referencePrice: 100, orderType: "market" };
+  const TAIPEI_SESSION = Date.parse("2026-09-15T02:00:00Z");
+
+  const oddLot = risk.approveOrder(account, { ...base, lot: "oddLot" }, { now: TAIPEI_SESSION });
+  assert.equal(oddLot.ok, false);
+  assert.equal(oddLot.code, "ODD_LOT_LIMIT_ONLY");
+
+  const regular = risk.approveOrder(account, { ...base, qty: 1000, lot: "regular" }, { now: TAIPEI_SESSION });
+  assert.equal(regular.ok, true, `整股市價單應可預覽：${regular.reason ?? ""}`);
+
+  const noLot = risk.approveOrder(account, { ...base }, { now: TAIPEI_SESSION });
+  assert.equal(noLot.ok, true, "未指定 lot 時維持相容語意（不套用零股限制）");
+});
