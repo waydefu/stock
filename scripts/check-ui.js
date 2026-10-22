@@ -284,9 +284,16 @@ const count = (text, re) => (text.match(re) ?? []).length;
   if (/fetch\s*\(|XMLHttpRequest|new WebSocket/.test(app + readFileSync("js/data.js", "utf8") + readFileSync("js/paper.js", "utf8") + readFileSync("js/charts.js", "utf8"))) {
     problems.push("執行路徑出現網路 API（fetch／XHR／WebSocket）");
   }
-  for (const f of readdirSync("js").filter((f) => f.endsWith(".js") && f !== "market-rules.js")) {
+  // 允許放「來源引用常數」的模組（官方網址是出處，不是網路呼叫）。
+  // 這些模組另外被檢查不得含網路 API，避免放寬後變成後門。
+  const sourceConstantModules = new Set(["market-rules.js", "tw-market-holidays.js", "tw-fee-model.js"]);
+  for (const f of readdirSync("js").filter((f) => f.endsWith(".js"))) {
     const src = readFileSync(`js/${f}`, "utf8");
-    if (/https?:\/\//.test(src)) problems.push(`js/${f} 出現 URL 字串（來源常數只允許在 market-rules.js）`);
+    if (sourceConstantModules.has(f)) {
+      if (/fetch\s*\(|XMLHttpRequest|new WebSocket/.test(src)) problems.push(`js/${f} 是來源常數模組，不應出現網路 API`);
+      continue;
+    }
+    if (/https?:\/\//.test(src)) problems.push(`js/${f} 出現 URL 字串（來源常數只允許在 ${[...sourceConstantModules].join("／")}）`);
   }
   if (problems.length === 0) ok("no-network");
   else fail("no-network", problems.join("；"));
