@@ -43,6 +43,7 @@
 | 盤中零股交易委託以限價為之且限當日有效（申報 9:00–13:30、9:10 起每 5 秒集合競價） | [98] | 臺灣證券交易所「集中市場交易制度介紹／肆、盤中零股交易」 | MarketRules 零股制度 | Highly time-sensitive（查閱 2026-10-22） | 零股限價規則已實作；零股專屬申報時段與集合競價制度尚未建模（明確缺口）。 |
 | 受益憑證每日升降幅度準用上市股票（10%），但國外成分 ETF／期貨信託 ETF／境外指數股票型基金／國外成分主動式 ETF 無升降幅度限制；槓桿反向 ETF 為 10%×倍數 | [126] | 臺灣證券交易所受益憑證買賣辦法第8條 | MarketRules 漲跌幅 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：`dailyPriceLimitPct` 目前一律 10%（明確缺口，需商品別每日升降幅度資料模型）。 |
 | 權證漲跌停非 ±10%，以標的證券當日漲跌停價換算；指數型權證以前一日標的指數收盤×每點對應金額×行使比例×10% 計算 | [98] | 臺灣證券交易所「集中市場交易制度介紹／壹、每日升降幅度」 | MarketRules 漲跌停 | Highly time-sensitive（查閱 2026-10-22） | **尚未實作**：權證只支援 tick 表，漲跌停仍走一般 ±10% 公式（明確缺口，需標的證券漲跌停價）。 |
+| TWSE 市場開休市日期（2026 年度：24 個市場無交易日，含春節 2/12–2/20、和平紀念日補假 2/27、兒童節掃墓節 4/3–4/6、勞動節 5/1、端午節 6/19、中秋節 9/25、教師節 9/28、國慶日補假 10/9、光復節補假 10/26、行憲紀念日 12/25） | [127] | 臺灣證券交易所「市場開休市日期」開放資料 | MarketCalendar（TW 休市日） | Highly time-sensitive（查閱 2026-10-22，涵蓋 2026-01-01..2026-12-31） | `js/tw-market-holidays.js` 為官方快照；`MarketHolidayCalendar` 用於台股交易時段判斷，涵蓋範圍外退回 weekday 規則並在 policy 明講。 |
 ## Evidence policy
 
 - Government／exchange／regulator > official broker/API docs > official design system > primary repo > secondary comparison。
@@ -54,6 +55,7 @@
 
 - TWSE 商品別「每日升降幅度」規則（受益憑證買賣辦法第8條：無升降幅度 ETF、槓桿反向 ETF 倍數）尚未建模；權證漲跌停換算公式、上櫃（TPEx）規則、債券 tick 表亦未建模（見 FUTURE_PLAN Track B2 缺口 G-1～G-4）。
 - 盤中／盤後零股專屬申報時段與集合競價制度尚未建模（G-5）；新上市首五日無漲跌幅限制未建模（G-7）。
+- TWSE 市場休市日快照目前只涵蓋 2026 年度（[127]）；2027 年度公告後需更新 `js/tw-market-holidays.js`，範圍外一律退回 weekday 規則。
 - Fugle／Shioaji／Alpaca／IBKR 當前 adapter limits 與 paper 行為。
 - GitHub Actions secret scanning、code scanning、dependency review policy（immutable SHA pin＋Dependabot 已於 v7 落地並綠燈）。
 - AQR 白皮書 URL（[103]／[107]）為記憶重建、本輪未能開啟驗證；任何實作引用前必須重查官方頁，不得直接採用。
@@ -124,3 +126,4 @@
 [124] https://developer.fugle.tw/docs/data/websocket-api/market-data-channels/trades
 [125] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=62
 [126] https://twse-regulation.twse.com.tw/TW/law/DAT0201.aspx?FLCODE=FL007114
+[127] https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json&queryYear=2026

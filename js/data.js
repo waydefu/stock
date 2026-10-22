@@ -71,7 +71,9 @@ export function getBars(code) {
   };
   const bars = [];
   let price = meta.base * (1 - meta.drift * BAR_COUNT * 0.5); // 從過去推到現在
-  // 只使用明確命名的 simplified weekday calendar；不宣稱涵蓋交易所假日。
+  // 模擬資料刻意使用 simplified weekday calendar：模擬窗固定在 2025（終點
+  // 2025/12/31），不在官方休市日快照的涵蓋範圍內；套用快照會讓模擬終點漂移，
+  // 破壞可重現性。真實交易時段判斷走 js/market-rules.js 的官方休市日日曆。
   const day = 86400000;
   // 固定模擬終點，讓跨程序回測也能重現，而不是依賴本機目前時間。
   const simulationEnd = Date.UTC(2025, 11, 31);

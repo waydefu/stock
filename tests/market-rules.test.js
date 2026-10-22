@@ -232,3 +232,11 @@ test("validateOrderTypeInSession enforces order types per session", () => {
   assert.equal(us.ok, false);
   assert.equal(us.code, "OUTSIDE_TRADING_HOURS");
 });
+test("台股休市日沒有交易時段（官方休市日快照）", () => {
+  // 2026-10-09 週五（國慶日補假）09:00 台北 → 無交易時段
+  assert.equal(getCurrentSession("TW", Date.parse("2026-10-09T01:00:00Z")), null);
+  // 2026-02-17 週二（春節）09:00 台北 → 無交易時段
+  assert.equal(getCurrentSession("TW", Date.parse("2026-02-17T01:00:00Z")), null);
+  // 一般平日仍有一般交易時段
+  assert.ok(getCurrentSession("TW", Date.parse("2026-09-15T01:00:00Z")));
+});

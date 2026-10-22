@@ -1,7 +1,7 @@
 /* Market-specific constraints. TW fields are sourced; US remains intentionally simplified. */
-import { SimplifiedWeekdayCalendar } from "./trading-calendar.js";
+import { MarketHolidayCalendar } from "./trading-calendar.js";
 
-const calendar = new SimplifiedWeekdayCalendar();
+const calendar = new MarketHolidayCalendar();
 
 const TW_RULE_SOURCE = "https://www.twse.com.tw/en/products/system/trading.html";
 const TW_ODD_LOT_SOURCE = "https://twse-regulation.twse.com.tw/ENG/EN/law/DAT0201.aspx?FLCODE=FL007115";
