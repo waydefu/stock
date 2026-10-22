@@ -3,9 +3,12 @@
 ## 目前治理狀態
 
 - `main` 是整合分支。
-- 所有程式修改走 Pull Request；PR 必須通過 `.github/workflows/quality.yml`。
+- 所有程式修改走 Pull Request；PR 必須通過 `.github/workflows/quality.yml`（`Quality`）、
+  `.github/workflows/e2e.yml`（`Browser E2E`）與 `.github/workflows/codeql.yml`（`CodeQL`）。
+- `main` 已啟用 branch protection（2026-10-22）：required status check＝`Quality`；
+  不允許 force push／刪除分支；`enforce_admins` 未開（維護者仍可 bypass，但一般流程請走 PR）。
 - Merge 是人工決策，不由 agent 自動執行。
-- 本 repo 的 CI 只做可重現的靜態檢查與單元測試，不連接真實券商。
+- 本 repo 的 CI 只做可重現的靜態檢查、單元測試與瀏覽器 E2E，不連接真實券商。
 
 ## 角色（RBAC）
 
