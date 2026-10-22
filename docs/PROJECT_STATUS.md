@@ -29,13 +29,27 @@
 | C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字 |
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 
+## 真實資料與部署實測（2026-10-22，PR#37 合併後）
+
+- 線上 proxy：`https://stock-fugle-proxy.onrender.com`（Render，由 main 自動部署）→ `healthz` 200。
+- **新版防濫用已上線實測**：同一來源連打 69 次後回 429 `RATE_LIMITED`
+  （訊息「你的來源請求過於頻繁，請稍後再試（per-client 保護）」）——舊版是全 process 共用限流；
+  單元測試鎖住「另一個 client 仍可取得報價」與「quote TTL 內只打一次上游」。
+- `npm run smoke:fugle:remote` → `REMOTE_QUOTE_SMOKE=PASS`（2330 報價 2385，freshness=STALE＝休市後的誠實標示）。
+- `npm run smoke:research:remote` → `REMOTE_RESEARCH_SMOKE=PASS`（233 根真實日 K、2025-11-06→2026-10-22、
+  OOS 交易 1 筆、OOS 損益 +7,440（含稅費 1,505）、promotion=FAIL → 弱證據不晉升）。
+- `npm run smoke:stream:remote` → `REAL_STREAM_TRANSPORT=PASS`（state 序列
+  CONNECTING→AUTHENTICATING→SUBSCRIBING→LIVE→STALE、keepalive 正常、35 秒內無 silent stale）；
+  `REAL_STREAM_TRADE=BLOCKED_BY_MARKET_CLOSED`（台北 19:57 休市，逐筆無資料屬正常）。
+- GitHub Pages：main 合併後由 `pages.yml` 自動重新部署。
+
 ## Scope
 
 paper／research-only prototype；無 live broker path；公開 Pages 不持任何憑證。
 
 ## Known gaps（非 blocker，按優先序）
 
-1. 真 exchange calendar／corporate-action 調整資料（simplified-weekday 現狀）
+1. corporate-action（除權息）調整資料尚未取得與套用（TWSE 休市日已改用官方 2026 快照，見 D2）
 2. matching＋reconciliation（立即成交模型現狀，見 R-003）
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
