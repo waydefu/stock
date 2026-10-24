@@ -64,7 +64,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
    （見 Track B2 回報的缺口 G-1～G-8）
 5. Paper 成本殘留：尚無 acquisition-session provenance，故不套當沖減稅；US 非佣金成本尚未來源化，現在明示 zero-fee
 6. 完整 WCAG audit＋viewport 幾何實測（Browser E2E 已在 CI）
-7. legacy `runBacktest` 的內建訊號已收斂到 `js/classic-strategies.js` 並有 layered parity；剩 sizing／execution／metrics 相容路徑待 UI 遷移後退役（R-021）
+7. legacy `runBacktest` 已退出正式 UI：MA／RSI／Breakout 全部走 `classic-backtest-runner → Research Engine`；舊 API 只留 compatibility／golden tests，後續可獨立評估刪除（R-021）
 8. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
 9. `scripts/check-ui.js` 已把 runtime／security boundary gates 抽到 `scripts/ui-gates/runtime-boundaries.js`；其餘視覺／a11y gates 後續按領域續拆
 10. 24/7 部署條件尚未成立：server scheduler 已可用且 fail-closed，但目前 Free Render proxy 不符合 always-on／durable storage 條件；因此 production env 保持 `AUTO_PAPER_SERVER_ENABLED!=1`（R-034）

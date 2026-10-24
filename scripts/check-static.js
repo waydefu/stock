@@ -22,6 +22,7 @@ const required = [
   "js/corporate-actions.js",
   "js/charts.js",
   "js/classic-strategies.js",
+  "js/classic-backtest-runner.js",
   "js/backtest.js",
   "js/strategy.js",
   "js/alpha.js",
@@ -106,6 +107,16 @@ if (!/buildForwardTestReport/.test(forwardReport) || /setItem\s*\(/.test(forward
 }
 if (/live.?broker|real.?broker/i.test(serverAuto)) {
   console.error("server Auto Paper module contains live-broker-shaped coupling");
+  process.exit(1);
+}
+
+const appUi = readFileSync("js/app.js", "utf8");
+if (/runBacktest\s*\(/.test(appUi)) {
+  console.error("app.js must not use legacy runBacktest; classic UI belongs on layered research engine");
+  process.exit(1);
+}
+if (!/runClassicLayeredBacktest/.test(appUi)) {
+  console.error("app.js missing layered classic backtest runner");
   process.exit(1);
 }
 

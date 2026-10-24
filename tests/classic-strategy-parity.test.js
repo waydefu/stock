@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import { rollingHigh, rsi, sma } from "../js/data.js";
 import { classicSignalFor, createClassicStrategy, prepareClassicSignalData } from "../js/classic-strategies.js";
 import { runBacktest } from "../js/backtest.js";
-import { fixedFraction } from "../js/portfolio.js";
-import { runResearchBacktest } from "../js/research.js";
+import { runClassicLayeredBacktest } from "../js/classic-backtest-runner.js";
 
 function barsFromCloses(closes) {
   return closes.map((c, i) => {
@@ -82,15 +81,17 @@ for (const spec of CASES) {
       commissionRate: 0,
       slippageBps: 0,
     });
-    const layered = runResearchBacktest({
+    const product = runClassicLayeredBacktest({
       symbol: "TEST",
       bars,
-      strategy: createClassicStrategy(spec.id, spec.options),
-      allocate: fixedFraction(0.25),
+      strategyId: spec.id,
+      strategyOptions: spec.options,
+      positionFraction: 0.25,
       initialCapital: 100_000,
       commissionRate: 0,
       slippageBps: 0,
     });
+    const layered = product.result;
     const pick = (trade) => ({
       entryTime: trade.entryTime,
       exitTime: trade.exitTime,
@@ -103,6 +104,8 @@ for (const spec of CASES) {
       exitReason: trade.exitReason,
     });
     assert.deepEqual(layered.trades.map(pick), classic.trades.map(pick));
+    assert.ok(Math.abs(product.summary.netProfit - classic.metrics.netProfit) < 1e-9);
+    assert.equal(product.summary.tradeCount, classic.metrics.tradeCount);
     assert.ok(classic.trades.length > 0, "fixture must produce at least one completed trade");
   });
 }
