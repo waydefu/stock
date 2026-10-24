@@ -213,6 +213,7 @@ export class AutoPaperRunner {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.BACKTESTED);
     }
     this.#state.approval = null;
+    this.#state.pendingIntent = null;
     this.#state.lastOutcome = "RESEARCH_REJECTED";
     this.#save();
     this.#audit("AUTO_RESEARCH_REJECTED", { symbol: this.#symbol, strategyId: this.#strategy.id, evidence });
@@ -240,6 +241,7 @@ export class AutoPaperRunner {
     if (this.#state.lifecycle === LIFECYCLE.PAPER_ENABLED) {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.PAUSED);
     }
+    this.#state.pendingIntent = null;
     this.#state.lastOutcome = "PAUSED";
     this.#save();
     this.#audit("AUTO_PAPER_PAUSED", { symbol: this.#symbol, strategyId: this.#strategy.id, reason });
@@ -423,6 +425,7 @@ export class AutoPaperRunner {
     if (this.#state.lifecycle === LIFECYCLE.PAPER_ENABLED) {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.KILL_SWITCHED);
     }
+    this.#state.pendingIntent = null;
     this.#state.lastOutcome = reason;
     this.#save();
   }
