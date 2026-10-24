@@ -1,11 +1,11 @@
-/* 台股成本模型（回測／研究用；paper broker 仍維持 zero-fee，見 R-018）。
+/* 台股成本模型（研究／回測與可注入的 paper runtime policy 共用；PaperBroker constructor 預設仍 zero-fee 以保留 DI／測試控制）。
    這個模組是「來源常數模組」：可以放官方網址作為出處，但不得含網路 API
    （check-ui 第 12 項會檢查）。模型本身是純函式，不碰 DOM、不連網。 */
 "use strict";
 
 import { feeFor } from "./accounting.js";
 
-/* ── 台股成本模型（回測／研究用；paper broker 仍維持 zero-fee，見 R-018）────────
+/* ── 台股成本模型（研究／回測；App paper runtime 由 paper-fee-model.js 注入）────────
    費用拆成兩塊：
      1. 手續費：單邊收取，費率 = 費率上限／基準 × (1 − 折讓)，且每筆不得低於最低手續費。
      2. 證券交易稅：只有賣方繳，稅基是「成交金額」（price × qty，不含手續費）。
