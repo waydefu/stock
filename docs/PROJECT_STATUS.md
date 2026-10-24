@@ -33,7 +33,8 @@
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 | E1 | Automated Paper | 完成：Promotion Gate→數學 Signal→10% sizing→Risk→Paper costs→reconciliation；TW 單標的、browser runner |
 | E2 | Paper Matching v1 | 完成核心：DAY limit `OPEN→FILLED/CANCELED/EXPIRED`、reservation、fill-time Risk、Auto Runner 接線；無 L2／partial fill |
-| E3 | Server Auto Paper authority | 核心完成、部署未啟用：共享 Promotion evaluator、strict durable state、atomic file store、exclusive single-writer lease、server scheduler、startup/shutdown lifecycle；需 confirmed persistent storage＋always-on compute 才可 enable |\n| E4 | Forward Test evidence | 完成：每輪 durable journal、account/fill/Gate/cycle evidence、window return／MDD／fees／session coverage 摘要、只讀 `npm run report:auto` |
+| E3 | Server Auto Paper authority | 核心完成、部署未啟用：共享 Promotion evaluator、strict durable state、atomic file store、exclusive single-writer lease、server scheduler、startup/shutdown lifecycle；需 confirmed persistent storage＋always-on compute 才可 enable |
+| E4 | Forward Test evidence | 完成：每輪 durable journal、account/fill/Gate/cycle evidence、window return／MDD／fees／session coverage 摘要、只讀 `npm run report:auto` |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
 
