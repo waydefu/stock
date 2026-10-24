@@ -22,13 +22,16 @@ function taipeiYMD(date) {
 function resultText(result) {
   const fills = Array.isArray(result?.fills) ? result.fills : [];
   if (result?.code === "EXECUTED") {
-    return `已執行 ${fills.length} 筆 Paper fill：${fills.map((f) => `${f.side} ${f.qty}@${f.price}`).join("、")}`;
+    return `已執行 ${fills.length} 筆 Paper fill：${fills.map((f) => `${f.side} ${f.filledQty ?? f.qty}@${f.fillPrice ?? f.price}`).join("、")}`;
   }
   const map = {
     AUTO_NOT_ENABLED: "尚未武裝，自動交易不會執行。",
     INSUFFICIENT_COMPLETED_BARS: "完成日 K 不足策略 warmup，維持等待。",
     NO_TARGET_CHANGE: "本根完成 K 棒沒有目標部位變化。",
     WAIT_NEXT_SESSION: "訊號已排隊，等待下一個交易時段。",
+    ORDER_WORKING: "DAY 限價單已掛入 Paper Matching Engine，等待 fresh quote 觸價。",
+    ORDER_EXPIRED: "DAY 掛單未成交並已過期，不會沿用舊訊號重掛。",
+    ORDER_CANCELED: "掛單已取消；需等新的完成 K 棒訊號。",
     STALE_QUOTE: "報價不新鮮，拒絕執行；pending intent 保留。",
     TARGET_ALREADY_MET: "目前持倉已符合策略目標，不需下單。",
     KILL_SWITCH: "Risk kill switch 已啟動，自動交易停止。",
