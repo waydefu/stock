@@ -36,7 +36,7 @@
 - `js/trading-calendar.js`：`SimplifiedWeekdayCalendar`（只看星期幾，供 deterministic data layer）與 `MarketHolidayCalendar`（台股用 TWSE 官方休市日快照，涵蓋範圍外退回 weekday 規則並在 policy 明講）。
 - `js/tw-market-holidays.js`：TWSE「市場開休市日期」官方快照（2026 年度），含來源與查閱日期。
 - `js/corporate-actions.js`：SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING schema contract；尚未取得或套用調整資料。
-- `js/execution-model.js`：立即 paper execution boundary；MATCHING 只保留未實作 contract。
+- `js/execution-model.js`：`IMMEDIATE` 保留手動相容路徑；`MATCHING` v1 為 deterministic DAY limit：last-trade touch 才成交、fill at submitted limit，不虛構 price improvement／L2 queue／部分成交。
 - `js/order-errors.js`：stable order／risk／broker error codes。
 - `js/order-candidate.js`：純函式下單候選組裝（UI 與測試共用；帶 `referencePrice` 與商品別），避免 preview／confirm 組單不一致。
 - `js/classic-strategies.js`：MA／RSI／Breakout 的唯一訊號語義；legacy `runBacktest()` 與分層 Strategy adapter 共用，避免兩套規則漂移。
@@ -46,17 +46,18 @@
 - `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
 - `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate；target 依實際成交更新。
 - `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）；斷路器狀態寫入 versioned localStorage。
-- `js/paper.js`：本機紙上帳本；constructor 的 FeeModel 可注入，預設 zero-fee 只作 domain/test default。
+- `js/paper.js`：本機紙上帳本；constructor 的 FeeModel 可注入。MATCHING OPEN order 會保留 cash／position，未成交不改帳；支援 fill／cancel／DAY expire。
 - `js/paper-fee-model.js`：正式 forward-test 成本政策；TW dispatch 到 sourced FeeModel，US 在尚無來源化非佣金成本前明示 zero-fee；不猜當沖資格。
 - `js/paper-runtime.js`：App composition boundary，負責把 runtime fee policy 注入 PaperBroker。
-- `js/paper-reconciliation.js`：立即 Paper fill 後的 cash／position／fee／order-ledger 對帳；不符即視為安全事件。
-- `js/auto-paper-runner.js`：Automated Paper v1 orchestration；Promotion Gate→completed daily bar→Signal→Portfolio sizing→commit-time Risk→PaperBroker→reconciliation。每根完成 bar 只評估一次，pending intent 持久化且只在下一交易 session 以 fresh quote 執行。
+- `js/paper-reconciliation.js`：所有 Paper fill 後的 cash／position／fee／order-ledger 對帳；不符即視為安全事件。
+- `js/auto-paper-runner.js`：Automated Paper orchestration；Promotion Gate→completed daily bar→Signal→Portfolio sizing→Risk→MATCHING OPEN order→fresh quote touch→fill-time Risk→PaperBroker→reconciliation。pending intent／working order id 均持久化。
 - `js/app-auto-paper-controller.js`：瀏覽器端 Fugle data／timer／UI composition；不擁有策略公式、不直接下單。現階段 runner 只在頁面開啟期間運作，24/7 server authority 尚未建立。
 - `js/order-state.js`：deterministic order status 與 transition event。
-- `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
+- `js/order-service.js`：submit／match commit boundary；掛單提交與真正 fill 都重新讀帳戶並跑風控，matching fill 完成後立即 reconciliation。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
 - `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
-- `js/app.js`：UI composition root；Live stream lifecycle 已移到 `js/app-stream-controller.js`。仍需續拆交易／研究／導覽 controller，重構不得改變交易語義。\n- `js/app-stream-controller.js`：Live SSE UI/controller；只碰 `#stream-*` DOM 與 `SseStreamClient`，gate 明確禁止接觸 PaperBroker／order-service／RiskEngine。
+- `js/app.js`：UI composition root；Live stream lifecycle 已移到 `js/app-stream-controller.js`。仍需續拆交易／研究／導覽 controller，重構不得改變交易語義。
+- `js/app-stream-controller.js`：Live SSE UI/controller；只碰 `#stream-*` DOM 與 `SseStreamClient`，gate 明確禁止接觸 PaperBroker／order-service／RiskEngine。
 - `js/app-risk-audit-controller.js`：Risk/Audit presentation；只讀 `risk.status()`／`audit.list()` 與 CSV export，gate 禁止 `approveOrder`、下單、`trip/reset`。
 - `js/stream-contract.js`：provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽、stale 政策）。
 - `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
