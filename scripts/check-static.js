@@ -73,6 +73,8 @@ for (const requiredMarker of [
   "FileKeyValueStorage",
   "ForwardTestJournal",
   "journal.recordCycle",
+  "serverAutoScheduleDecision",
+  "getCurrentSession",
 ]) {
   if (!serverAuto.includes(requiredMarker)) {
     console.error(`server Auto authority missing fail-closed marker: ${requiredMarker}`);
