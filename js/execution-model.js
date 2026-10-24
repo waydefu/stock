@@ -62,6 +62,7 @@ export class MatchingExecutionModel {
   fill(order, { timestamp = new Date().toISOString(), price = order.price, reason = "last-trade touch" } = {}) {
     if (order?.status !== ORDER_STATUS.OPEN) throw new Error("matching fill requires OPEN order");
     if (!Number.isFinite(price) || price <= 0) throw new Error("matching fill requires valid price");
+    if (Math.abs(price - order.price) > 1e-9) throw new Error("matching v1 fill price must equal submitted limit");
     return filledShape(order, { timestamp, price, reason });
   }
 
