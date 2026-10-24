@@ -17,7 +17,8 @@
     "smoke:research:remote": "node scripts/smoke-research-remote.js",
     "score:ui": "node scripts/ui-score.js",
     "e2e": "node tests/e2e/run-e2e.js",
-    "e2e:mutation": "node tests/e2e/mutation-check.js"
+    "e2e:mutation": "node tests/e2e/mutation-check.js",
+    "report:auto": "node scripts/report-auto-paper.js"
   },
   "engines": {
     "node": ">=24"
