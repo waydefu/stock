@@ -4,6 +4,7 @@
    semantics in createProxy() remain for tests. Startup logs never echo secrets. */
 import { createProxy } from "./market-proxy.js";
 import { createStreamManager } from "./fugle-stream-manager.js";
+import { createServerAutoPaperService, resolveServerAutoPaperConfig } from "./auto-paper-service.js";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_HOST = "0.0.0.0";
@@ -20,7 +21,8 @@ export function resolveRuntimeConfig(env = process.env) {
   if (!env.FUGLE_API_KEY) {
     throw new Error("FUGLE_API_KEY 未設定：拒絕啟動公開 proxy（請在 runtime secret store 設定）");
   }
-  return { port, host };
+  const autoPaper = resolveServerAutoPaperConfig(env);
+  return { port, host, autoPaper };
 }
 
 /* R-030：正式流程排程 probeStale()，個別代碼沉默時要廣播 STALE。
@@ -65,6 +67,26 @@ async function main() {
   });
   const running = await start(config.port, config.host);
   console.log(`market-proxy listening on ${running.url}`);
+  let autoPaper;
+  try {
+    autoPaper = createServerAutoPaperService({
+      config: config.autoPaper,
+      proxyBaseUrl: `http://127.0.0.1:${running.port}`,
+      logger: (entry) => {
+        console.log(JSON.stringify({ ...entry, at: new Date().toISOString() }));
+      },
+    });
+    await autoPaper.start();
+    if (autoPaper.enabled) {
+      console.log(JSON.stringify({ component: "server-auto-paper", event: "RUNTIME_READY", status: autoPaper.status(), at: new Date().toISOString() }));
+    }
+  } catch (error) {
+    console.error(`server-auto-paper refusing to start: ${error?.message ?? "unknown"}`);
+    try { streams.shutdown(); } catch { /* best effort */ }
+    try { await running.close(); } catch { /* best effort */ }
+    process.exitCode = 1;
+    return;
+  }
   /* R-030：正式流程排程 probeStale()，個別代碼沉默時要廣播 STALE。
      unref：不因為排程而讓 process 活著；shutdown 時清除。 */
   const staleProbe = startStaleProbe(streams);
@@ -73,6 +95,7 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     staleProbe.stop();
+    autoPaper?.stop?.();
     streams.shutdown();
     await running.close();
     process.exitCode = 0;
