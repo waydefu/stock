@@ -9,6 +9,7 @@
    解析不到的數字一律寫「未知」，不猜。 */
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { parseTestCounts } from "./ci-summary-lib.js";
 
 function sh(command) {
   try {
@@ -16,22 +17,6 @@ function sh(command) {
   } catch (error) {
     return (error?.stdout ?? "").toString().trim() || "未知";
   }
-}
-
-function parseTestCounts(text) {
-  // Node test reporter 的摘要行長相為 "# tests 320"；不同 shell 的編碼可能把
-  // 前綴換成其他符號，所以只取「非文字非空白開頭 + 標籤 + 數字」整行。
-  const pick = (label) => {
-    const match = new RegExp(`^[^\\w\\s]*${label}\\s+(\\d+)\\s*\\r?$`, "m").exec(text ?? "");
-    return match ? Number(match[1]) : null;
-  };
-  return {
-    tests: pick("tests"),
-    pass: pick("pass"),
-    fail: pick("fail"),
-    skipped: pick("skipped"),
-    duration: (/^[^\w\s]*duration_ms\s+([\d.]+)\s*\r?$/m.exec(text ?? "") ?? [])[1] ?? null,
-  };
 }
 
 function readTestOutput() {
