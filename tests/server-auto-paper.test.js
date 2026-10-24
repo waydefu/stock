@@ -172,6 +172,37 @@ test("server Auto promotion failure never arms or asks for a quote", async () =>
   assert.equal(evidence.promotionGateFails, 1);
 });
 
+test("failed promotion is cached for the same completed bar and does not re-run research every 5 minutes", async () => {
+  const storage = new MemoryStorage();
+  let nowMs = Date.parse("2026-10-23T01:10:00.000Z");
+  const counter = { bars: 0, quotes: 0 };
+  let promotions = 0;
+  const service = createServerAutoPaperService({
+    config: config(),
+    proxyBaseUrl: "http://127.0.0.1:8787",
+    storage,
+    adapter: adapterFixture(() => nowMs, counter),
+    clock: () => nowMs,
+    promotionEvaluator: () => {
+      promotions += 1;
+      return {
+        gate: { pass: false, checks: [{ id: "oos", pass: false, detail: "weak" }] },
+        evidence: { bars: 150, allocation: 0.10, checks: [{ id: "oos", pass: false, detail: "weak" }] },
+      };
+    },
+  });
+
+  const first = await service.runOnce();
+  nowMs += 5 * 60_000;
+  const second = await service.runOnce();
+  assert.equal(first.code, "PROMOTION_GATE_FAIL");
+  assert.equal(second.code, "PROMOTION_GATE_FAIL");
+  assert.equal(promotions, 1, "same completed bar must reuse deterministic FAIL");
+  assert.equal(counter.bars, 1, "historical bars remain cached in the same market phase");
+  assert.equal(counter.quotes, 0);
+  assert.equal(service.status().evidence.promotionGateFails, 2, "both attempted market cycles remain visible evidence");
+});
+
 test("durable storage failure makes server Auto fatal and stops further cycles", async () => {
   const state = new Map();
   let failWrites = false;
