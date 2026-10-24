@@ -107,8 +107,9 @@ export class RiskEngine {
     if (order.side === "buy" && !positions[order.symbol] && Object.keys(positions).length >= this.#config.maxPositions) {
       return { ok: false, code: "POSITION_LIMIT", reason: `持倉檔數達 ${this.#config.maxPositions} 檔上限` };
     }
-    if (order.side === "buy" && notional > Number(account.cash ?? 0)) {
-      return { ok: false, code: "INSUFFICIENT_CASH", reason: "現金不足，請降低數量或先釋放資金" };
+    const spendableCash = Number(account.availableCash ?? account.cash ?? 0);
+    if (order.side === "buy" && notional > spendableCash) {
+      return { ok: false, code: "INSUFFICIENT_CASH", reason: "可用現金不足，請降低數量或先取消既有掛單／釋放資金" };
     }
     return { ok: true, code: "APPROVED", reason: "通過紙上交易風控" };
   }

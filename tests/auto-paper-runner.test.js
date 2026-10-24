@@ -89,16 +89,32 @@ test("approved runner executes prior completed-bar entry exactly once with risk 
     quoteEnvelope: quote("2330", 100, 100, f.now()),
     now: f.now(),
   });
-  assert.equal(first.code, "EXECUTED");
-  assert.equal(first.fills.length, 1);
-  assert.equal(first.fills[0].side, "buy");
-  assert.equal(first.fills[0].qty, 1000);
-  assert.equal(first.fills[0].lot, "regular");
-  assert.ok(first.fills[0].fee > 0);
+  assert.equal(first.code, "ORDER_WORKING");
+  assert.equal(first.orders.length, 1);
+  assert.equal(first.orders[0].side, "buy");
+  assert.equal(first.orders[0].qty, 1000);
+  assert.equal(first.orders[0].lot, "regular");
+  assert.equal(first.orders[0].status, "OPEN");
+
+  const openAccount = f.broker.snapshot("TW", { "2330": { price: 100 } });
+  assert.equal(openAccount.positions["2330"], undefined);
+  assert.ok(openAccount.reservedCash > 100_000);
+
+  const matched = await f.runner.cycle({
+    bars,
+    quoteEnvelope: quote("2330", 100, 100, f.now()),
+    now: f.now(),
+  });
+  assert.equal(matched.code, "EXECUTED");
+  assert.equal(matched.fills.length, 1);
+  assert.equal(matched.fills[0].side, "buy");
+  assert.equal(matched.fills[0].fillPrice, 100);
+  assert.ok(matched.fills[0].fee > 0);
 
   const account = f.broker.snapshot("TW", { "2330": { price: 100 } });
   assert.equal(account.positions["2330"].qty, 1000);
   assert.equal(account.orders.length, 1);
+  assert.equal(account.reservedCash, 0);
 
   const replay = await f.runner.cycle({
     bars,
@@ -115,7 +131,10 @@ test("same-day completed signal queues after close and exits on next trading ses
   f.runner.arm();
 
   const entryBars = [bar("2026-10-22T05:30:00+08:00", 110)];
-  await f.runner.cycle({ bars: entryBars, quoteEnvelope: quote("2330", 100, 100, f.now()), now: f.now() });
+  const entryOpen = await f.runner.cycle({ bars: entryBars, quoteEnvelope: quote("2330", 100, 100, f.now()), now: f.now() });
+  assert.equal(entryOpen.code, "ORDER_WORKING");
+  const entryFill = await f.runner.cycle({ bars: entryBars, quoteEnvelope: quote("2330", 100, 100, f.now()), now: f.now() });
+  assert.equal(entryFill.code, "EXECUTED");
 
   f.setNow("2026-10-23T06:00:00.000Z"); // 14:00 Taipei, Friday
   const exitBars = [
@@ -140,6 +159,14 @@ test("same-day completed signal queues after close and exits on next trading ses
   assert.ok(f.runner.status().pendingIntent, "holiday must not consume the queued exit");
 
   f.setNow("2026-10-27T01:10:00.000Z"); // next trading session
+  const exitOpen = await f.runner.cycle({
+    bars: exitBars,
+    quoteEnvelope: quote("2330", 90, 90, f.now()),
+    now: f.now(),
+  });
+  assert.equal(exitOpen.code, "ORDER_WORKING");
+  assert.equal(exitOpen.orders[0].side, "sell");
+
   const exit = await f.runner.cycle({
     bars: exitBars,
     quoteEnvelope: quote("2330", 90, 90, f.now()),
@@ -179,4 +206,60 @@ test("reconciliation detects impossible ledger mutations", () => {
   const result = reconcileImmediateFill({ before, after, fill });
   assert.equal(result.ok, false);
   assert.ok(result.violations.includes("CASH_MISMATCH"));
+});
+
+
+test("pausing Auto Paper cancels its working order and releases reservations", async () => {
+  const f = fixture();
+  f.runner.recordResearchGate({ pass: true, evidence: { gate: "PASS" } });
+  f.runner.arm();
+  const bars = [bar("2026-10-22T05:30:00+08:00", 110)];
+  const open = await f.runner.cycle({
+    bars,
+    quoteEnvelope: quote("2330", 100, 100, f.now()),
+    now: f.now(),
+  });
+  assert.equal(open.code, "ORDER_WORKING");
+  assert.ok(f.broker.snapshot("TW").reservedCash > 0);
+  f.runner.pause("test");
+  const account = f.broker.snapshot("TW");
+  assert.equal(account.reservedCash, 0);
+  assert.equal(account.orders[0].status, "CANCELED");
+  assert.deepEqual(f.runner.status().workingOrderIds, []);
+});
+
+
+test("manual cancel is reconciled back into persisted Auto working state", async () => {
+  const f = fixture();
+  f.runner.recordResearchGate({ pass: true, evidence: { gate: "PASS" } });
+  f.runner.arm();
+  const bars = [bar("2026-10-22T05:30:00+08:00", 110)];
+  const open = await f.runner.cycle({
+    bars,
+    quoteEnvelope: quote("2330", 100, 100, f.now()),
+    now: f.now(),
+  });
+  assert.equal(open.code, "ORDER_WORKING");
+  const orderId = open.orders[0].id;
+  f.broker.cancelOrder("TW", orderId, { reason: "manual test cancel" });
+
+  const reconciled = await f.runner.cycle({
+    bars,
+    quoteEnvelope: quote("2330", 101, 100, f.now()),
+    now: f.now(),
+  });
+  assert.equal(reconciled.code, "ORDER_CANCELED");
+  assert.deepEqual(f.runner.status().workingOrderIds, []);
+
+  const reloaded = new AutoPaperRunner({
+    strategy: strategy(),
+    allocate: fixedFraction(0.10),
+    broker: f.broker,
+    risk: f.risk,
+    storage: f.storage,
+    market: "TW",
+    symbol: "2330",
+    clock: () => f.now(),
+  });
+  assert.deepEqual(reloaded.status().workingOrderIds, []);
 });

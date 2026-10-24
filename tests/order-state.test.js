@@ -28,3 +28,14 @@ test("state machine supports open lifecycle and rejects terminal-state resurrect
   assert.throws(() => transitionOrder(filled, "OPEN"), /invalid order transition/i);
   assert.throws(() => transitionOrder(filled, "CANCEL"), /invalid order transition/i);
 });
+
+
+test("open DAY order can expire and terminal expiry cannot resurrect", () => {
+  const created = createOrder({ id: "P-EXP", market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100 });
+  const validated = transitionOrder(created, "VALIDATE");
+  const open = transitionOrder(validated, "OPEN");
+  const expired = transitionOrder(open, "EXPIRE", { reason: "DAY expired" });
+  assert.equal(expired.status, ORDER_STATUS.EXPIRED);
+  assert.equal(expired.events.at(-1).type, "EXPIRE");
+  assert.throws(() => transitionOrder(expired, "FILL"), /invalid order transition/i);
+});

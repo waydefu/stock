@@ -31,6 +31,8 @@
 | C2 | 治理加固（branch protection／CodeQL／secret scanning／dependency review） | 完成：main branch protection（required `Quality`）、CodeQL workflow、secret scanning 已啟用、dependency review workflow |
 | C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字；Node 24 `ℹ tests/pass/fail` 解析已有單測防回歸 |
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
+| E1 | Automated Paper | 完成：Promotion Gate→數學 Signal→10% sizing→Risk→Paper costs→reconciliation；TW 單標的、browser runner |
+| E2 | Paper Matching v1 | 完成核心：DAY limit `OPEN→FILLED/CANCELED/EXPIRED`、reservation、fill-time Risk、Auto Runner 接線；無 L2／partial fill |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
 
@@ -53,7 +55,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 ## Known gaps（非 blocker，按優先序）
 
 1. corporate-action（除權息）調整資料尚未取得與套用（TWSE 休市日已改用官方 2026 快照，見 D2）
-2. matching realism（立即成交模型現狀，見 R-003）；**reconciliation 已接入 Auto Paper fill 後安全檢查**
+2. matching microstructure realism（R-003）：核心 MATCHING 已完成，但目前只有 last-trade touch＋full-fill-at-limit；無 L2 queue／成交量配置／partial fill
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
