@@ -85,16 +85,33 @@ export function checkRuntimeBoundaries({ app = "", html = "", readFile = readFil
     const autoUi = read("js/app-auto-paper-controller.js");
     const autoRunner = read("js/auto-paper-runner.js");
     const reconciliation = read("js/paper-reconciliation.js");
+    const orderService = read("js/order-service.js");
     if (!/id="auto-paper-arm"/.test(html) || !/id="auto-paper-state"/.test(html)) problems.push("缺 Auto Paper 明確武裝／狀態 UI");
     if (/PaperBroker|order-service|risk\.js/.test(autoUi)) problems.push("Auto Paper UI controller 直接耦合 broker／order-service／risk 模組");
     if (/fetch\s*\(|new\s+WebSocket\s*\(/.test(autoRunner)) problems.push("Auto Paper Runner 不得自行連網，資料必須由 adapter 注入");
     if (!/recordResearchGate/.test(autoRunner) || !/RESEARCH_APPROVED/.test(autoRunner) || !/PAPER_ENABLED/.test(autoRunner)) problems.push("Auto Paper Runner 缺 research gate／lifecycle");
     if (!/quoteIsFresh/.test(autoRunner) || !/STALE_QUOTE/.test(autoRunner)) problems.push("Auto Paper Runner 缺 fresh quote fail-closed");
     if (!/canTrade/.test(autoRunner)) problems.push("Auto Paper Runner 缺 paper:order 權限邊界");
-    if (!/executePaperOrder/.test(autoRunner)) problems.push("Auto Paper Runner 未走既有 commit-time Risk→Paper execution boundary");
-    if (!/reconcileImmediateFill/.test(autoRunner) || !/RECONCILIATION_FAILED/.test(autoRunner) || !/risk\.trip/.test(autoRunner)) problems.push("Auto Paper Runner 缺成交後 reconciliation／kill switch");
+    if (!/executePaperOrder/.test(autoRunner) || !/processPaperMatches/.test(autoRunner)) problems.push("Auto Paper Runner 未走 submit＋match 的 Risk→Paper execution boundary");
+    if (!/reconcilePaperFill/.test(orderService) || !/RECONCILIATION_FAILED/.test(orderService) || !/risk\.trip/.test(orderService)) problems.push("Matching service 缺成交後 reconciliation／kill switch");
     if (!/assertAccountingInvariants/.test(reconciliation)) problems.push("Paper reconciliation 未檢查 accounting invariant");
     results.push(result("automated-paper-safety-boundary", problems));
+  }
+
+  {
+    const problems = [];
+    const execution = read("js/execution-model.js");
+    const paper = read("js/paper.js");
+    const orderService = read("js/order-service.js");
+    const orderState = read("js/order-state.js");
+    if (!/class MatchingExecutionModel/.test(execution) || !/LAST_TRADE_TOUCHED_LIMIT/.test(execution)) problems.push("MATCHING 缺 last-trade touch 模型");
+    if (!/full-fill-at-limit\/no-l2-queue/.test(execution)) problems.push("MATCHING 未明示 no-L2／full-fill-at-limit 假設");
+    if (!/EXPIRED/.test(orderState) || !/EXPIRE/.test(orderState)) problems.push("訂單生命週期缺 EXPIRED");
+    if (!/reservedCash/.test(paper) || !/availableCash/.test(paper) || !/reservedPositions/.test(paper)) problems.push("PaperBroker 缺掛單資金／部位 reservation");
+    if (!/fillOpenOrder/.test(paper) || !/cancelOrder/.test(paper) || !/expireOpenOrders/.test(paper)) problems.push("PaperBroker 缺 fill／cancel／expire matching API");
+    if (!/processPaperMatches/.test(orderService) || !/risk\.approveOrder/.test(orderService)) problems.push("matching fill 未在成交邊界重跑 RiskEngine");
+    if (!/data-cancel-paper-order/.test(app) || !/掛單保留/.test(app)) problems.push("交易 UI 缺 OPEN 單取消或 reservation 可見性");
+    results.push(result("paper-matching-boundary", problems));
   }
 
   return results;
