@@ -67,5 +67,18 @@ export function checkRuntimeBoundaries({ app = "", html = "", readFile = readFil
     results.push(result("risk-audit-presentation-boundary", problems));
   }
 
+  {
+    const problems = [];
+    const paperRuntime = read("js/paper-runtime.js");
+    const paperFee = read("js/paper-fee-model.js");
+    if (!/createAppPaperRuntime/.test(app)) problems.push("app 未使用 createAppPaperRuntime");
+    if (/new\s+PaperBroker\s*\(/.test(app)) problems.push("app 直接 new PaperBroker，可能繞過 runtime fee policy");
+    if (!/new\s+PaperBroker\s*\(\{[\s\S]*feeModel/.test(paperRuntime)) problems.push("paper runtime 未把 feeModel 注入 PaperBroker");
+    if (!/market === "TW"/.test(paperFee) || !/market === "US"/.test(paperFee)) problems.push("paper fee policy 缺 TW／US 明確分流");
+    if (!/dayTrade:\s*false/.test(paperFee)) problems.push("TW paper fee policy 未明確禁止猜測當沖減稅");
+    if (!/Paper 交易成本/.test(app)) problems.push("交易 UI 未顯示 Paper 交易成本");
+    results.push(result("paper-forward-fee-policy", problems));
+  }
+
   return results;
 }
