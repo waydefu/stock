@@ -1,5 +1,7 @@
-/* 回測核心：bar-close 訊號、下一根開盤成交。
-   這個模型刻意不偷看目前 bar 之前不存在的價格；結果僅代表模擬，不是實盤保證。 */
+/* Legacy backtest compatibility engine.
+   目前正式 UI 已改走 classic-backtest-runner → layered Research Engine；
+   本檔保留給相容 API、golden tests 與 parity oracle，不再是產品回測入口。
+   語義仍為 bar-close 訊號、下一根開盤成交；不偷看未來價格。 */
 "use strict";
 
 import { CLASSIC_STRATEGY_NAMES, classicSignalFor, prepareClassicSignalData } from "./classic-strategies.js";
