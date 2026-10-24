@@ -328,8 +328,8 @@ function renderBacktest() {
   if (select) state.symbol = select.value || state.symbol;
   const strategyId = $("#backtest-strategy").value;
   const research = isResearchStrategy(strategyId);
-  $("#backtest-legacy-ma").hidden = research;
-  $("#backtest-legacy-slow").hidden = research;
+  $("#backtest-classic-ma").hidden = research;
+  $("#backtest-classic-slow").hidden = research;
   $("#backtest-research-alloc").hidden = !research;
   if (research) {
     renderResearchBacktest(strategyId);
