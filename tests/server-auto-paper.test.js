@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { MemoryStorage, PaperBroker } from "../js/paper.js";
 import { AuditLog, RiskEngine } from "../js/risk.js";
@@ -230,4 +231,45 @@ test("browser-compatible persistence mode still resets malformed Paper state saf
   storage.setItem("tw-us-stock-paper-v1", "{broken");
   const broker = new PaperBroker({ storage });
   assert.equal(broker.snapshot("TW").cash, 1_000_000);
+});
+
+
+test("server Auto authority holds an exclusive lease for the durable state file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "stock-server-auto-lease-"));
+  const stateFile = join(dir, "state.json");
+  const cfg = { ...config(), stateFile };
+  const adapter = adapterFixture(() => Date.parse("2026-10-23T01:10:00.000Z"));
+  let first;
+  try {
+    first = createServerAutoPaperService({
+      config: cfg,
+      proxyBaseUrl: "http://127.0.0.1:8787",
+      adapter,
+      promotionEvaluator: passingPromotion,
+    });
+    assert.equal(first.status().authorityLease, "HELD");
+    assert.throws(
+      () => createServerAutoPaperService({
+        config: cfg,
+        proxyBaseUrl: "http://127.0.0.1:8787",
+        adapter,
+        promotionEvaluator: passingPromotion,
+      }),
+      (error) => error?.code === "DURABLE_STORAGE_LOCKED",
+    );
+    first.stop();
+    assert.equal(first.status().authorityLease, "RELEASED");
+
+    const restarted = createServerAutoPaperService({
+      config: cfg,
+      proxyBaseUrl: "http://127.0.0.1:8787",
+      adapter,
+      promotionEvaluator: passingPromotion,
+    });
+    assert.equal(restarted.status().authorityLease, "HELD");
+    restarted.stop();
+  } finally {
+    try { first?.stop(); } catch { /* best effort */ }
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
