@@ -80,5 +80,22 @@ export function checkRuntimeBoundaries({ app = "", html = "", readFile = readFil
     results.push(result("paper-forward-fee-policy", problems));
   }
 
+  {
+    const problems = [];
+    const autoUi = read("js/app-auto-paper-controller.js");
+    const autoRunner = read("js/auto-paper-runner.js");
+    const reconciliation = read("js/paper-reconciliation.js");
+    if (!/id="auto-paper-arm"/.test(html) || !/id="auto-paper-state"/.test(html)) problems.push("缺 Auto Paper 明確武裝／狀態 UI");
+    if (/PaperBroker|order-service|risk\.js/.test(autoUi)) problems.push("Auto Paper UI controller 直接耦合 broker／order-service／risk 模組");
+    if (/fetch\s*\(|new\s+WebSocket\s*\(/.test(autoRunner)) problems.push("Auto Paper Runner 不得自行連網，資料必須由 adapter 注入");
+    if (!/recordResearchGate/.test(autoRunner) || !/RESEARCH_APPROVED/.test(autoRunner) || !/PAPER_ENABLED/.test(autoRunner)) problems.push("Auto Paper Runner 缺 research gate／lifecycle");
+    if (!/quoteIsFresh/.test(autoRunner) || !/STALE_QUOTE/.test(autoRunner)) problems.push("Auto Paper Runner 缺 fresh quote fail-closed");
+    if (!/canTrade/.test(autoRunner)) problems.push("Auto Paper Runner 缺 paper:order 權限邊界");
+    if (!/executePaperOrder/.test(autoRunner)) problems.push("Auto Paper Runner 未走既有 commit-time Risk→Paper execution boundary");
+    if (!/reconcileImmediateFill/.test(autoRunner) || !/RECONCILIATION_FAILED/.test(autoRunner) || !/risk\.trip/.test(autoRunner)) problems.push("Auto Paper Runner 缺成交後 reconciliation／kill switch");
+    if (!/assertAccountingInvariants/.test(reconciliation)) problems.push("Paper reconciliation 未檢查 accounting invariant");
+    results.push(result("automated-paper-safety-boundary", problems));
+  }
+
   return results;
 }
