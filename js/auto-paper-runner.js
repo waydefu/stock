@@ -268,13 +268,14 @@ export class AutoPaperRunner {
 
     // Existing working orders have priority over producing a new signal.
     if (this.#state.workingOrderIds.length) {
-      const tracked = new Set(this.#state.workingOrderIds);
+      let tracked = new Set(this.#state.workingOrderIds);
       const preExpired = this.#broker.expireOpenOrders(this.#market, { timestamp: new Date(now).toISOString() })
         .filter((order) => tracked.has(order.id));
       if (preExpired.length) {
         for (const order of preExpired) this.#audit("AUTO_ORDER_EXPIRED", { symbol: this.#symbol, strategyId: this.#strategy.id, orderId: order.id });
         const expiredIds = new Set(preExpired.map((order) => order.id));
         this.#state.workingOrderIds = this.#state.workingOrderIds.filter((id) => !expiredIds.has(id));
+        tracked = new Set(this.#state.workingOrderIds);
         if (!this.#state.workingOrderIds.length) {
           this.#state.lastOutcome = "ORDER_EXPIRED";
           this.#save();
@@ -299,6 +300,32 @@ export class AutoPaperRunner {
       const expired = matched.expired.filter((order) => tracked.has(order.id));
       const failures = matched.failures.filter((entry) => tracked.has(entry.orderId));
       this.#state.workingOrderIds = matched.open.filter((order) => tracked.has(order.id)).map((order) => order.id);
+
+      // Recover terminal broker state that may have been written before Auto state
+      // (manual cancel, or browser crash after broker fill but before runner save).
+      const reported = new Set([
+        ...matched.open.map((order) => order.id),
+        ...fills.map((entry) => entry.fill.id),
+        ...canceled.map((order) => order.id),
+        ...expired.map((order) => order.id),
+      ]);
+      for (const orderId of tracked) {
+        if (reported.has(orderId)) continue;
+        const terminal = this.#broker.findOrderById(this.#market, orderId);
+        if (!terminal) {
+          this.#risk.trip(`AUTO_WORKING_ORDER_MISSING:${orderId}`);
+          this.#tripLifecycle("WORKING_ORDER_MISSING");
+          this.#audit("AUTO_WORKING_ORDER_MISSING", { symbol: this.#symbol, strategyId: this.#strategy.id, orderId });
+          return { ok: false, code: "WORKING_ORDER_MISSING", matched, status: this.status() };
+        }
+        if (terminal.status === "FILLED") {
+          fills.push({ fill: terminal, reconciliation: { ok: true, recovered: true }, match: { reason: "RECOVERED_TERMINAL_FILL" } });
+        } else if (terminal.status === "CANCELED") {
+          canceled.push(terminal);
+        } else if (terminal.status === "EXPIRED") {
+          expired.push(terminal);
+        }
+      }
 
       for (const entry of fills) {
         this.#audit("AUTO_ORDER_FILLED", {
