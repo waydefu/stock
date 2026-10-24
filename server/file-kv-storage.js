@@ -17,6 +17,15 @@ import { dirname, isAbsolute, resolve } from "node:path";
 
 export const FILE_STORAGE_VERSION = 1;
 
+export class DurableStorageError extends Error {
+  constructor(message, cause = null) {
+    super(message);
+    this.name = "DurableStorageError";
+    this.code = "DURABLE_STORAGE_FAILED";
+    this.cause = cause;
+  }
+}
+
 function emptyPayload() {
   return { version: FILE_STORAGE_VERSION, values: {} };
 }
@@ -46,7 +55,7 @@ export class FileKeyValueStorage {
       try {
         parsed = JSON.parse(readFileSync(this.#filePath, "utf8"));
       } catch (error) {
-        throw new Error(`durable storage 無法讀取／解析：${error.message}`);
+        throw new DurableStorageError(`durable storage 無法讀取／解析：${error.message}`, error);
       }
       this.#values = { ...validatePayload(parsed, this.#filePath).values };
     } else {
@@ -77,13 +86,19 @@ export class FileKeyValueStorage {
   #flush() {
     const payload = JSON.stringify({ version: FILE_STORAGE_VERSION, values: this.#values });
     const tempPath = `${this.#filePath}.tmp`;
-    const fd = openSync(tempPath, "w", 0o600);
+    let fd = null;
     try {
+      fd = openSync(tempPath, "w", 0o600);
       writeFileSync(fd, payload, "utf8");
       fsyncSync(fd);
-    } finally {
       closeSync(fd);
+      fd = null;
+      renameSync(tempPath, this.#filePath);
+    } catch (error) {
+      if (fd !== null) {
+        try { closeSync(fd); } catch { /* best effort */ }
+      }
+      throw new DurableStorageError(`durable storage write failed: ${error?.message ?? "unknown"}`, error);
     }
-    renameSync(tempPath, this.#filePath);
   }
 }
