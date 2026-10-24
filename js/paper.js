@@ -68,6 +68,19 @@ function defaultOrderId({ market, timestamp, sequence }) {
   return `P-${market}-${timestamp.replace(/[^0-9]/g, "").slice(0, 14)}-${sequence}`;
 }
 
+function minutesInTimezone(timestamp, timezone) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.valueOf())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return Number(values.hour) * 60 + Number(values.minute);
+}
+
 export class PaperBroker {
   #storage;
   #now;
@@ -372,8 +385,12 @@ export class PaperBroker {
     const expired = [];
     account.orders = account.orders.map((order) => {
       if (order.status !== ORDER_STATUS.OPEN || order.executionMode !== ExecutionMode.MATCHING || order.timeInForce !== "DAY") return order;
-      if (order.createdSessionKey === currentSessionKey) return order;
-      const next = model.expire(order, { timestamp, reason: `DAY expired before session ${currentSessionKey}` });
+      const sameSession = order.createdSessionKey === currentSessionKey;
+      const twMinutes = market === "TW" ? minutesInTimezone(timestamp, "Asia/Taipei") : null;
+      const afterTwClose = market === "TW" && Number.isFinite(twMinutes) && twMinutes >= 13 * 60 + 30;
+      if (sameSession && !afterTwClose) return order;
+      const reason = afterTwClose && sameSession ? "TW DAY order expired at 13:30 close" : `DAY expired before session ${currentSessionKey}`;
+      const next = model.expire(order, { timestamp, reason });
       expired.push(next);
       return next;
     });
