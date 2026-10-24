@@ -7,7 +7,8 @@ import { selectAdapter } from "./fixture-provider.js";
 import { drawCandles, drawLine, candleHoverAt } from "./charts.js";
 import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { evaluateWindow } from "./research.js";
-import { MemoryStorage, PaperBroker } from "./paper.js";
+import { MemoryStorage } from "./paper.js";
+import { createAppPaperRuntime } from "./paper-runtime.js";
 import { executePaperOrder } from "./order-service.js";
 import { buildOrderCandidate } from "./order-candidate.js";
 import { escapeHtml } from "./dom.js";
@@ -51,7 +52,7 @@ let clientOrderSequence = 0;
 let searchPending = false; // 遠端驗證中再按 Enter：忽略，不重複爆請求
 
 const storage = typeof localStorage === "undefined" ? new MemoryStorage() : localStorage;
-const broker = new PaperBroker({ storage });
+const { broker, feeModel: paperFeeModel } = createAppPaperRuntime({ storage });
 const marketData = selectAdapter("simulation");
 const risk = new RiskEngine(DEFAULT_RISK, { storage });
 const audit = new AuditLog({ storage });
@@ -670,7 +671,7 @@ function renderTrade() {
   if (market !== state.market) state.market = market;
   const account = broker.snapshot(market, quoteMap(market));
   const meta = getSymbol($("#order-symbol").value || state.symbol);
-  $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div><div class="row"><span>已實現／未實現</span><span>${money(account.realizedPnl, account.currency)} ／ ${money(account.unrealizedPnl, account.currency)}</span></div><div class="row"><span>本 session 損益</span><span class="${tone(account.dailyPnl)}">${money(account.dailyPnl, account.currency)} (${account.sessionKey})</span></div>`;
+  $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div><div class="row"><span>已實現／未實現</span><span>${money(account.realizedPnl, account.currency)} ／ ${money(account.unrealizedPnl, account.currency)}</span></div><div class="row"><span>累計交易成本</span><span>${money(account.totalFees, account.currency)}・${escapeHtml(account.feeModel)}</span></div><div class="row"><span>本 session 損益</span><span class="${tone(account.dailyPnl)}">${money(account.dailyPnl, account.currency)} (${account.sessionKey})</span></div>`;
   $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : stateRow(5, "empty", "尚無持倉", "紙上帳戶從零開始，不會自動載入券商資料。");
   $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : stateRow(6, "empty", "尚無訂單", "建立紙上訂單後，這裡會保留本機歷史。");
   updateOrderPrice();
@@ -689,9 +690,11 @@ function updateOrderEstimate() {
     box.textContent = "輸入數量與價格後顯示試算（僅供參考，不代表風控結果）。";
     return;
   }
+  const side = $("#order-side").value || "buy";
+  const paperFee = paperFeeModel.calculate({ market, side, qty, price });
   const lot = market === "TW" ? (qty >= 1000 ? "整股" : "零股") : "美股";
   const overCap = estimate.equityPct > 20 ? "・超過單筆 20% 上限，預覽不會通過" : "";
-  box.textContent = `試算：名目 ${fmtPrice(estimate.notional)}・預估手續費 ${fmtPrice(estimate.estFee)}・佔權益 ${estimate.equityPct.toFixed(2)}%・${lot}・可用 ${money(account.cash, account.currency)}${overCap}（送出前仍須預覽＋二次確認）`;
+  box.textContent = `試算：名目 ${fmtPrice(estimate.notional)}・Paper 交易成本 ${fmtPrice(paperFee)}・佔權益 ${estimate.equityPct.toFixed(2)}%・${lot}・可用 ${money(account.cash, account.currency)}${overCap}（TW 使用一般賣方稅；US 目前明示 zero-fee；送出前仍須預覽＋二次確認）`;
 }
 
 function orderQuote(symbol) {
@@ -749,7 +752,10 @@ function openOrderModal(order, account) {
   const referenceRow = Number.isFinite(order.referencePrice)
     ? `<div class="row"><span>參考價</span><span>${fmtPrice(order.referencePrice)}・漲跌幅基準</span></div>`
     : "";
-  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}・${order.lot === "regular" ? "整股" : "零股"}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(order.price * order.qty)}</span></div>${referenceRow}<div class="row"><span>下單後現金</span><span>${money(account.cash - (order.side === "buy" ? order.price * order.qty : -order.price * order.qty), account.currency)}</span></div>`;
+  const notional = order.price * order.qty;
+  const paperFee = paperFeeModel.calculate({ market: order.market, side: order.side, qty: order.qty, price: order.price });
+  const cashAfter = order.side === "buy" ? account.cash - notional - paperFee : account.cash + notional - paperFee;
+  $("#order-modal-body").innerHTML = `<div class="notice info">這是紙上帳本寫入，不會送往交易所。</div><div class="row"><span>市場／標的</span><span>${escapeHtml(order.market)}・${escapeHtml(symbolLabel(order.symbol))}</span></div><div class="row"><span>方向／數量</span><span>${order.side === "buy" ? "買進" : "賣出"}・${order.qty}・${order.lot === "regular" ? "整股" : "零股"}</span></div><div class="row"><span>模擬價格</span><span>${fmtPrice(order.price)}・名目 ${fmtPrice(notional)}</span></div><div class="row"><span>Paper 交易成本</span><span>${fmtPrice(paperFee)}・${escapeHtml(paperFeeModel.name)}</span></div>${referenceRow}<div class="row"><span>下單後現金</span><span>${money(cashAfter, account.currency)}</span></div>`;
   const modal = $("#order-modal");
   modal.hidden = false;
   modal.classList.add("open");
@@ -778,11 +784,11 @@ function confirmOrder() {
     return;
   }
   const order = result.fill;
-  auditEvent("ORDER_FILLED_PAPER", { orderId: order.id, symbol: order.symbol, side: order.side, qty: order.qty, price: order.price });
+  auditEvent("ORDER_FILLED_PAPER", { orderId: order.id, symbol: order.symbol, side: order.side, qty: order.qty, price: order.price, fee: order.fee, feeModel: order.feeModel });
   closeOrderModal();
   state.pendingOrder = null;
   $("#order-risk").className = "notice info order-ack";
-  $("#order-risk").textContent = `已寫入紙上帳本［${order.id}］；沒有真實券商副作用。`;
+  $("#order-risk").textContent = `已寫入紙上帳本［${order.id}］；交易成本 ${fmtPrice(order.fee)}，沒有真實券商副作用。`;
   $("#order-submit").disabled = true;
   renderAll();
 }
