@@ -39,8 +39,9 @@
 - `js/execution-model.js`：`IMMEDIATE` 保留手動相容路徑；`MATCHING` v1 為 deterministic DAY limit：last-trade touch 才成交、fill at submitted limit，不虛構 price improvement／L2 queue／部分成交。
 - `js/order-errors.js`：stable order／risk／broker error codes。
 - `js/order-candidate.js`：純函式下單候選組裝（UI 與測試共用；帶 `referencePrice` 與商品別），避免 preview／confirm 組單不一致。
-- `js/classic-strategies.js`：MA／RSI／Breakout 的唯一訊號語義；legacy `runBacktest()` 與分層 Strategy adapter 共用，避免兩套規則漂移。
-- `js/backtest.js`：legacy sizing／execution／metrics 相容路徑；內建策略訊號已不再自行實作。新研究走 `js/research.js`；待 UI 全面切換後再退役 legacy execution。
+- `js/classic-strategies.js`：MA／RSI／Breakout 的唯一訊號語義；legacy oracle 與分層 Strategy adapter 共用，避免兩套規則漂移。
+- `js/classic-backtest-runner.js`：經典策略的正式 UI composition；固定走 Strategy → Portfolio → `runResearchBacktest()` → `summarizeResearch()`，產品路徑不再依賴 legacy execution。
+- `js/backtest.js`：legacy sizing／execution／metrics 相容路徑，只保留 compatibility／golden tests／parity oracle；`scripts/check-static.js` 禁止 `app.js` 再呼叫 `runBacktest()`。
 - `js/strategy.js`：Strategy／Signal 契約、long-only 映射、註冊表、生命週期門（新策略不得自動進 paper）。
 - `js/alpha.js`：研究基準庫（cash／buyHold／multi-horizon trend，皆有 hypothesis＋warmup）。
 - `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
