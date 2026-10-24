@@ -21,7 +21,7 @@ import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { createStreamController } from "./app-stream-controller.js";
 import { createRiskAuditController } from "./app-risk-audit-controller.js";
-import { createAutoPaperController } from "./app-auto-paper-controller.js";
+import { AUTO_PAPER_ALLOCATION, createAutoPaperController } from "./app-auto-paper-controller.js";
 import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
@@ -94,7 +94,7 @@ const riskAuditController = createRiskAuditController({
 
 const autoPaperController = createAutoPaperController({
   strategy: registry.get("multiHorizonTrend"),
-  allocate: fixedFraction(0.10),
+  allocate: fixedFraction(AUTO_PAPER_ALLOCATION),
   broker,
   risk,
   storage,
@@ -363,21 +363,22 @@ function renderBacktest() {
   $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
-function researchCosts() {
+function researchCosts(symbol = state.symbol, marketHint = null) {
   const commissionRate = (Number($("#backtest-commission").value) || 0) / 100;
   return {
     commissionRate,
     slippageBps: Number($("#backtest-slippage").value) || 0,
     initialCapital: Number($("#backtest-capital").value) || 1_000_000,
-    feeModel: feeModelForSymbol(state.symbol, commissionRate),
+    feeModel: feeModelForSymbol(symbol, commissionRate, marketHint),
   };
 }
 
 /* 台股成本模型（Track B1）：每筆手續費（含最低額）＋賣方證券交易稅。
    US 費用未建模 → 不啟用 fee model，維持原本的簡化手續費（誠實標示，不假裝涵蓋）。 */
-function feeModelForSymbol(symbol, commissionRate) {
+function feeModelForSymbol(symbol, commissionRate, marketHint = null) {
   const meta = getSymbol(symbol);
-  if (!meta || meta.market !== "TW") return null;
+  const market = marketHint ?? meta?.market ?? null;
+  if (market !== "TW") return null;
   if (!Number.isFinite(commissionRate) || commissionRate <= 0) return null;
   return createTwFeeModel({
     commissionRate,
@@ -634,8 +635,8 @@ async function runFugleResearch() {
       return;
     }
     const def = registry.get("multiHorizonTrend");
-    const costs = researchCosts();
-    const base = { symbol, strategy: def, allocate: researchAllocate(def, 0.25), ...costs };
+    const costs = researchCosts(symbol, "TW");
+    const base = { symbol, strategy: def, allocate: fixedFraction(AUTO_PAPER_ALLOCATION), ...costs };
     const split = splitIS_OOS(bars, 0.4);
     const isR = evaluateWindow({ ...base, contextBars: [], evalBars: split.is });
     const oosR = evaluateWindow({ ...base, contextBars: warmupTail(split.is, def.warmup), evalBars: split.oos });
@@ -650,9 +651,9 @@ async function runFugleResearch() {
     }
     const oosWindows = windows.map((w) => summarizeResearch(evaluateWindow({ ...base, contextBars: warmupTail(w.train, def.warmup), evalBars: w.test }), {}));
     const buy = registry.get("buyHold");
-    const buyOOS = summarizeResearch(evaluateWindow({ symbol, strategy: buy, allocate: researchAllocate(buy, 0.25), contextBars: [], evalBars: split.oos, ...costs }), {});
+    const buyOOS = summarizeResearch(evaluateWindow({ symbol, strategy: buy, allocate: researchAllocate(buy, AUTO_PAPER_ALLOCATION), contextBars: [], evalBars: split.oos, ...costs }), {});
     const stress = runCostStress({ ...base, bars }, (r) => summarizeResearch(r, {}), [1, 2]);
-    const surfaceCells = evaluateTrendSurface({ symbol, bars, shorts: [10, 20, 30], evalLength: 60, makeVariant: (short) => makeTrendStrategy({ id: `trend-s${short}`, short }), allocate: fixedFraction(0.25), ...costs });
+    const surfaceCells = evaluateTrendSurface({ symbol, bars, shorts: [10, 20, 30], evalLength: 60, makeVariant: (short) => makeTrendStrategy({ id: `trend-s${short}`, short }), allocate: fixedFraction(AUTO_PAPER_ALLOCATION), ...costs });
     const surface = parameterSurface(surfaceCells);
     const gate = evaluatePromotion({ strategyId: def.id, isSummary: isS, oosSummaries: oosWindows, costStress: stress, surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE", correctnessFindings: [] });
     const last = def.generateSignal({ bars, index: bars.length - 1, symbol });
@@ -678,6 +679,7 @@ async function runFugleResearch() {
       row("資料", `${escapeHtml(symbol)}・${m.dataKind}・${bars.length} 根`) +
       row("區間", `${escapeHtml(String(bars[0].t ? fmtDay(bars[0].t) : "?"))} → ${escapeHtml(fmtDay(bars.at(-1).t))}`) +
       row("策略", "Multi-Horizon Trend 20/60/120") +
+      row("Auto Paper 配置", `${(AUTO_PAPER_ALLOCATION * 100).toFixed(0)}% equity`) +
       row("最新 score", na(last.score, (v) => v.toFixed(3))) +
       row("最新 confidence", na(last.confidence, (v) => v.toFixed(3))) +
       row("最新 reason", escapeHtml(last.reasonCodes?.[0] ?? "未知")) +
