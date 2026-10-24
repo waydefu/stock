@@ -20,6 +20,7 @@ const required = [
   "js/tw-market-holidays.js",
   "js/corporate-actions.js",
   "js/charts.js",
+  "js/classic-strategies.js",
   "js/backtest.js",
   "js/strategy.js",
   "js/alpha.js",

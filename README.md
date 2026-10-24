@@ -39,7 +39,8 @@ js/session-clock.js market-local timezone session key；calendar policy 明確�
 js/trading-calendar.js TWSE 2026 休市日＋市場時區；US 仍 simplified weekday
 js/corporate-actions.js corporate-action schema contract；不自動調整價格
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
-js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數；legacy 相容路徑，見 R-021）
+js/classic-strategies.js MA／RSI／Breakout 共用純訊號語義（legacy 與分層 Strategy 共用）
+js/backtest.js      回測引擎（bar-close 評估、次根開盤成交；legacy execution 相容路徑，見 R-021）
 js/strategy.js     Strategy／Signal 契約、long-only 映射、註冊表、生命週期門
 js/alpha.js        研究基準庫（cash／buyHold／multi-horizon trend，皆有假說）
 js/portfolio.js    Allocator、capped 波動目標覆蓋、組合硬上限
