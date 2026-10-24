@@ -6,6 +6,7 @@
 import { AutoPaperRunner } from "./auto-paper-runner.js";
 import { fugleResearchRange } from "./research-range.js";
 
+export const AUTO_PAPER_ALLOCATION = 0.10;
 const AUTO_CYCLE_MS = 5 * 60_000;
 const $ = (selector) => document.querySelector(selector);
 
