@@ -130,7 +130,16 @@ test("same-day completed signal queues after close and exits on next trading ses
   assert.equal(queued.code, "WAIT_NEXT_SESSION");
   assert.equal(f.runner.status().pendingIntent.targetBinary, 0);
 
-  f.setNow("2026-10-26T01:10:00.000Z"); // 09:10 Taipei, Monday
+  f.setNow("2026-10-26T01:10:00.000Z"); // 09:10 Taipei; official TWSE substitute holiday
+  const holiday = await f.runner.cycle({
+    bars: exitBars,
+    quoteEnvelope: quote("2330", 90, 90, f.now()),
+    now: f.now(),
+  });
+  assert.equal(holiday.code, "WAIT_NEXT_SESSION");
+  assert.ok(f.runner.status().pendingIntent, "holiday must not consume the queued exit");
+
+  f.setNow("2026-10-27T01:10:00.000Z"); // next trading session
   const exit = await f.runner.cycle({
     bars: exitBars,
     quoteEnvelope: quote("2330", 90, 90, f.now()),
