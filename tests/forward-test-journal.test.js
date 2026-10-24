@@ -203,3 +203,50 @@ test("report helper refuses a missing state file without creating it", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+
+test("first-cycle costs are included by using pre-cycle equity as the return baseline", () => {
+  const storage = new MemoryStorage();
+  const journal = new ForwardTestJournal({ storage });
+  journal.recordCycle({
+    timestamp: "2026-10-27T01:10:00.000Z",
+    symbol: "2330",
+    code: "EXECUTED",
+    ok: true,
+    lifecycle: "PAPER_ENABLED",
+    promotionPass: true,
+    equityBefore: 1_000_000,
+    marketPrice: 100,
+    account: account({ sessionKey: "2026-10-27", equity: 999_990, totalFees: 10 }),
+    fills: [{ id: "first-buy", side: "buy", qty: 1, price: 100, fee: 10 }],
+  });
+  const summary = journal.summary();
+  assert.equal(summary.startEquity, 1_000_000);
+  assert.equal(summary.endEquity, 999_990);
+  assert.equal(summary.equityChange, -10);
+  assert.ok(Math.abs(summary.totalReturnPct - (-0.001)) < 1e-12);
+  assert.equal(summary.feesInWindow, 10);
+});
+
+test("invalid account or fill evidence is rejected instead of silently dropped", () => {
+  const journal = new ForwardTestJournal({ storage: new MemoryStorage() });
+  assert.throws(
+    () => journal.recordCycle({
+      timestamp: "2026-10-27T01:10:00.000Z",
+      symbol: "2330",
+      code: "EXECUTED",
+      account: { equity: "broken" },
+    }),
+    (error) => error?.code === "DURABLE_JOURNAL_INVALID",
+  );
+  assert.throws(
+    () => journal.recordCycle({
+      timestamp: "2026-10-27T01:10:00.000Z",
+      symbol: "2330",
+      code: "EXECUTED",
+      fills: [{ id: "bad", side: "buy", qty: 0, price: 100, fee: 0 }],
+    }),
+    (error) => error?.code === "DURABLE_JOURNAL_INVALID",
+  );
+  assert.equal(journal.entries().length, 0);
+});
