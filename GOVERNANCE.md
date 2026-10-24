@@ -3,9 +3,9 @@
 ## 目前治理狀態
 
 - `main` 是整合分支。
-- 所有程式修改走 Pull Request；PR 必須通過 `.github/workflows/quality.yml`（`Quality`）、
-  `.github/workflows/e2e.yml`（`Browser E2E`）與 `.github/workflows/codeql.yml`（`CodeQL`）。
-- `main` 已啟用 branch protection（2026-10-22）：required status check＝`Quality`；
+- 所有程式修改走 Pull Request；政策上 PR 應通過 `Quality`、`Browser E2E` 與 `CodeQL`。
+- GitHub server-side enforcement 與「會跑的 workflow」分開記錄：2026-10-22 最後一次可驗證設定中，
+  `main` required status check＝`Quality`；`Browser E2E`／`CodeQL` 會在 PR 執行，但尚未列為 required context。
   不允許 force push／刪除分支；`enforce_admins` 未開（維護者仍可 bypass，但一般流程請走 PR）。
 - Merge 是人工決策，不由 agent 自動執行。
 - 本 repo 的 CI 只做可重現的靜態檢查、單元測試與瀏覽器 E2E，不連接真實券商。
@@ -33,6 +33,7 @@ UI 的角色切換只代表原型狀態，不能取代後端授權（authorizati
 
 - live trading、IAM／權限、資料庫遷移、分支保護、required CI、測試門檻、主要依賴升級與破壞性變更，需明確決策後才做。
 - Merge、正式部署與公開發布由 repo 維護者決定；agent 可準備 PR 與驗證，但不代替合併決策。
+- 治理文件不得把「workflow 存在／有跑」寫成「server 已強制 required」；server-side 設定以可驗證證據為準。
 - CI 失敗要修根因，不得 skip、disable、rerun 到綠或降低門檻。
 
 ## 報告與稽核
