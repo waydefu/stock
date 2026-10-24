@@ -1,5 +1,6 @@
 /* 行情資料入口（port）：UI 與回測只跟 adapter 要資料，不直連產生器。
-   本檔實作 SimulatedAdapter（本機種子模擬，可重現）；真實 Fugle adapter 在\n   js/fugle-proxy-adapter.js，經 trusted proxy 取資料。
+   本檔實作 SimulatedAdapter（本機種子模擬，可重現）；真實 Fugle adapter 在
+   js/fugle-proxy-adapter.js，經 trusted proxy 取資料。
    Legacy 形狀（getBars／quote／getSource）凍結不變，回歸測試鎖住；
    新契約（capabilities／status／envelopes／describe）走 provider-neutral
    shapes，定義見 js/market-data-contract.js。
