@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";\nimport { checkRuntimeBoundaries } from "./ui-gates/runtime-boundaries.js";
 
 // 純程式 UI 品質閘門：只讀原始碼，不開瀏覽器、不連網路。
 // 任何 FAIL 代表實作與文件承諾不一致；WARN 代表量測值需人工確認。
@@ -557,65 +557,10 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("global-search", problems.join("；"));
 }
 
-// 34. stream bridge 邊界：SSE 只傳 normalized envelope，browser 永不直連 upstream
-{
-  const problems = [];
-  const proxy = readFileSync("server/market-proxy.js", "utf8");
-  const manager = readFileSync("server/fugle-stream-manager.js", "utf8");
-  const streamUi = readFileSync("js/app-stream-controller.js", "utf8");
-  const browserStream = `${app}\n${streamUi}`;
-  if (!/\/api\/market\/stream/.test(proxy)) problems.push("proxy 缺 SSE route");
-  if (!/text\/event-stream/.test(readFileSync("server/stream-sse.js", "utf8"))) problems.push("SSE 缺正確 content-type");
-  if (!/normalizeFugleTrade/.test(manager)) problems.push("bridge 未經 normalization 就轉發（禁 raw forward）");
-  if (/new WebSocket\(/.test(browserStream)) problems.push("browser 端出現 new WebSocket（禁止直連 upstream）");
-  if (/FUGLE_API_KEY|apikey/.test(browserStream)) problems.push("browser bundle 出現 key 字樣");
-  // PR3: browser stream client 隔離 — 不碰下單／broker／風控／mapper，不自帶網路字面
-  const sseClient = readFileSync("js/sse-stream-client.js", "utf8");
-  if (!/class SseStreamClient/.test(sseClient)) problems.push("缺 provider-neutral browser stream client");
-  if (/PaperBroker|order-service|executePaperOrder|paper\.js|risk\.js|fugle-mapper/.test(sseClient)) problems.push("stream client 接觸下單／風控／mapper（PAPER 隔離破裂）");
-  if (/new WebSocket\(|fetch\s*\(|https?:\/\//.test(sseClient)) problems.push("stream client 出現禁用網路形狀（只許經 proxy 的 EventSource）");
-  if (!/generation/.test(sseClient)) problems.push("stream client 缺 generation guard（切 symbol 會污染）");
-  const forbiddenStreamImports = [
-    'from "./paper.js"', "from './paper.js'",
-    'from "./risk.js"', "from './risk.js'",
-    'from "./order-service.js"', "from './order-service.js'",
-    'from "./providers/fugle-mapper.js"', "from './providers/fugle-mapper.js'",
-  ];
-  if (forbiddenStreamImports.some((marker) => streamUi.includes(marker)) || /executePaperOrder\s*\(/.test(streamUi)) {
-    problems.push("stream UI controller 匯入下單／風控／mapper（PAPER 隔離破裂）");
-  }
-  if (!/STREAM_STARTED/.test(streamUi) || !/#stream-symbol/.test(streamUi)) problems.push("stream UI controller 未接 Live UI 啟動／標的");
-  if (problems.length === 0) ok("stream-bridge-boundary");
-  else fail("stream-bridge-boundary", problems.join("；"));
-}
-
-// 35. Live UI 終端錯誤要可行動：STREAM_SUBSCRIBE_FAILED／RATE_LIMITED 都要有
-//     對應文案與下一步，且有獨立的 alert 容器（不能只寫一行 status）
-{
-  const problems = [];
-  if (!/id="stream-alert"/.test(html)) problems.push("index.html 缺 stream-alert 容器（可行動錯誤態）");
-  const streamUi = readFileSync("js/app-stream-controller.js", "utf8");
-  if (!/STREAM_SUBSCRIBE_FAILED/.test(streamUi)) problems.push("stream controller 缺 STREAM_SUBSCRIBE_FAILED 文案");
-  if (!/STREAM_ERROR_ACTION/.test(streamUi)) problems.push("stream controller 缺可行動錯誤對照表（STREAM_ERROR_ACTION）");
-  if (!/RATE_LIMITED/.test(streamUi)) problems.push("stream controller 缺 RATE_LIMITED（proxy 限流）文案");
-  if (!/statePanel\("error"/.test(streamUi)) problems.push("stream controller 的串流錯誤未用 statePanel(\"error\") 呈現");
-  if (problems.length === 0) ok("stream-actionable-errors");
-  else fail("stream-actionable-errors", problems.join("；"));
-}
-
-// 36. Risk/Audit presentation controller 必須保持 presentation-only：不可下單、不可修改斷路器。
-{
-  const problems = [];
-  const riskUi = readFileSync("js/app-risk-audit-controller.js", "utf8");
-  const forbiddenImports = [
-    'from "./paper.js"', "from './paper.js'",
-    'from "./order-service.js"', "from './order-service.js'",
-  ];
-  if (forbiddenImports.some((entry) => riskUi.includes(entry))) problems.push("risk/audit UI controller 匯入 broker／order service");
-  if (/approveOrder\s*\(|\.trip\s*\(|\.reset\s*\(|executePaperOrder\s*\(/.test(riskUi)) problems.push("risk/audit UI controller 含風控決策或下單副作用");
-  if (!/risk\.status\s*\(/.test(riskUi) || !/audit\.list\s*\(/.test(riskUi)) problems.push("risk/audit UI controller 缺 read-only state 讀取");
-  if (problems.length === 0) ok("risk-audit-presentation-boundary");
-  else fail("risk-audit-presentation-boundary", problems.join("；"));
+// 34-36. Runtime / security boundaries live in a focused, unit-testable module.
+for (const gate of checkRuntimeBoundaries({ app, html })) {
+  if (gate.problems.length === 0) ok(gate.id);
+  else fail(gate.id, gate.problems.join("；"));
 }
 
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
