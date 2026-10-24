@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FileKeyValueStorage } from "../server/file-kv-storage.js";
+import { FileKeyValueStorage, acquireExclusiveFileLease } from "../server/file-kv-storage.js";
 
 function tempPath(name = "state.json") {
   const dir = mkdtempSync(join(tmpdir(), "stock-auto-paper-"));
@@ -42,4 +42,36 @@ test("file storage fails closed on corrupt state instead of resetting paper auth
 
 test("file storage rejects relative paths", () => {
   assert.throws(() => new FileKeyValueStorage("./paper-state.json"), /絕對路徑/);
+});
+
+
+test("exclusive durable-state lease rejects a second server writer and releases cleanly", () => {
+  const t = tempPath();
+  try {
+    const first = acquireExclusiveFileLease(t.file, { token: "owner-a", pid: 111, now: () => "2026-10-25T00:00:00.000Z" });
+    assert.throws(
+      () => acquireExclusiveFileLease(t.file, { token: "owner-b", pid: 222 }),
+      (error) => error?.code === "DURABLE_STORAGE_LOCKED",
+    );
+    assert.equal(first.release(), true);
+    assert.equal(first.release(), false);
+    const second = acquireExclusiveFileLease(t.file, { token: "owner-b", pid: 222 });
+    assert.equal(second.release(), true);
+  } finally {
+    rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
+test("lease owner mismatch refuses to delete another instance lock", () => {
+  const t = tempPath();
+  try {
+    const lease = acquireExclusiveFileLease(t.file, { token: "owner-a", pid: 111 });
+    writeFileSync(`${t.file}.lock`, JSON.stringify({ version: 1, token: "owner-b" }), "utf8");
+    assert.throws(
+      () => lease.release(),
+      (error) => error?.code === "DURABLE_STORAGE_LOCKED",
+    );
+  } finally {
+    rmSync(t.dir, { recursive: true, force: true });
+  }
 });
