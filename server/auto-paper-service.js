@@ -20,7 +20,7 @@ import { AuditLog, DEFAULT_RISK, RiskEngine } from "../js/risk.js";
 import { fugleResearchRange } from "../js/research-range.js";
 import { MarketSessionClock } from "../js/session-clock.js";
 import { TW_INSTRUMENT, createTwFeeModel } from "../js/tw-fee-model.js";
-import { FileKeyValueStorage } from "./file-kv-storage.js";
+import { FileKeyValueStorage, acquireExclusiveFileLease } from "./file-kv-storage.js";
 
 export const SERVER_AUTO_META_KEY = "tw-us-stock-server-auto-meta-v1";
 export const DEFAULT_SERVER_AUTO_INTERVAL_MS = 5 * 60_000;
@@ -122,6 +122,9 @@ export function createServerAutoPaperService({
   }
   if (typeof proxyBaseUrl !== "string" || !proxyBaseUrl) throw new Error("server Auto Paper 需要 internal proxy base URL");
 
+  let authorityLease = null;
+  try {
+  if (!storage) authorityLease = acquireExclusiveFileLease(config.stateFile);
   const durable = storage ?? new FileKeyValueStorage(config.stateFile);
   const nowIso = () => new Date(clock()).toISOString();
   const { broker } = createAppPaperRuntime({ storage: durable, now: nowIso, strictPersistence: true });
@@ -293,6 +296,14 @@ export function createServerAutoPaperService({
       try { clearIntervalImpl(timer); } catch { /* already cleared */ }
       timer = null;
     }
+    if (authorityLease) {
+      try {
+        authorityLease.release();
+        authorityLease = null;
+      } catch (error) {
+        log("LEASE_RELEASE_FAILED", { code: error?.code ?? "UNKNOWN", message: error?.message ?? "unknown" });
+      }
+    }
     log("STOPPED");
   }
 
@@ -310,8 +321,15 @@ export function createServerAutoPaperService({
       lastGatePass: meta.lastGatePass ?? null,
       lastCycleAt: meta.lastCycleAt ?? null,
       lastCycleCode: meta.lastCycleCode ?? null,
+      authorityLease: storage ? "injected-test-storage" : (authorityLease ? "HELD" : "RELEASED"),
     };
   }
 
   return Object.freeze({ enabled: true, start, stop, runOnce, status });
+  } catch (error) {
+    if (authorityLease) {
+      try { authorityLease.release(); } catch { /* preserve original startup failure */ }
+    }
+    throw error;
+  }
 }
