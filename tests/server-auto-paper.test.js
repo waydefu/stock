@@ -139,6 +139,11 @@ test("server Auto runner uses durable state and MATCHING across cycles", async (
   assert.equal(evidence.executedCycles, 1);
   assert.equal(evidence.fillCount, 1);
   assert.equal(evidence.sessionDays, 1);
+  assert.equal(evidence.startEquity, 1_000_000, "first fill cost must not disappear from return baseline");
+  assert.equal(evidence.benchmarkStartPrice, 100);
+  assert.equal(evidence.benchmarkEndPrice, 100);
+  assert.equal(evidence.buyHoldReturnPct, 0);
+  assert.ok(evidence.feesInWindow > 0);
 });
 
 test("server Auto promotion failure never arms or asks for a quote", async () => {

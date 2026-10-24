@@ -35,7 +35,7 @@
 | E1 | Automated Paper | 完成：Promotion Gate→數學 Signal→10% sizing→Risk→Paper costs→reconciliation；TW 單標的、browser runner |
 | E2 | Paper Matching v1 | 完成核心：DAY limit `OPEN→FILLED/CANCELED/EXPIRED`、reservation、fill-time Risk、Auto Runner 接線；無 L2／partial fill |
 | E3 | Server Auto Paper authority | 核心完成、部署未啟用：共享 Promotion evaluator、strict durable state、atomic file store、exclusive single-writer lease、server scheduler、startup/shutdown lifecycle；需 confirmed persistent storage＋always-on compute 才可 enable |
-| E4 | Forward Test evidence | 完成：每輪 durable journal、account/fill/Gate/cycle evidence、window return／MDD／fees／session coverage 摘要、只讀 `npm run report:auto` |
+| E4 | Forward Test evidence | 完成：每輪 durable journal；return／MDD／fees／turnover、每日 Sharpe／Sortino、closed-trade 勝率／Profit Factor／Expectancy／holding time、Buy&Hold 對照、session/block coverage；只讀 `npm run report:auto` |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
 

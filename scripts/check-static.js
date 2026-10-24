@@ -41,6 +41,7 @@ const required = [
   "server/auto-paper-service.js",
   "server/file-kv-storage.js",
   "server/forward-test-journal.js",
+  "server/forward-test-metrics.js",
   "scripts/report-auto-paper.js",
   "README.md",
   "DISCLAIMER.md",
@@ -87,9 +88,14 @@ if (/\/api\/(?:paper|trade|order|broker)/i.test(proxy)) {
   process.exit(1);
 }
 const forwardJournal = readFileSync("server/forward-test-journal.js", "utf8");
+const forwardMetrics = readFileSync("server/forward-test-metrics.js", "utf8");
 const forwardReport = readFileSync("scripts/report-auto-paper.js", "utf8");
 if (!/DURABLE_JOURNAL_INVALID/.test(forwardJournal) || !/DURABLE_JOURNAL_FULL/.test(forwardJournal)) {
   console.error("forward-test journal must fail closed on corruption/capacity");
+  process.exit(1);
+}
+if (!/summarizeDailyRisk/.test(forwardMetrics) || !/summarizeClosedTrades/.test(forwardMetrics) || !/summarizeBuyHold/.test(forwardMetrics)) {
+  console.error("forward-test metrics missing daily risk / closed trades / benchmark");
   process.exit(1);
 }
 if (!/buildForwardTestReport/.test(forwardReport) || /setItem\s*\(/.test(forwardReport)) {

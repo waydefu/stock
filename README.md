@@ -130,7 +130,7 @@ AUTO_PAPER_STATE_FILE=/persistent-mount/stock-auto-paper.json npm run report:aut
 npm run report:auto -- /persistent-mount/stock-auto-paper.json
 ```
 
-報告會輸出 session days、起訖 equity、window return、max drawdown、fees、fill 次數，以及 stale quote／Gate fail／kill switch／reconciliation 等阻擋統計；不連外、不寫入帳本。
+報告會輸出 session days、起訖 equity、window return、max drawdown、每日 Sharpe／Sortino（樣本不足為 null）、勝率、Profit Factor、Expectancy、平均持有時間、fill fees／turnover／cost-to-gross-profit、同區間 Buy&Hold 對照，以及 stale quote／Gate fail／kill switch／reconciliation 等阻擋統計；不連外、不寫入帳本。
 
 ## 券商接線（留白，不實作真單）
 
