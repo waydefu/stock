@@ -12,6 +12,9 @@ function cleanFiles() {
     "js/app-risk-audit-controller.js": "risk.status(); audit.list();",
     "js/paper-runtime.js": "new PaperBroker({ storage, feeModel });",
     "js/paper-fee-model.js": 'market === "TW"; market === "US"; dayTrade: false;',
+    "js/app-auto-paper-controller.js": "adapter only",
+    "js/auto-paper-runner.js": "recordResearchGate RESEARCH_APPROVED PAPER_ENABLED quoteIsFresh STALE_QUOTE canTrade executePaperOrder reconcileImmediateFill RECONCILIATION_FAILED risk.trip",
+    "js/paper-reconciliation.js": "assertAccountingInvariants",
   };
 }
 
@@ -23,7 +26,7 @@ test("runtime boundary gates pass on isolated clean contracts", () => {
   const files = cleanFiles();
   const results = checkRuntimeBoundaries({
     app: "createStreamController(); createAppPaperRuntime(); Paper 交易成本",
-    html: '<div id="stream-alert"></div>',
+    html: '<div id="stream-alert"></div><button id="auto-paper-arm"></button><span id="auto-paper-state"></span>',
     readFile: reader(files),
   });
   assert.deepEqual(results.map((item) => item.id), [
@@ -31,6 +34,7 @@ test("runtime boundary gates pass on isolated clean contracts", () => {
     "stream-actionable-errors",
     "risk-audit-presentation-boundary",
     "paper-forward-fee-policy",
+    "automated-paper-safety-boundary",
   ]);
   assert.ok(results.every((item) => item.problems.length === 0));
 });
