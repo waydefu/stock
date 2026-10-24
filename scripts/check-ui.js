@@ -575,7 +575,8 @@ const count = (text, re) => (text.match(re) ?? []).length;
   if (/PaperBroker|order-service|executePaperOrder|paper\.js|risk\.js|fugle-mapper/.test(sseClient)) problems.push("stream client 接觸下單／風控／mapper（PAPER 隔離破裂）");
   if (/new WebSocket\(|fetch\s*\(|https?:\/\//.test(sseClient)) problems.push("stream client 出現禁用網路形狀（只許經 proxy 的 EventSource）");
   if (!/generation/.test(sseClient)) problems.push("stream client 缺 generation guard（切 symbol 會污染）");
-  if (/PaperBroker|order-service|executePaperOrder|risk\.js|fugle-mapper/.test(streamUi)) problems.push("stream UI controller 接觸下單／風控／mapper（PAPER 隔離破裂）");\n  if (!/STREAM_STARTED/.test(streamUi) || !/#stream-symbol/.test(streamUi)) problems.push("stream UI controller 未接 Live UI 啟動／標的");
+  if (/PaperBroker|order-service|executePaperOrder|risk\.js|fugle-mapper/.test(streamUi)) problems.push("stream UI controller 接觸下單／風控／mapper（PAPER 隔離破裂）");
+  if (!/STREAM_STARTED/.test(streamUi) || !/#stream-symbol/.test(streamUi)) problems.push("stream UI controller 未接 Live UI 啟動／標的");
   if (problems.length === 0) ok("stream-bridge-boundary");
   else fail("stream-bridge-boundary", problems.join("；"));
 }
@@ -585,7 +586,8 @@ const count = (text, re) => (text.match(re) ?? []).length;
 {
   const problems = [];
   if (!/id="stream-alert"/.test(html)) problems.push("index.html 缺 stream-alert 容器（可行動錯誤態）");
-  const streamUi = readFileSync("js/app-stream-controller.js", "utf8");\n  if (!/STREAM_SUBSCRIBE_FAILED/.test(streamUi)) problems.push("stream controller 缺 STREAM_SUBSCRIBE_FAILED 文案");
+  const streamUi = readFileSync("js/app-stream-controller.js", "utf8");
+  if (!/STREAM_SUBSCRIBE_FAILED/.test(streamUi)) problems.push("stream controller 缺 STREAM_SUBSCRIBE_FAILED 文案");
   if (!/STREAM_ERROR_ACTION/.test(streamUi)) problems.push("stream controller 缺可行動錯誤對照表（STREAM_ERROR_ACTION）");
   if (!/RATE_LIMITED/.test(streamUi)) problems.push("stream controller 缺 RATE_LIMITED（proxy 限流）文案");
   if (!/statePanel\("error"/.test(streamUi)) problems.push("stream controller 的串流錯誤未用 statePanel(\"error\") 呈現");
