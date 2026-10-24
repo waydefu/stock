@@ -46,12 +46,15 @@
 - `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
 - `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate；target 依實際成交更新。
 - `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）；斷路器狀態寫入 versioned localStorage。
-- `js/paper.js`：本機紙上帳本；將來 broker adapter 必須維持相同狀態回讀介面。
+- `js/paper.js`：本機紙上帳本；constructor 的 FeeModel 可注入，預設 zero-fee 只作 domain/test default。
+- `js/paper-fee-model.js`：正式 forward-test 成本政策；TW dispatch 到 sourced FeeModel，US 在尚無來源化非佣金成本前明示 zero-fee；不猜當沖資格。
+- `js/paper-runtime.js`：App composition boundary，負責把 runtime fee policy 注入 PaperBroker。
 - `js/order-state.js`：deterministic order status 與 transition event。
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
 - `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
-- `js/app.js`：UI composition root；Live stream lifecycle 已移到 `js/app-stream-controller.js`。仍需續拆交易／研究／導覽 controller，重構不得改變交易語義。\n- `js/app-stream-controller.js`：Live SSE UI/controller；只碰 `#stream-*` DOM 與 `SseStreamClient`，gate 明確禁止接觸 PaperBroker／order-service／RiskEngine。
+- `js/app.js`：UI composition root；Live stream lifecycle 已移到 `js/app-stream-controller.js`。仍需續拆交易／研究／導覽 controller，重構不得改變交易語義。
+- `js/app-stream-controller.js`：Live SSE UI/controller；只碰 `#stream-*` DOM 與 `SseStreamClient`，gate 明確禁止接觸 PaperBroker／order-service／RiskEngine。
 - `js/app-risk-audit-controller.js`：Risk/Audit presentation；只讀 `risk.status()`／`audit.list()` 與 CSV export，gate 禁止 `approveOrder`、下單、`trip/reset`。
 - `js/stream-contract.js`：provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽、stale 政策）。
 - `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
