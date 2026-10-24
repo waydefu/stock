@@ -46,7 +46,9 @@
 - `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
 - `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate；target 依實際成交更新。
 - `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）；斷路器狀態寫入 versioned localStorage。
-- `js/paper.js`：本機紙上帳本；將來 broker adapter 必須維持相同狀態回讀介面。
+- `js/paper.js`：本機紙上帳本；constructor 的 FeeModel 可注入，預設 zero-fee 只作 domain/test default。
+- `js/paper-fee-model.js`：正式 forward-test 成本政策；TW dispatch 到 sourced FeeModel，US 在尚無來源化非佣金成本前明示 zero-fee；不猜當沖資格。
+- `js/paper-runtime.js`：App composition boundary，負責把 runtime fee policy 注入 PaperBroker。
 - `js/order-state.js`：deterministic order status 與 transition event。
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
