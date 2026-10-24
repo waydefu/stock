@@ -199,7 +199,11 @@ export class PaperBroker {
       const remaining = Number.isInteger(order.remainingQty) ? order.remainingQty : order.qty;
       if (order.side === "buy") {
         const notional = remaining * order.price;
-        const fee = feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty: remaining, price: order.price, notional });
+        // MATCHING order 的成本在 acceptance 時已凍結到 order.fee；
+        // restart／fee-policy 升版不得改寫既有掛單的 reservation 語義。
+        const fee = Number.isFinite(order.fee)
+          ? order.fee
+          : feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty: remaining, price: order.price, notional });
         reservedCash += notional + fee;
       } else {
         reservedPositions[order.symbol] = (reservedPositions[order.symbol] ?? 0) + remaining;
@@ -211,7 +215,12 @@ export class PaperBroker {
   #applyFill(account, order, price) {
     const qty = order.remainingQty ?? order.qty;
     const notional = qty * price;
-    const fee = feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty, price, notional });
+    const frozenMatchingFee = order.executionMode === ExecutionMode.MATCHING
+      && Number.isFinite(order.fee)
+      && Math.abs(price - order.price) <= 1e-9
+      ? order.fee
+      : null;
+    const fee = frozenMatchingFee ?? feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty, price, notional });
     const existing = account.positions[order.symbol];
 
     if (order.side === "buy") {
@@ -381,7 +390,9 @@ export class PaperBroker {
     const { reservedCash, reservedPositions } = this.#reservations(account, order.id);
     const qty = order.remainingQty ?? order.qty;
     const notional = qty * fillPrice;
-    const fee = feeFor(this.#feeModel, { market, symbol: order.symbol, side: order.side, qty, price: fillPrice, notional });
+    const fee = Number.isFinite(order.fee)
+      ? order.fee
+      : feeFor(this.#feeModel, { market, symbol: order.symbol, side: order.side, qty, price: fillPrice, notional });
     if (order.side === "buy" && account.cash - reservedCash < notional + fee) {
       throw new OrderError(ORDER_ERROR_CODE.INSUFFICIENT_CASH, "成交時可用現金不足");
     }
