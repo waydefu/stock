@@ -18,6 +18,7 @@ function clone(value) {
 }
 
 function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
@@ -85,6 +86,14 @@ function validateStored(value) {
   for (const entry of value.entries) {
     if (!entry || entry.version !== FORWARD_TEST_JOURNAL_VERSION || !Number.isInteger(entry.sequence) || entry.sequence <= previousSequence || typeof entry.timestamp !== "string" || !Number.isFinite(Date.parse(entry.timestamp)) || typeof entry.code !== "string" || !entry.code) {
       throw durableError("DURABLE_JOURNAL_INVALID", "forward-test journal entry 損壞");
+    }
+    if (entry.account !== null && entry.account !== undefined) {
+      for (const field of ["cash", "marketValue", "equity", "totalFees"]) {
+        if (!Number.isFinite(entry.account?.[field])) throw durableError("DURABLE_JOURNAL_INVALID", `forward-test journal account.${field} 損壞`);
+      }
+    }
+    if (!Array.isArray(entry.fills) || entry.fills.some((fill) => !fill || typeof fill.orderId !== "string" || !["buy", "sell"].includes(fill.side) || !Number.isInteger(fill.qty) || fill.qty <= 0 || !Number.isFinite(fill.price) || fill.price <= 0 || !Number.isFinite(fill.fee) || fill.fee < 0)) {
+      throw durableError("DURABLE_JOURNAL_INVALID", "forward-test journal fills 損壞");
     }
     previousSequence = entry.sequence;
   }
