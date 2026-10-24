@@ -11,8 +11,10 @@ import {
   openSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname, isAbsolute, resolve } from "node:path";
 
 export const FILE_STORAGE_VERSION = 1;
@@ -38,6 +40,70 @@ function validatePayload(payload, filePath) {
     if (typeof key !== "string" || typeof value !== "string") throw new Error(`durable storage value 非字串：${key}`);
   }
   return payload;
+}
+
+
+export function acquireExclusiveFileLease(filePath, {
+  now = () => new Date().toISOString(),
+  pid = process.pid,
+  token = randomUUID(),
+} = {}) {
+  if (typeof filePath !== "string" || !filePath || !isAbsolute(filePath)) {
+    throw new Error("AUTO_PAPER_STATE_FILE 必須是絕對路徑");
+  }
+  const resolved = resolve(filePath);
+  mkdirSync(dirname(resolved), { recursive: true });
+  const lockPath = `${resolved}.lock`;
+  let fd = null;
+  try {
+    fd = openSync(lockPath, "wx", 0o600);
+    writeFileSync(fd, JSON.stringify({
+      version: 1,
+      token,
+      pid,
+      acquiredAt: now(),
+      stateFile: resolved,
+    }), "utf8");
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = null;
+  } catch (error) {
+    if (fd !== null) {
+      try { closeSync(fd); } catch { /* best effort */ }
+    }
+    if (error?.code === "EEXIST") {
+      const locked = new Error(`Auto Paper durable state 已被另一個 instance 鎖定：${lockPath}`);
+      locked.code = "DURABLE_STORAGE_LOCKED";
+      throw locked;
+    }
+    throw new DurableStorageError(`durable storage lease failed: ${error?.message ?? "unknown"}`, error);
+  }
+
+  let released = false;
+  return Object.freeze({
+    lockPath,
+    release() {
+      if (released) return false;
+      let owner;
+      try {
+        owner = JSON.parse(readFileSync(lockPath, "utf8"));
+      } catch (error) {
+        throw new DurableStorageError(`durable storage lease 無法驗證：${error?.message ?? "unknown"}`, error);
+      }
+      if (owner?.token !== token) {
+        const mismatch = new Error("durable storage lease owner mismatch；拒絕刪除他人的 lock");
+        mismatch.code = "DURABLE_STORAGE_LOCKED";
+        throw mismatch;
+      }
+      try {
+        unlinkSync(lockPath);
+        released = true;
+        return true;
+      } catch (error) {
+        throw new DurableStorageError(`durable storage lease release failed: ${error?.message ?? "unknown"}`, error);
+      }
+    },
+  });
 }
 
 export class FileKeyValueStorage {
