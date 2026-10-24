@@ -125,7 +125,8 @@ test("server Auto runner uses durable state and MATCHING across cycles", async (
 
   const filled = await service.runOnce();
   assert.equal(filled.code, "EXECUTED");
-  const account = broker.snapshot("TW", { "2330": { price: 100 } });
+  const reloadedBroker = new PaperBroker({ storage, now: () => new Date(nowMs).toISOString() });
+  const account = reloadedBroker.snapshot("TW", { "2330": { price: 100 } });
   assert.equal(account.orders[0].status, "FILLED");
   assert.equal(account.positions["2330"].qty, 1000);
   assert.equal(counter.bars, 1, "same pre-close phase reuses historical-bar cache");
