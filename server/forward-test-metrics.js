@@ -8,7 +8,8 @@ function finite(value) {
 
 function dailyEquitySeries(entries) {
   const bySession = new Map();
-  for (const entry of entries ?? []) {
+  const ordered = [...(entries ?? [])].sort((a, b) => Date.parse(a?.timestamp ?? 0) - Date.parse(b?.timestamp ?? 0));
+  for (const entry of ordered) {
     const key = entry?.account?.sessionKey;
     const equity = finite(entry?.account?.equity);
     if (!key || !(equity > 0)) continue;
@@ -56,15 +57,18 @@ function flattenFills(entries) {
   const seen = new Set();
   const fills = [];
   for (const entry of entries ?? []) {
-    const timestamp = Date.parse(entry?.timestamp);
-    if (!Number.isFinite(timestamp)) continue;
+    const entryTimestamp = Date.parse(entry?.timestamp);
+    if (!Number.isFinite(entryTimestamp)) continue;
     for (const fill of entry?.fills ?? []) {
       if (!fill?.orderId || seen.has(fill.orderId)) continue;
       seen.add(fill.orderId);
-      fills.push({ ...fill, timestamp });
+      const fillTimestamp = typeof fill.filledAt === "string" && Number.isFinite(Date.parse(fill.filledAt))
+        ? Date.parse(fill.filledAt)
+        : entryTimestamp;
+      fills.push({ ...fill, timestamp: fillTimestamp });
     }
   }
-  return fills;
+  return fills.sort((a, b) => a.timestamp - b.timestamp);
 }
 
 /* Long-only round-trip accounting mirrors PaperBroker's average-cost semantics:
@@ -125,6 +129,7 @@ export function summarizeClosedTrades(entries) {
   const holding = trades.map((trade) => trade.holdingMs).filter(Number.isFinite);
 
   return Object.freeze({
+    tradeCount: trades.length,
     closedTradeCount: trades.length,
     winRate: trades.length ? (wins.length / trades.length) * 100 : null,
     grossProfit,
