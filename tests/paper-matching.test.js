@@ -113,3 +113,13 @@ test("matching fill revalidates kill switch and cancels instead of mutating ledg
   assert.equal(broker.snapshot("TW").cash, 1_000_000);
   assert.equal(broker.snapshot("TW").positions["2330"], undefined);
 });
+
+
+test("TW DAY order expires at 13:30 close on the same session date", () => {
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => new Date(SESSION).toISOString() });
+  broker.placeOrder(matchingOrder({ clientOrderId: "expire-close" }));
+  const expired = broker.expireOpenOrders("TW", { timestamp: "2026-10-23T05:30:00.000Z" });
+  assert.equal(expired.length, 1);
+  assert.equal(expired[0].status, "EXPIRED");
+  assert.match(expired[0].events.at(-1).reason, /13:30/);
+});
