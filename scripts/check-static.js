@@ -27,6 +27,8 @@ const required = [
   "js/portfolio.js",
   "js/research.js",
   "js/paper.js",
+  "js/paper-fee-model.js",
+  "js/paper-runtime.js",
   "js/order-state.js",
   "js/order-service.js",
   "js/risk.js",
