@@ -39,7 +39,8 @@
 - `js/execution-model.js`：立即 paper execution boundary；MATCHING 只保留未實作 contract。
 - `js/order-errors.js`：stable order／risk／broker error codes。
 - `js/order-candidate.js`：純函式下單候選組裝（UI 與測試共用；帶 `referencePrice` 與商品別），避免 preview／confirm 組單不一致。
-- `js/backtest.js`：策略、成交假設、績效統計；不呼叫券商。legacy 融合迴圈（相容保留，見 R-021）；新研究走 `js/research.js`。
+- `js/classic-strategies.js`：MA／RSI／Breakout 的唯一訊號語義；legacy `runBacktest()` 與分層 Strategy adapter 共用，避免兩套規則漂移。
+- `js/backtest.js`：legacy sizing／execution／metrics 相容路徑；內建策略訊號已不再自行實作。新研究走 `js/research.js`；待 UI 全面切換後再退役 legacy execution。
 - `js/strategy.js`：Strategy／Signal 契約、long-only 映射、註冊表、生命週期門（新策略不得自動進 paper）。
 - `js/alpha.js`：研究基準庫（cash／buyHold／multi-horizon trend，皆有 hypothesis＋warmup）。
 - `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
