@@ -286,9 +286,12 @@ export function createServerAutoPaperService({
     if (running) return { ok: false, code: "SERVER_AUTO_CYCLE_BUSY" };
     const now = clock();
     const schedule = serverAutoScheduleDecision(now);
+    const previousSchedule = lastScheduleDecision;
     lastScheduleDecision = { ...schedule, evaluatedAt: new Date(now).toISOString() };
     if (!schedule.run) {
-      log("SCHEDULE_SKIP", { code: schedule.code });
+      if (previousSchedule?.code !== schedule.code || previousSchedule?.session !== schedule.session) {
+        log("SCHEDULE_SKIP", { code: schedule.code });
+      }
       return { ok: true, code: schedule.code, skipped: true, session: null };
     }
     running = true;
