@@ -85,7 +85,7 @@ export function processPaperMatches({ broker, risk, market = "TW", quotes = {}, 
     const match = matchLimitOrder(order, quote);
     if (!match.matched) continue;
 
-    const before = broker.snapshot(market, quotes);
+    const before = broker.snapshot(market, quotes, { excludeOrderId: order.id });
     const decision = risk.approveOrder(before, { ...order, price: match.fillPrice }, { now });
     if (!decision.ok) {
       canceled.push(broker.cancelOrder(market, order.id, { timestamp, reason: `risk:${decision.code}` }));
