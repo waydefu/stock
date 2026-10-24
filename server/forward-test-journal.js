@@ -39,8 +39,8 @@ function normalizeFill(fill) {
     qty,
     price,
     fee,
-    filledAt: typeof fill.filledAt === "string" && Number.isFinite(Date.parse(fill.filledAt))
-      ? new Date(fill.filledAt).toISOString()
+    filledAt: typeof (fill.filledAt ?? fill.updatedAt) === "string" && Number.isFinite(Date.parse(fill.filledAt ?? fill.updatedAt))
+      ? new Date(fill.filledAt ?? fill.updatedAt).toISOString()
       : null,
   });
 }
@@ -103,7 +103,7 @@ function validateStored(value) {
         if (!Number.isFinite(entry.account?.[field])) throw durableError("DURABLE_JOURNAL_INVALID", `forward-test journal account.${field} 損壞`);
       }
     }
-    if (!Array.isArray(entry.fills) || entry.fills.some((fill) => !fill || typeof fill.orderId !== "string" || !["buy", "sell"].includes(fill.side) || !Number.isInteger(fill.qty) || fill.qty <= 0 || !Number.isFinite(fill.price) || fill.price <= 0 || !Number.isFinite(fill.fee) || fill.fee < 0)) {
+    if (!Array.isArray(entry.fills) || entry.fills.some((fill) => !fill || typeof fill.orderId !== "string" || !["buy", "sell"].includes(fill.side) || !Number.isInteger(fill.qty) || fill.qty <= 0 || !Number.isFinite(fill.price) || fill.price <= 0 || !Number.isFinite(fill.fee) || fill.fee < 0 || (fill.filledAt !== null && fill.filledAt !== undefined && (typeof fill.filledAt !== "string" || !Number.isFinite(Date.parse(fill.filledAt)))))) {
       throw durableError("DURABLE_JOURNAL_INVALID", "forward-test journal fills 損壞");
     }
     previousSequence = entry.sequence;
@@ -245,7 +245,21 @@ export class ForwardTestJournal {
     const parsedTime = Date.parse(timestamp);
     if (!Number.isFinite(parsedTime)) throw new Error("journal timestamp 無效");
 
-    const normalizedFills = (Array.isArray(fills) ? fills : []).map(normalizeFill).filter(Boolean);
+    const rawFills = Array.isArray(fills) ? fills : [];
+    const normalizedFills = rawFills.map(normalizeFill);
+    if (normalizedFills.some((fill) => fill === null)) {
+      throw durableError("DURABLE_JOURNAL_INVALID", "cycle fill evidence 無效，拒絕靜默丟棄");
+    }
+    const normalizedAccount = normalizeAccount(account);
+    if (account !== null && account !== undefined && normalizedAccount === null) {
+      throw durableError("DURABLE_JOURNAL_INVALID", "cycle account evidence 無效，拒絕靜默丟棄");
+    }
+    if (marketPrice !== null && marketPrice !== undefined && (!(Number(marketPrice) > 0) || !Number.isFinite(Number(marketPrice)))) {
+      throw durableError("DURABLE_JOURNAL_INVALID", "cycle marketPrice evidence 無效");
+    }
+    if (equityBefore !== null && equityBefore !== undefined && (!(Number(equityBefore) > 0) || !Number.isFinite(Number(equityBefore)))) {
+      throw durableError("DURABLE_JOURNAL_INVALID", "cycle equityBefore evidence 無效");
+    }
     const entry = {
       version: FORWARD_TEST_JOURNAL_VERSION,
       sequence: this.#state.nextSequence,
@@ -258,7 +272,7 @@ export class ForwardTestJournal {
       promotionPass: typeof promotionPass === "boolean" ? promotionPass : null,
       marketPrice: Number.isFinite(Number(marketPrice)) && Number(marketPrice) > 0 ? Number(marketPrice) : null,
       equityBefore: Number.isFinite(Number(equityBefore)) && Number(equityBefore) > 0 ? Number(equityBefore) : null,
-      account: normalizeAccount(account),
+      account: normalizedAccount,
       fills: normalizedFills,
     };
     this.#state = {
