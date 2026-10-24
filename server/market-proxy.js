@@ -25,6 +25,15 @@ import {
 import { FUGLE_MARKET_MAP, FUGLE_PROVIDER_ID, mapFugleBars, mapFugleQuote } from "../js/providers/fugle-mapper.js";
 import { STREAM_CHANNELS } from "../js/stream-contract.js";
 import { DEFAULT_SSE_KEEPALIVE_MS, SSE_HEADERS, createSseSink, formatRetryHint } from "./stream-sse.js";
+import {
+  DEFAULT_DAILY_UPSTREAM_BUDGET,
+  DEFAULT_QUOTE_CACHE_TTL_MS,
+  consumeUpstreamBudget,
+  normalizeRateLimit,
+  readQuoteCache,
+  takeToken,
+  writeQuoteCache,
+} from "./proxy-anti-abuse.js";
 
 const FUGLE_BASE = "https://api.fugle.tw";
 const FUGLE_REST = `${FUGLE_BASE}/marketdata/v1.0/stock`;
@@ -39,29 +48,8 @@ const ALLOWED_ORIGINS = Object.freeze([
 const SYMBOL_PATTERN = /^[A-Za-z0-9]{4,6}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-/* Anti-abuse (Track A2 / R-024):
-   - per-client token bucket（不是全 process 共用），單一來源打爆只影響自己；
-   - 每日上游呼叫預算（per process），避免單一故障或濫用燒完 Fugle 額度；
-   - quote 短 TTL 快取，同代碼在 TTL 內只打一次上游。
-   仍是 single-process（不是 distributed），見 ADR-006。 */
-const DEFAULT_RATE_LIMIT = Object.freeze({ capacity: 60, refillPerSecond: 1 });
-const DEFAULT_QUOTE_CACHE_TTL_MS = 4_000;
-const DEFAULT_DAILY_UPSTREAM_BUDGET = 5_000;
-const MAX_CLIENT_BUCKETS = 10_000;
-
-/* rateLimit 支援兩種形狀：
-   - 新版 token bucket：{ capacity, refillPerSecond }
-   - 舊版滑動視窗：{ maxRequests, windowMs }（自動換算成等價 token bucket） */
-function normalizeRateLimit(opt) {
-  if (opt === false) return null;
-  if (opt === undefined || opt === null) return { ...DEFAULT_RATE_LIMIT };
-  if (Number.isFinite(opt.capacity) && opt.capacity > 0 && Number.isFinite(opt.refillPerSecond) && opt.refillPerSecond > 0) {
-    return { capacity: opt.capacity, refillPerSecond: opt.refillPerSecond };
-  }
-  const maxRequests = Number.isInteger(opt.maxRequests) && opt.maxRequests > 0 ? opt.maxRequests : DEFAULT_RATE_LIMIT.capacity;
-  const windowMs = Number.isFinite(opt.windowMs) && opt.windowMs > 0 ? opt.windowMs : 60_000;
-  return { capacity: maxRequests, refillPerSecond: (maxRequests * 1000) / windowMs };
-}
+/* Anti-abuse token buckets / daily budget / quote cache live in proxy-anti-abuse.js.
+   market-proxy.js keeps HTTP trust boundaries and routing only. */
 
 /* 信任邊界：只有明確設定 TRUST_PROXY=1（proxy 部署在 Render／反向代理後方）
    才採用 X-Forwarded-For 的第一段；否則只看 socket 遠端位址，不信任任何
@@ -79,51 +67,6 @@ export function resolveClientKey(req, { trustProxy = false } = {}) {
 /* 只留雜湊後的 client id 進 log：不記 IP、不記任何 key。 */
 export function clientIdOf(clientKey) {
   return crypto.createHash("sha256").update(String(clientKey)).digest("hex").slice(0, 12);
-}
-
-/* Token bucket：回傳 null 代表放行；回傳秒數代表要 shed。 */
-function takeToken(state, clientKey) {
-  const rl = state.rateLimit;
-  if (!rl) return null;
-  const now = state.clock();
-  let bucket = state.buckets.get(clientKey);
-  if (!bucket) {
-    bucket = { tokens: rl.capacity, updatedAt: now };
-    state.buckets.set(clientKey, bucket);
-    evictStaleBuckets(state);
-  }
-  const elapsedSeconds = Math.max(0, now - bucket.updatedAt) / 1000;
-  bucket.tokens = Math.min(rl.capacity, bucket.tokens + elapsedSeconds * rl.refillPerSecond);
-  bucket.updatedAt = now;
-  if (bucket.tokens >= 1) {
-    bucket.tokens -= 1;
-    return null;
-  }
-  return Math.max(1, Math.ceil((1 - bucket.tokens) / rl.refillPerSecond));
-}
-
-/* bucket 表不可無限成長（大量來源 IP 會撐大記憶體）：超過上限就丟最舊的。 */
-function evictStaleBuckets(state) {
-  if (state.buckets.size <= MAX_CLIENT_BUCKETS) return;
-  const entries = [...state.buckets.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt);
-  for (const [key] of entries) {
-    if (state.buckets.size <= MAX_CLIENT_BUCKETS) break;
-    state.buckets.delete(key);
-  }
-}
-
-/* 每日上游呼叫預算（UTC 日界）。超過 → RATE_LIMITED，不打上游。 */
-function consumeUpstreamBudget(state) {
-  const budget = state.dailyUpstreamBudget;
-  if (!budget) return { allowed: true, used: 0, budget };
-  const day = new Date(state.clock()).toISOString().slice(0, 10);
-  if (state.budgetDay !== day) {
-    state.budgetDay = day;
-    state.budgetUsed = 0;
-  }
-  if (state.budgetUsed >= budget) return { allowed: false, used: state.budgetUsed, budget };
-  state.budgetUsed += 1;
-  return { allowed: true, used: state.budgetUsed, budget };
 }
 
 export function createProxy({
@@ -266,27 +209,6 @@ function assertRange(from, to) {
 
 function inputError(http, code, message) {
   return new MarketDataError(code, message, { http });
-}
-
-/* Quote 短 TTL 快取（Track A2 / R-024）：同代碼在 TTL 內只打一次上游，
-   cache 命中時 meta.cached=true 且帶 cacheAgeMs；資料本身不變（新舊相同）。 */
-function readQuoteCache(state, symbol) {
-  const entry = state.quoteCache.get(symbol);
-  if (!entry) return null;
-  const age = state.clock() - entry.storedAt;
-  if (age > state.quoteCacheTtlMs) {
-    state.quoteCache.delete(symbol);
-    return null;
-  }
-  return { ...entry, age };
-}
-
-function writeQuoteCache(state, symbol, entry) {
-  state.quoteCache.set(symbol, entry);
-  if (state.quoteCache.size > 200) {
-    const oldest = [...state.quoteCache.entries()].sort((a, b) => a[1].storedAt - b[1].storedAt)[0];
-    if (oldest) state.quoteCache.delete(oldest[0]);
-  }
 }
 
 async function serveQuote(state, cors, req, res, symbol, requestId, started, clientId) {
