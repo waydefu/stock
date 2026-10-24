@@ -21,6 +21,7 @@ import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { createStreamController } from "./app-stream-controller.js";
 import { createRiskAuditController } from "./app-risk-audit-controller.js";
+import { createAutoPaperController } from "./app-auto-paper-controller.js";
 import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
@@ -91,6 +92,19 @@ const riskAuditController = createRiskAuditController({
   onAuditExport: () => auditEvent("AUDIT_EXPORTED", {}),
 });
 
+const autoPaperController = createAutoPaperController({
+  strategy: registry.get("multiHorizonTrend"),
+  allocate: fixedFraction(0.10),
+  broker,
+  risk,
+  storage,
+  getFugleAdapter: () => requireFugleAdapter(),
+  getDataMode: () => state.dataMode,
+  canTrade: () => permissionsFor(state.role).includes("paper:order"),
+  auditEvent,
+  onAccountChanged: () => renderAll(),
+});
+
 function setMarket(market) {
   state.market = market;
   state.symbol = marketSymbols()[0].code;
@@ -154,6 +168,7 @@ function renderAll() {
   renderBacktest();
   renderTrade();
   renderRisk();
+  autoPaperController.refresh();
 }
 
 function renderDashboard() {
@@ -643,6 +658,21 @@ async function runFugleResearch() {
     const last = def.generateSignal({ bars, index: bars.length - 1, symbol });
     const m = envelope.meta;
     const provenance = `${m.provider}・${m.dataKind}・norm-v${m.normalizationVersion}・${m.adjustmentMode}・${m.pointInTime}`;
+    autoPaperController.recordResearchGate({
+      symbol,
+      pass: gate.pass,
+      evidence: {
+        range: `${from}→${to}`,
+        bars: bars.length,
+        oosNetProfit: oosS.netProfit,
+        oosTradeCount: oosS.tradeCount,
+        walkForwardNetProfit: oosWindows.map((s) => s.netProfit),
+        costFragile: stress.fragile,
+        surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE",
+        checks: gate.checks,
+        provenance,
+      },
+    });
     const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
     box.innerHTML = `<div class="notice info">真實資料研究 <span class="badge brand">FUGLE HISTORICAL</span> <span class="badge neutral">PAPER EXECUTION</span></div>` +
       row("資料", `${escapeHtml(symbol)}・${m.dataKind}・${bars.length} 根`) +
@@ -1066,6 +1096,7 @@ function initEvents() {
       $("#fugle-research").innerHTML = "";
       streamController.stopForModeChange();
     }
+    autoPaperController.notifyDataModeChanged();
   });
   $("#fugle-quote-btn").addEventListener("click", renderFugleQuote);
   $("#fugle-research-btn").addEventListener("click", runFugleResearch);
