@@ -72,7 +72,7 @@
 - `server/forward-test-metrics.js`：純 evidence analytics；每日最後 equity → Sharpe／Sortino，long-only fill sequence → closed round-trip 勝率／Profit Factor／Expectancy／holding time，同 evidence window 市價 → Buy&Hold 對照；不回饋策略。
 - `scripts/report-auto-paper.js`：只讀同一 durable state file，輸出 forward-test 摘要與最新 evidence；不連網、不寫帳本。
 - `server/file-kv-storage.js`：server authority 的同步 key-value storage；temp write＋fsync＋atomic rename，格式或 IO 損壞直接錯誤，不靜默重置。
-- `server/auto-paper-service.js`：server scheduler；預設 disabled。啟用需 durable-storage／always-on 雙確認、絕對 state path、固定 TW symbol；無公開 mutation route。Paper／Risk／Audit 全開 strict persistence。
+- `server/auto-paper-service.js`：server scheduler；預設 disabled。啟用需 durable-storage／always-on 雙確認、絕對 state path、固定 TW symbol；無公開 mutation route。Paper／Risk／Audit 全開 strict persistence。Scheduler 直接復用 `getCurrentSession()`：僅 TW 有效交易日 08:30–13:30 跑完整 cycle，休市時不打行情 API、不寫 Journal；同一 completed bar 的 deterministic Promotion PASS/FAIL 皆快取。
 - `server/start-market-proxy.js`：正式 entrypoint——fail-fast 設定、STALE 探測、可選 server Auto Paper lifecycle、graceful shutdown。
 
 ## 架構取捨

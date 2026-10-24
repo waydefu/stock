@@ -122,7 +122,7 @@ AUTO_PAPER_ALWAYS_ON_CONFIRMED=1
 
 server scheduler 沒有新增任何公開下單 route；交易狀態只寫 confirmed durable storage，持久化錯誤或子狀態損壞即 fail-closed。啟用時還會建立 `${AUTO_PAPER_STATE_FILE}.lock` exclusive lease；同一 state file 第二個 instance 會拒絕啟動。若 process 非正常終止留下 stale lock，必須先確認沒有其他 authority 在跑，再由部署者人工移除 lock，系統不會自動猜測並搶鎖。
 
-每個 server cycle 都會追加 Forward Test Journal（equity／PnL／fees／session／fills／Gate／cycle code）。月底或任何時間可用只讀 CLI 產生摘要：
+Server scheduler 以既有 TWSE calendar/session 規則決定是否進入完整 cycle：只有有效交易日的 08:30–13:30（preMarket／regular／preClose）才抓 bars／quote／跑 Promotion 與 Auto Paper；夜間、週末與休市日直接 `MARKET_CLOSED_SKIP`，不耗 Fugle 請求、不追加 Journal evidence。\n\n每個有效市場 server cycle 都會追加 Forward Test Journal（equity／PnL／fees／session／fills／Gate／cycle code）。月底或任何時間可用只讀 CLI 產生摘要：
 
 ```bash
 AUTO_PAPER_STATE_FILE=/persistent-mount/stock-auto-paper.json npm run report:auto

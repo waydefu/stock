@@ -16,6 +16,7 @@ import { AutoPaperRunner, latestCompletedTwBar } from "../js/auto-paper-runner.j
 import { FugleProxyAdapter } from "../js/fugle-proxy-adapter.js";
 import { createAppPaperRuntime } from "../js/paper-runtime.js";
 import { fixedFraction } from "../js/portfolio.js";
+import { getCurrentSession } from "../js/market-rules.js";
 import { AuditLog, DEFAULT_RISK, RiskEngine } from "../js/risk.js";
 import { fugleResearchRange } from "../js/research-range.js";
 import { MarketSessionClock } from "../js/session-clock.js";
@@ -93,6 +94,12 @@ function saveMeta(storage, meta) {
   storage.setItem(SERVER_AUTO_META_KEY, JSON.stringify({ version: 1, ...meta }));
 }
 
+export function serverAutoScheduleDecision(now = Date.now()) {
+  const session = getCurrentSession("TW", now);
+  if (!session) return Object.freeze({ run: false, code: "MARKET_CLOSED_SKIP", session: null });
+  return Object.freeze({ run: true, code: "MARKET_SESSION", session: session.name });
+}
+
 function providerGuard(envelope, symbol) {
   if (envelope?.meta?.provider !== "FUGLE" || envelope?.meta?.symbol !== symbol) {
     const error = new Error("server Auto Paper provenance 非 FUGLE／symbol 不一致");
@@ -155,6 +162,7 @@ export function createServerAutoPaperService({
   let fatal = null;
   let barsCache = null;
   let barsCacheKey = null;
+  let lastScheduleDecision = null;
 
   function log(event, details = {}) {
     logger({ component: "server-auto-paper", event, symbol: config.symbol, ...details });
@@ -228,8 +236,15 @@ export function createServerAutoPaperService({
   async function refreshPromotion(bars, now) {
     const latestBar = bars.at(-1)?.t ?? null;
     const status = runner.status();
-    const needsEvaluation = meta.lastPromotionBar !== latestBar || status.approval?.pass !== true;
-    if (!needsEvaluation) return { pass: true, cached: true, gate: status.approval?.evidence?.checks ?? [] };
+    const approvalMissingAfterPass = meta.lastGatePass === true && status.approval?.pass !== true;
+    const needsEvaluation = meta.lastPromotionBar !== latestBar || meta.lastGatePass === null || approvalMissingAfterPass;
+    if (!needsEvaluation) {
+      return {
+        pass: meta.lastGatePass === true,
+        cached: true,
+        gate: status.approval?.evidence?.checks ?? [],
+      };
+    }
 
     const promotion = promotionEvaluator({
       symbol: config.symbol,
@@ -269,8 +284,17 @@ export function createServerAutoPaperService({
   async function runOnce() {
     if (fatal) return { ok: false, code: fatal.code, fatal: true };
     if (running) return { ok: false, code: "SERVER_AUTO_CYCLE_BUSY" };
-    running = true;
     const now = clock();
+    const schedule = serverAutoScheduleDecision(now);
+    const previousSchedule = lastScheduleDecision;
+    lastScheduleDecision = { ...schedule, evaluatedAt: new Date(now).toISOString() };
+    if (!schedule.run) {
+      if (previousSchedule?.code !== schedule.code || previousSchedule?.session !== schedule.session) {
+        log("SCHEDULE_SKIP", { code: schedule.code });
+      }
+      return { ok: true, code: schedule.code, skipped: true, session: null };
+    }
+    running = true;
     let promotion = null;
     let quoteEnvelope = null;
     let accountBefore = null;
@@ -372,6 +396,7 @@ export function createServerAutoPaperService({
       lastGatePass: meta.lastGatePass ?? null,
       lastCycleAt: meta.lastCycleAt ?? null,
       lastCycleCode: meta.lastCycleCode ?? null,
+      lastScheduleDecision,
       authorityLease: storage ? "injected-test-storage" : (authorityLease ? "HELD" : "RELEASED"),
       evidence: journal.summary(),
     };
