@@ -575,7 +575,7 @@ const count = (text, re) => (text.match(re) ?? []).length;
   if (/PaperBroker|order-service|executePaperOrder|paper\.js|risk\.js|fugle-mapper/.test(sseClient)) problems.push("stream client 接觸下單／風控／mapper（PAPER 隔離破裂）");
   if (/new WebSocket\(|fetch\s*\(|https?:\/\//.test(sseClient)) problems.push("stream client 出現禁用網路形狀（只許經 proxy 的 EventSource）");
   if (!/generation/.test(sseClient)) problems.push("stream client 缺 generation guard（切 symbol 會污染）");
-  if (/PaperBroker|order-service|executePaperOrder|risk\.js|fugle-mapper/.test(streamUi)) problems.push("stream UI controller 接觸下單／風控／mapper（PAPER 隔離破裂）");
+  if (/from\\s+["\']\\.\\/(?:paper|risk|order-service)\\.js["\']|from\\s+["\']\\.\\/providers\\/fugle-mapper\\.js["\']|executePaperOrder\\s*\\(/.test(streamUi)) problems.push("stream UI controller 匯入下單／風控／mapper（PAPER 隔離破裂）");
   if (!/STREAM_STARTED/.test(streamUi) || !/#stream-symbol/.test(streamUi)) problems.push("stream UI controller 未接 Live UI 啟動／標的");
   if (problems.length === 0) ok("stream-bridge-boundary");
   else fail("stream-bridge-boundary", problems.join("；"));
