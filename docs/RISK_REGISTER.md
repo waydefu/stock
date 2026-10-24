@@ -40,6 +40,8 @@
 | R-031 | P2 | Fixed（target 依實際成交更新＋回歸測試） | 研究引擎不論是否成交都更新 `target`。 | 配置為 0 或股數取整為 0 時，策略以為持有而錯過進場，研究結果失真。 | 修復：`js/research.js`（買賣後以 `shares > 0` 回寫 target）、`tests/risk-state.test.js`（配置回 0 的回歸測試）；Audit snapshot F-09。 | 已關閉。 |
 | R-032 | P2 | Core fixed; enforcement residual open | 早期品質閘門偏靜態、無 browser E2E；狀態文件又手寫易過期。 | 核心流程可能壞掉仍全綠，或 current truth 漂移。 | 修復：`.github/workflows/e2e.yml`＋`tests/e2e/*`、R-023 mutation replay、`scripts/ci-summary.js`＋可測 parser、`scripts/check-status.js`；main branch protection 已啟用且 required `Quality`。 | 已修：Browser E2E／CodeQL／Dependency Review 會跑，CI summary 不再手寫測試數。**剩餘**：Browser E2E／CodeQL 尚未成為 server required context；ruleset 目前為空；本機 Chromium GPU 限制見 R-020。 |
 
+| R-033 | P1 | Fixed on branch; regression tests added | `evaluateWindow()` 在第 j 根收盤產生 signal 後，先用第 j+1 根開盤改 cash/shares，才記錄第 j 根 equity；等於讓尚未發生的成交回寫到過去。 | Equity／drawdown／Sharpe／promotion gate 可被下一根開盤價污染，違反 next-bar-open 與因果時間軸。 | `tests/research-timeline.test.js`：改變未來開盤不得改變 signal bar equity；exit 也不得提前一根反映。 | 改成 `pendingExecution`：本根開盤只執行上一根 intent → 記本根 equity → 本根收盤才排下一根 intent；成交失敗仍依 R-031 保持 flat target。 |
+
 ## Immediate priority
 
 Current next-action 不在 Risk Register 維護，避免風險證據與 roadmap 重複後漂移。
