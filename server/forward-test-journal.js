@@ -119,12 +119,16 @@ export function summarizeForwardTestEntries(entries = []) {
   let fillCount = 0;
   let buyFills = 0;
   let sellFills = 0;
+  let feesInWindow = 0;
+  let turnoverNotional = 0;
   for (const entry of safe) {
     codeCounts[entry.code] = (codeCounts[entry.code] ?? 0) + 1;
     for (const fill of entry.fills ?? []) {
       fillCount += 1;
       if (fill.side === "buy") buyFills += 1;
       if (fill.side === "sell") sellFills += 1;
+      feesInWindow += Number(fill.fee) || 0;
+      turnoverNotional += (Number(fill.qty) || 0) * (Number(fill.price) || 0);
     }
   }
 
@@ -133,7 +137,7 @@ export function summarizeForwardTestEntries(entries = []) {
   const endEquity = last?.account?.equity ?? null;
   const equityChange = startEquity !== null && endEquity !== null ? endEquity - startEquity : null;
   const totalReturnPct = startEquity > 0 && endEquity !== null ? ((endEquity - startEquity) / startEquity) * 100 : null;
-  const feesInWindow = first && last ? Math.max(0, last.account.totalFees - first.account.totalFees) : null;
+  const costToTurnoverPct = turnoverNotional > 0 ? (feesInWindow / turnoverNotional) * 100 : null;
 
   return Object.freeze({
     version: FORWARD_TEST_JOURNAL_VERSION,
@@ -148,6 +152,8 @@ export function summarizeForwardTestEntries(entries = []) {
     totalReturnPct,
     maxDrawdownPct: priced.length ? maxDrawdownPct : null,
     feesInWindow,
+    turnoverNotional,
+    costToTurnoverPct,
     cumulativeFees: last?.account?.totalFees ?? null,
     latestRealizedPnl: last?.account?.realizedPnl ?? null,
     latestUnrealizedPnl: last?.account?.unrealizedPnl ?? null,
