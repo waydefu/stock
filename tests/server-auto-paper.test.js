@@ -199,3 +199,34 @@ test("strict RiskEngine and AuditLog propagate persistence failures", () => {
   const audit = new AuditLog({ storage: bad, strictPersistence: true });
   assert.throws(() => audit.record("SERVER_TEST", {}), /Audit persistence failed/);
 });
+
+
+test("strict server state rejects corrupt Paper/Risk/Audit children instead of resetting", () => {
+  const paperState = new MemoryStorage();
+  paperState.setItem("tw-us-stock-paper-v1", "{broken");
+  assert.throws(
+    () => new PaperBroker({ storage: paperState, strictPersistence: true }),
+    (error) => error?.code === "DURABLE_STATE_INVALID",
+  );
+
+  const riskState = new MemoryStorage();
+  riskState.setItem("tw-us-stock-killswitch-v1", "{broken");
+  assert.throws(
+    () => new RiskEngine({}, { storage: riskState, strictPersistence: true }),
+    (error) => error?.code === "DURABLE_STATE_INVALID",
+  );
+
+  const auditState = new MemoryStorage();
+  auditState.setItem("tw-us-stock-audit-v1", JSON.stringify({ version: 1, events: [{ nope: true }] }));
+  assert.throws(
+    () => new AuditLog({ storage: auditState, strictPersistence: true }),
+    (error) => error?.code === "DURABLE_STATE_INVALID",
+  );
+});
+
+test("browser-compatible persistence mode still resets malformed Paper state safely", () => {
+  const storage = new MemoryStorage();
+  storage.setItem("tw-us-stock-paper-v1", "{broken");
+  const broker = new PaperBroker({ storage });
+  assert.equal(broker.snapshot("TW").cash, 1_000_000);
+});
