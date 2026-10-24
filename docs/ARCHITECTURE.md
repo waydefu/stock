@@ -68,7 +68,8 @@
 - `server/proxy-anti-abuse.js`：純 anti-abuse state——per-client token bucket、quote 短 TTL 快取、每日上游預算與 bounded maps；無 HTTP／provider schema／秘密。
 - `server/fugle-stream-manager.js`：Fugle WebSocket 管理器——單一上游多訂閱、per-client SSE 上限、per-key 狀態、upstream 錯誤路由與名額釋放。
 - `server/stream-sse.js`：瀏覽器端 SSE 序列化（只送 normalized envelope）。
-- `server/forward-test-journal.js`：server Auto Paper 每輪 append semantic evidence，保存 mark-to-market account snapshot、fills、Gate/lifecycle/cycle code，並計算 forward-test return／max drawdown／fees／coverage；corruption 或容量耗盡 fail-closed。
+- `server/forward-test-journal.js`：server Auto Paper 每輪 append semantic evidence，保存 pre-cycle equity、mark-to-market account、market price、fills、Gate/lifecycle/cycle code；corruption 或容量耗盡 fail-closed。
+- `server/forward-test-metrics.js`：純 evidence analytics；每日最後 equity → Sharpe／Sortino，long-only fill sequence → closed round-trip 勝率／Profit Factor／Expectancy／holding time，同 evidence window 市價 → Buy&Hold 對照；不回饋策略。
 - `scripts/report-auto-paper.js`：只讀同一 durable state file，輸出 forward-test 摘要與最新 evidence；不連網、不寫帳本。
 - `server/file-kv-storage.js`：server authority 的同步 key-value storage；temp write＋fsync＋atomic rename，格式或 IO 損壞直接錯誤，不靜默重置。
 - `server/auto-paper-service.js`：server scheduler；預設 disabled。啟用需 durable-storage／always-on 雙確認、絕對 state path、固定 TW symbol；無公開 mutation route。Paper／Risk／Audit 全開 strict persistence。
