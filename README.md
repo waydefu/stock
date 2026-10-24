@@ -119,7 +119,7 @@ AUTO_PAPER_ALWAYS_ON_CONFIRMED=1
 - https://render.com/docs/free
 - https://render.com/docs/disks
 
-server scheduler 沒有新增任何公開下單 route；交易狀態只寫 confirmed durable storage，持久化錯誤或子狀態損壞即 fail-closed。
+server scheduler 沒有新增任何公開下單 route；交易狀態只寫 confirmed durable storage，持久化錯誤或子狀態損壞即 fail-closed。啟用時還會建立 `${AUTO_PAPER_STATE_FILE}.lock` exclusive lease；同一 state file 第二個 instance 會拒絕啟動。若 process 非正常終止留下 stale lock，必須先確認沒有其他 authority 在跑，再由部署者人工移除 lock，系統不會自動猜測並搶鎖。
 
 ## 券商接線（留白，不實作真單）
 
