@@ -3,7 +3,7 @@
      Alpha（js/alpha.js）→ Signal → Portfolio（js/portfolio.js）→ target exposure
        → Execution（本檔：next-bar-open 立即紙上成交，IMMEDIATE 語義不變）
    策略只輸出 Signal，永遠不直接決定股數；股數只由 target exposure×資金算出。
-   防未來函數：每根 bar 只把 0..i 的歷史切片交給策略（正確性優先於效能；
+   防未來函數：每根 bar 只把 0..i 的歷史切片交給策略；訊號於收盤形成，下一根開盤才改帳（正確性優先於效能；
    研究資料量為數百根日 K，此處不做 precompute 優化）。 */
 "use strict";
 
@@ -160,29 +160,45 @@ export function evaluateWindow({
 
   const warmup = strategy.warmup;
   const base = context.length;
+  // 訊號在本根收盤形成，只能在「下一根開盤」執行。
+  // pendingExecution 將決策與成交時間分離，避免先用 j+1 開盤改帳，
+  // 卻把成交後部位回寫到第 j 根 equity（R-033 的時間倒流）。
+  let pendingExecution = null;
   for (let j = 0; j < evals.length; j++) {
     const absolute = base + j;
+
+    // 先執行「上一根收盤」留下的 intent；此時才允許改 cash/shares。
+    if (pendingExecution?.action === "buy") {
+      buyAt(evals[j], pendingExecution.signalIndex, pendingExecution.signal);
+      // R-031：target 必須反映「真的成交」，沒買成就仍是 flat。
+      target = shares > 0 ? 1 : 0;
+      pendingExecution = null;
+    } else if (pendingExecution?.action === "sell") {
+      sellAt(evals[j], pendingExecution.signalIndex, "signal");
+      target = 0;
+      pendingExecution = null;
+    }
+
+    // 本根 equity 只反映「截至本根收盤已實際發生」的成交。
+    const positionValue = shares * evals[j].c;
+    const total = cash + positionValue;
+    equity.push(total);
+    exposure.push(total > 0 ? positionValue / total : 0);
+
+    // 收盤後才產生下一根開盤要執行的 intent；最後一根不再排新單。
     if (absolute >= warmup && j < evals.length - 1) {
       const history = context.concat(evals.slice(0, j + 1));
       const raw = strategy.generateSignal({ bars: history, index: absolute, symbol });
       const signal = normalizeSignal(raw, { symbol, timestamp: evals[j].t });
       const next = signalToTargetWeight(signal, target, { entryThreshold, exitThreshold });
       if (next === 1 && target === 0) {
-        buyAt(evals[j + 1], absolute, signal);
-        // R-031：target 必須反映「真的成交」，沒買成（配置 0／股數取整為 0／現金不足）
-        // 就不能宣稱持有，否則策略會以為在部位而錯過進場。
-        target = shares > 0 ? 1 : 0;
+        pendingExecution = { action: "buy", signalIndex: absolute, signal };
       } else if (next === 0 && target === 1) {
-        sellAt(evals[j + 1], absolute, "signal");
-        target = 0;
+        pendingExecution = { action: "sell", signalIndex: absolute, signal };
       } else {
         target = next;
       }
     }
-    const positionValue = shares * evals[j].c;
-    const total = cash + positionValue;
-    equity.push(total);
-    exposure.push(total > 0 ? positionValue / total : 0);
   }
   if (shares > 0) {
     const bar = evals.at(-1);
