@@ -142,3 +142,18 @@ test("permission revoke cancels OPEN matching order even before price touch", ()
   assert.equal(result.failures[0].decision.code, "ROLE_DENIED");
   assert.equal(broker.findOrder("TW", "role-revoke").status, "CANCELED");
 });
+
+
+test("fill-time risk excludes the order's own cash reservation", () => {
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => new Date(SESSION).toISOString() });
+  const risk = new RiskEngine({ maxOrderNotionalPct: 0.8 });
+  const order = matchingOrder({ qty: 6000, lot: "regular", clientOrderId: "self-reservation" });
+  const submitted = executePaperOrder({ broker, risk, order, quotes: { "2330": { price: 100 } }, now: SESSION });
+  assert.equal(submitted.order.status, "OPEN");
+  assert.equal(broker.snapshot("TW").availableCash, 400_000);
+
+  const matched = processPaperMatches({ broker, risk, market: "TW", quotes: { "2330": { price: 99 } }, now: SESSION });
+  assert.equal(matched.failures.length, 0);
+  assert.equal(matched.fills.length, 1);
+  assert.equal(broker.snapshot("TW", { "2330": { price: 99 } }).positions["2330"].qty, 6000);
+});
