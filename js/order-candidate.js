@@ -18,8 +18,11 @@ export function buildOrderCandidate({
   quote = null,
   clientOrderId,
   orderType = "limit",
+  timeInForce = "DAY",
+  executionMode = undefined,
 } = {}) {
-  const candidate = { market, symbol, side, qty, price, lot, clientOrderId, orderType };
+  const candidate = { market, symbol, side, qty, price, lot, clientOrderId, orderType, timeInForce };
+  if (executionMode !== undefined) candidate.executionMode = executionMode;
   if (market === "TW") {
     const referencePrice = referencePriceFromQuote(quote);
     if (Number.isFinite(referencePrice) && referencePrice > 0) candidate.referencePrice = referencePrice;
