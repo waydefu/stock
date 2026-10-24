@@ -236,8 +236,15 @@ export function createServerAutoPaperService({
   async function refreshPromotion(bars, now) {
     const latestBar = bars.at(-1)?.t ?? null;
     const status = runner.status();
-    const needsEvaluation = meta.lastPromotionBar !== latestBar || status.approval?.pass !== true;
-    if (!needsEvaluation) return { pass: true, cached: true, gate: status.approval?.evidence?.checks ?? [] };
+    const approvalMissingAfterPass = meta.lastGatePass === true && status.approval?.pass !== true;
+    const needsEvaluation = meta.lastPromotionBar !== latestBar || meta.lastGatePass === null || approvalMissingAfterPass;
+    if (!needsEvaluation) {
+      return {
+        pass: meta.lastGatePass === true,
+        cached: true,
+        gate: status.approval?.evidence?.checks ?? [],
+      };
+    }
 
     const promotion = promotionEvaluator({
       symbol: config.symbol,
