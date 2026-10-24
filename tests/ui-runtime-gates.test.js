@@ -13,7 +13,7 @@ function cleanFiles() {
     "js/paper-runtime.js": "new PaperBroker({ storage, feeModel });",
     "js/paper-fee-model.js": 'market === "TW"; market === "US"; dayTrade: false;',
     "js/app-auto-paper-controller.js": "adapter only",
-    "js/auto-paper-runner.js": "recordResearchGate RESEARCH_APPROVED PAPER_ENABLED quoteIsFresh STALE_QUOTE canTrade executePaperOrder reconcileImmediateFill RECONCILIATION_FAILED risk.trip",
+    "js/auto-paper-runner.js": "recordResearchGate RESEARCH_APPROVED PAPER_ENABLED quoteIsFresh STALE_QUOTE canTrade executePaperOrder processPaperMatches",
     "js/paper-reconciliation.js": "assertAccountingInvariants",
     "js/execution-model.js": "class MatchingExecutionModel LAST_TRADE_TOUCHED_LIMIT full-fill-at-limit/no-l2-queue",
     "js/order-state.js": "EXPIRED EXPIRE",
