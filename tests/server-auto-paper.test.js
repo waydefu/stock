@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { MemoryStorage, PaperBroker } from "../js/paper.js";
 import { AuditLog, RiskEngine } from "../js/risk.js";
-import { createServerAutoPaperService, resolveServerAutoPaperConfig } from "../server/auto-paper-service.js";
+import { createServerAutoPaperService, resolveServerAutoPaperConfig, serverAutoScheduleDecision } from "../server/auto-paper-service.js";
 
 function bars(count = 150) {
   const end = Date.parse("2026-10-22T05:30:00+08:00");
@@ -288,4 +288,50 @@ test("server Auto authority holds an exclusive lease for the durable state file"
     try { first?.stop(); } catch { /* best effort */ }
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+test("server Auto schedule follows shared TW market sessions and official 2026 holidays", () => {
+  assert.equal(serverAutoScheduleDecision(Date.parse("2026-10-23T00:29:59.000Z")).run, false, "08:29:59 Taipei is before pre-market");
+  assert.deepEqual(serverAutoScheduleDecision(Date.parse("2026-10-23T00:30:00.000Z")), { run: true, code: "MARKET_SESSION", session: "preMarket" });
+  assert.deepEqual(serverAutoScheduleDecision(Date.parse("2026-10-23T01:00:00.000Z")), { run: true, code: "MARKET_SESSION", session: "regular" });
+  assert.deepEqual(serverAutoScheduleDecision(Date.parse("2026-10-23T05:25:00.000Z")), { run: true, code: "MARKET_SESSION", session: "preClose" });
+  assert.equal(serverAutoScheduleDecision(Date.parse("2026-10-23T05:30:00.000Z")).run, false, "13:30 Taipei is closed");
+  assert.equal(serverAutoScheduleDecision(Date.parse("2026-10-24T01:10:00.000Z")).run, false, "Saturday is closed");
+  assert.equal(serverAutoScheduleDecision(Date.parse("2026-10-26T01:10:00.000Z")).run, false, "official TWSE substitute holiday is closed");
+});
+
+test("closed-market server cycles do not consume Fugle calls or journal capacity", async () => {
+  const storage = new MemoryStorage();
+  let nowMs = Date.parse("2026-10-23T06:00:00.000Z"); // 14:00 Taipei
+  const counter = { bars: 0, quotes: 0 };
+  let promotions = 0;
+  const service = createServerAutoPaperService({
+    config: config(),
+    proxyBaseUrl: "http://127.0.0.1:8787",
+    storage,
+    adapter: adapterFixture(() => nowMs, counter),
+    clock: () => nowMs,
+    promotionEvaluator: (...args) => {
+      promotions += 1;
+      return passingPromotion(...args);
+    },
+  });
+
+  const closed = await service.runOnce();
+  assert.equal(closed.code, "MARKET_CLOSED_SKIP");
+  assert.equal(closed.skipped, true);
+  assert.equal(counter.bars, 0);
+  assert.equal(counter.quotes, 0);
+  assert.equal(promotions, 0);
+  assert.equal(service.status().evidence.cycleCount, 0);
+  assert.equal(service.status().lastScheduleDecision.code, "MARKET_CLOSED_SKIP");
+
+  nowMs = Date.parse("2026-10-27T00:30:00.000Z"); // 08:30 Taipei; 10/26 is holiday, 10/27 resumes
+  const open = await service.runOnce();
+  assert.notEqual(open.code, "MARKET_CLOSED_SKIP");
+  assert.equal(counter.bars, 1);
+  assert.ok(counter.quotes <= 1);
+  assert.equal(promotions, 1);
+  assert.equal(service.status().lastScheduleDecision.session, "preMarket");
 });
