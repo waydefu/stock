@@ -195,7 +195,7 @@ export class PaperBroker {
     return { qty, notional, fee };
   }
 
-  snapshot(market = "TW", quotes = {}) {
+  snapshot(market = "TW", quotes = {}, { excludeOrderId = null } = {}) {
     this.#assertMarket(market);
     const account = this.#state[market];
     let marketValue = 0;
@@ -222,7 +222,7 @@ export class PaperBroker {
       positions,
       orders: account.orders,
     });
-    const { reservedCash, reservedPositions } = this.#reservations(account);
+    const { reservedCash, reservedPositions } = this.#reservations(account, excludeOrderId);
     return clone({
       ...base,
       reservedCash,
