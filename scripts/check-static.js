@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 const required = [
   "index.html",
   "css/styles.css",
-  "js/app.js",\n  "js/app-stream-controller.js",
+  "js/app.js",
+  "js/app-stream-controller.js",
   "js/data.js",
   "js/accounting.js",
   "js/execution-model.js",
