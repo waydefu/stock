@@ -29,6 +29,8 @@ const required = [
   "js/paper.js",
   "js/paper-fee-model.js",
   "js/paper-runtime.js",
+  "js/paper-reconciliation.js",
+  "js/auto-paper-runner.js",
   "js/order-state.js",
   "js/order-service.js",
   "js/risk.js",
