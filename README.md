@@ -48,7 +48,7 @@ js/paper.js         紙上交易帳本（localStorage 持久化）
 js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
-js/app.js           UI orchestration 聚合點（待拆 controller／renderer；不持秘密）
+js/app.js           UI composition root；交易／研究／導覽仍待續拆\njs/app-stream-controller.js Live SSE UI/controller（與 PaperBroker／風控隔離）
 js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參考價與商品別）
 js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
 js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
