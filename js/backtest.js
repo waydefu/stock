@@ -2,15 +2,11 @@
    這個模型刻意不偷看目前 bar 之前不存在的價格；結果僅代表模擬，不是實盤保證。 */
 "use strict";
 
-import { rollingHigh, rsi, sma } from "./data.js";
+import { CLASSIC_STRATEGY_NAMES, classicSignalFor, prepareClassicSignalData } from "./classic-strategies.js";
 import { feeFor, perPeriodRate } from "./accounting.js";
 import { describeTwFeeModel, feeModelAffordableQty } from "./tw-fee-model.js";
 
-export const STRATEGIES = {
-  maCross: "均線交叉",
-  rsiReversal: "RSI 反轉",
-  breakout: "通道突破",
-};
+export const STRATEGIES = CLASSIC_STRATEGY_NAMES;
 
 function finite(value, fallback) {
   return Number.isFinite(value) ? value : fallback;
@@ -26,46 +22,6 @@ function validateBars(bars) {
     if (previousTime !== null && bar.t <= previousTime) throw new Error(`invalid bar timestamp at index ${index}`);
     previousTime = bar.t;
   }
-}
-
-function prepareSignalData(strategy, bars, options) {
-  const closes = bars.map((b) => b.c);
-  if (typeof strategy === "function") return { closes };
-  if (strategy === "rsiReversal") return { closes, rsiValues: rsi(closes, options.rsiLength ?? 14) };
-  if (strategy === "breakout") {
-    const highs = rollingHigh(closes, options.breakoutLength ?? 20);
-    const lows = rollingHigh(closes.map((v) => -v), options.breakoutLength ?? 20)?.map((v) => v === null ? null : -v);
-    return { closes, highs, lows };
-  }
-  return { closes, fast: sma(closes, options.fast ?? 20), slow: sma(closes, options.slow ?? 50) };
-}
-
-function signalFor(strategy, bars, i, options, prepared) {
-  if (typeof strategy === "function") return strategy({ bars, i, closes: prepared.closes, position: options.position });
-  if (strategy === "rsiReversal") {
-    const values = prepared.rsiValues;
-    const buyLevel = options.rsiBuy ?? 30;
-    const sellLevel = options.rsiSell ?? 70;
-    const current = values[i];
-    const previous = values[i - 1];
-    if (current === null || previous === null) return "hold";
-    if (previous <= buyLevel && current > buyLevel) return "buy";
-    if (previous >= sellLevel && current < sellLevel) return "sell";
-    return "hold";
-  }
-  if (strategy === "breakout") {
-    const { highs, lows } = prepared;
-    if (highs[i] === null || lows[i] === null) return "hold";
-    if (prepared.closes[i] > highs[i]) return "buy";
-    if (prepared.closes[i] < lows[i]) return "sell";
-    return "hold";
-  }
-  // Default: fast/slow SMA cross. 未有兩根完整均線時不交易。
-  const { fast, slow } = prepared;
-  if (i < 1 || fast[i] === null || slow[i] === null || fast[i - 1] === null || slow[i - 1] === null) return "hold";
-  if (fast[i - 1] <= slow[i - 1] && fast[i] > slow[i]) return "buy";
-  if (fast[i - 1] >= slow[i - 1] && fast[i] < slow[i]) return "sell";
-  return "hold";
 }
 
 /**
@@ -103,7 +59,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
   let pending = null;
   const trades = [];
   const equity = [];
-  const prepared = prepareSignalData(strategy, bars, options);
+  const prepared = typeof strategy === "function"
+    ? { closes: bars.map((bar) => bar.c) }
+    : prepareClassicSignalData(strategy, bars, options);
   const closes = prepared.closes;
 
   const buyAt = (bar, signalIndex) => {
@@ -164,7 +122,9 @@ export function runBacktest(bars, strategy = "maCross", options = {}) {
 
     equity.push(cash + qty * bars[i].c);
     if (i < bars.length - 1) {
-      const signal = signalFor(strategy, bars, i, { ...options, position: qty > 0 ? "long" : "flat" }, prepared);
+      const signal = typeof strategy === "function"
+        ? strategy({ bars, i, closes: prepared.closes, position: qty > 0 ? "long" : "flat" })
+        : classicSignalFor(strategy, bars, i, options, prepared);
       if (signal === "buy" || signal === "sell") pending = signal;
     }
   }
