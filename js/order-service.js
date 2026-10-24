@@ -75,15 +75,15 @@ export function processPaperMatches({ broker, risk, market = "TW", quotes = {}, 
   const failures = [];
 
   for (const order of broker.openOrders(market)) {
-    const quote = quotes[order.symbol];
-    const match = matchLimitOrder(order, quote);
-    if (!match.matched) continue;
-
     if (!canTrade) {
       canceled.push(broker.cancelOrder(market, order.id, { timestamp, reason: "ROLE_DENIED at match boundary" }));
       failures.push({ orderId: order.id, decision: roleDenied() });
       continue;
     }
+
+    const quote = quotes[order.symbol];
+    const match = matchLimitOrder(order, quote);
+    if (!match.matched) continue;
 
     const before = broker.snapshot(market, quotes);
     const decision = risk.approveOrder(before, { ...order, price: match.fillPrice }, { now });
