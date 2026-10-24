@@ -39,6 +39,9 @@ function normalizeFill(fill) {
     qty,
     price,
     fee,
+    filledAt: typeof fill.filledAt === "string" && Number.isFinite(Date.parse(fill.filledAt))
+      ? new Date(fill.filledAt).toISOString()
+      : null,
   });
 }
 
@@ -92,6 +95,9 @@ function validateStored(value) {
     if (entry.marketPrice !== null && entry.marketPrice !== undefined && (!Number.isFinite(entry.marketPrice) || entry.marketPrice <= 0)) {
       throw durableError("DURABLE_JOURNAL_INVALID", "forward-test journal marketPrice 損壞");
     }
+    if (entry.equityBefore !== null && entry.equityBefore !== undefined && (!Number.isFinite(entry.equityBefore) || entry.equityBefore <= 0)) {
+      throw durableError("DURABLE_JOURNAL_INVALID", "forward-test journal equityBefore 損壞");
+    }
     if (entry.account !== null && entry.account !== undefined) {
       for (const field of ["cash", "marketValue", "equity", "totalFees"]) {
         if (!Number.isFinite(entry.account?.[field])) throw durableError("DURABLE_JOURNAL_INVALID", `forward-test journal account.${field} 損壞`);
@@ -138,12 +144,15 @@ export function summarizeForwardTestEntries(entries = []) {
   }
 
   const sessionDays = new Set(priced.map((entry) => entry.account.sessionKey).filter(Boolean));
-  const startEquity = first?.account?.equity ?? null;
+  const startEquity = first
+    ? (Number.isFinite(first.equityBefore) && first.equityBefore > 0 ? first.equityBefore : first.account.equity)
+    : null;
   const endEquity = last?.account?.equity ?? null;
   const equityChange = startEquity !== null && endEquity !== null ? endEquity - startEquity : null;
   const totalReturnPct = startEquity > 0 && endEquity !== null ? ((endEquity - startEquity) / startEquity) * 100 : null;
   const costToTurnoverPct = turnoverNotional > 0 ? (feesInWindow / turnoverNotional) * 100 : null;
   const performance = summarizeForwardPerformance(safe, { strategyReturnPct: totalReturnPct });
+  const costToGrossProfitPct = performance.grossProfit > 0 ? (feesInWindow / performance.grossProfit) * 100 : null;
 
   return Object.freeze({
     version: FORWARD_TEST_JOURNAL_VERSION,
@@ -160,6 +169,7 @@ export function summarizeForwardTestEntries(entries = []) {
     feesInWindow,
     turnoverNotional,
     costToTurnoverPct,
+    costToGrossProfitPct,
     cumulativeFees: last?.account?.totalFees ?? null,
     latestRealizedPnl: last?.account?.realizedPnl ?? null,
     latestUnrealizedPnl: last?.account?.unrealizedPnl ?? null,
@@ -224,6 +234,7 @@ export class ForwardTestJournal {
     account = null,
     fills = [],
     marketPrice = null,
+    equityBefore = null,
     detailCode = null,
   } = {}) {
     if (this.#state.entries.length >= this.#maxEntries) {
@@ -246,6 +257,7 @@ export class ForwardTestJournal {
       lifecycle: typeof lifecycle === "string" ? lifecycle : null,
       promotionPass: typeof promotionPass === "boolean" ? promotionPass : null,
       marketPrice: Number.isFinite(Number(marketPrice)) && Number(marketPrice) > 0 ? Number(marketPrice) : null,
+      equityBefore: Number.isFinite(Number(equityBefore)) && Number(equityBefore) > 0 ? Number(equityBefore) : null,
       account: normalizeAccount(account),
       fills: normalizedFills,
     };
