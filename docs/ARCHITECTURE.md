@@ -49,6 +49,9 @@
 - `js/paper.js`：本機紙上帳本；constructor 的 FeeModel 可注入，預設 zero-fee 只作 domain/test default。
 - `js/paper-fee-model.js`：正式 forward-test 成本政策；TW dispatch 到 sourced FeeModel，US 在尚無來源化非佣金成本前明示 zero-fee；不猜當沖資格。
 - `js/paper-runtime.js`：App composition boundary，負責把 runtime fee policy 注入 PaperBroker。
+- `js/paper-reconciliation.js`：立即 Paper fill 後的 cash／position／fee／order-ledger 對帳；不符即視為安全事件。
+- `js/auto-paper-runner.js`：Automated Paper v1 orchestration；Promotion Gate→completed daily bar→Signal→Portfolio sizing→commit-time Risk→PaperBroker→reconciliation。每根完成 bar 只評估一次，pending intent 持久化且只在下一交易 session 以 fresh quote 執行。
+- `js/app-auto-paper-controller.js`：瀏覽器端 Fugle data／timer／UI composition；不擁有策略公式、不直接下單。現階段 runner 只在頁面開啟期間運作，24/7 server authority 尚未建立。
 - `js/order-state.js`：deterministic order status 與 transition event。
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
