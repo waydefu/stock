@@ -33,7 +33,7 @@
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 | E1 | Automated Paper | 完成：Promotion Gate→數學 Signal→10% sizing→Risk→Paper costs→reconciliation；TW 單標的、browser runner |
 | E2 | Paper Matching v1 | 完成核心：DAY limit `OPEN→FILLED/CANCELED/EXPIRED`、reservation、fill-time Risk、Auto Runner 接線；無 L2／partial fill |
-| E3 | Server Auto Paper authority | 核心完成、部署未啟用：共享 Promotion evaluator、strict durable state、atomic file store、server scheduler、startup/shutdown lifecycle；需 confirmed persistent storage＋always-on compute 才可 enable |
+| E3 | Server Auto Paper authority | 核心完成、部署未啟用：共享 Promotion evaluator、strict durable state、atomic file store、exclusive single-writer lease、server scheduler、startup/shutdown lifecycle；需 confirmed persistent storage＋always-on compute 才可 enable |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
 
@@ -57,7 +57,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 
 1. corporate-action（除權息）調整資料尚未取得與套用（TWSE 休市日已改用官方 2026 快照，見 D2）
 2. matching microstructure realism（R-003）：核心 MATCHING 已完成，但目前只有 last-trade touch＋full-fill-at-limit；無 L2 queue／成交量配置／partial fill
-3. server authority **程式核心已完成但目前部署仍 disabled**：現有 Free Render 會休眠且無 Persistent Disk；要開始 unattended forward test，需先提供 always-on compute＋confirmed persistent storage（R-034）
+3. server authority **程式核心已完成但目前部署仍 disabled**：現有 Free Render 會休眠且無 Persistent Disk；程式已用 state-file exclusive lease 防雙 instance，真正 unattended forward test 仍需 always-on compute＋confirmed persistent storage（R-034）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
 5. Paper 成本殘留：尚無 acquisition-session provenance，故不套當沖減稅；US 非佣金成本尚未來源化，現在明示 zero-fee
