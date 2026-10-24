@@ -17,7 +17,7 @@
 | 選股 | Finviz／XQ／Stock Rover | 漲跌幅、量比、本益比、殖利率等多條件篩選 |
 | 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑）；研究策略走分層引擎：Cash／Buy&Hold 基準、多 horizon 趨勢、IS／OOS、walk-forward、cost stress、promotion gate |
 | 策略中心 | QuantConnect 研究框架精神 | 基準永遠同場比較、OOS 分段顯示、參數平面、provenance；gate FAIL 明示、不自動晉升 paper |
-| 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合；台股 TWD 100 萬、美股 USD 10 萬分帳）；TW forward test 計一般股票手續費＋一般賣方稅，US 成本尚未來源化故明示 zero-fee；持倉損益與下單票即時試算 |
+| 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合）；TW forward test 計交易成本。Automated Paper v1 已串 Strategy→Portfolio→Risk→Paper→Reconciliation，Promotion Gate PASS 才能武裝，fresh quote 才執行；目前僅 TW 單標的、頁面開啟期間運作 |
 | 風控 | IB TWS／QuantConnect | 單筆上限、日損斷路器（kill switch）、下單二次確認、稽核日誌（audit log）可匯出 CSV |
 | 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens）、專業快速鍵（/ 搜尋、1–6 頁籤、B／S 開單、? 說明） |
 
@@ -48,6 +48,9 @@ js/research.js     分層研究引擎（IS/OOS、walk-forward、cost stress、pa
 js/paper.js         紙上交易帳本（localStorage 持久化；FeeModel 可注入）
 js/paper-fee-model.js forward-test 市場成本政策（TW sourced／US explicit zero）
 js/paper-runtime.js  App PaperBroker composition＋fee policy injection
+js/paper-reconciliation.js Paper fill 後帳務／部位／訂單對帳
+js/auto-paper-runner.js Promotion Gate→數學 Signal→Portfolio→Risk→Paper→Reconciliation
+js/app-auto-paper-controller.js Fugle data＋Auto Paper UI/timer orchestration
 js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
