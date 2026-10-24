@@ -54,6 +54,19 @@ export function executePaperOrder({ broker, risk, order, quotes = {}, canTrade =
   }
 }
 
+export function cancelPaperOrder({ broker, market = "TW", orderId, canTrade = true, now = Date.now(), reason = "user request" } = {}) {
+  if (!canTrade) return { canceled: false, decision: roleDenied() };
+  try {
+    const order = broker.cancelOrder(market, orderId, { timestamp: new Date(now).toISOString(), reason });
+    return { canceled: true, order, account: broker.snapshot(market) };
+  } catch (error) {
+    return {
+      canceled: false,
+      decision: { ok: false, code: error?.code ?? "BROKER_REJECTED", category: "BROKER_REJECTED", reason: error?.message ?? "cancel failed" },
+    };
+  }
+}
+
 export function processPaperMatches({ broker, risk, market = "TW", quotes = {}, canTrade = true, now = Date.now() } = {}) {
   const timestamp = new Date(now).toISOString();
   const expired = broker.expireOpenOrders(market, { timestamp });
