@@ -28,7 +28,7 @@ UI 的角色切換只代表原型狀態，不能取代後端授權（authorizati
 3. 回測必明列手續費、滑價、樣本數與資料時間範圍；不可把回測數字當成實盤保證。
 4. 任何外部 API key、secret、CA 憑證、`.env` 或真實客戶資料不得進 repo、PR、CI log。
 5. 讀不到行情、資料過期或訂單狀態不確定時，系統要停單並顯示可採取的處理方式，不得猜測成交。
-6. Server Auto Paper 不得暴露未驗證的公開交易 mutation API；只有在 always-on compute＋durable storage 均由部署者明確確認、Paper／Risk／Audit 使用 strict persistence 時才可啟用。任何 durable state corruption／寫入失敗必須 fail-closed。
+6. Server Auto Paper 不得暴露未驗證的公開交易 mutation API；只有在 always-on compute＋durable storage 均由部署者明確確認、Paper／Risk／Audit 使用 strict persistence 時才可啟用。任何 durable state corruption／寫入失敗必須 fail-closed；同一 durable state file 同時只能有一個 authority，exclusive lease 取得失敗時必須拒絕啟動。
 
 ## 變更治理
 
