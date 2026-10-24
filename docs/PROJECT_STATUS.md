@@ -53,7 +53,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 ## Known gaps（非 blocker，按優先序）
 
 1. corporate-action（除權息）調整資料尚未取得與套用（TWSE 休市日已改用官方 2026 快照，見 D2）
-2. matching＋reconciliation（立即成交模型現狀，見 R-003）
+2. matching realism（立即成交模型現狀，見 R-003）；**reconciliation 已接入 Auto Paper fill 後安全檢查**
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
@@ -62,6 +62,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 7. legacy `runBacktest` 的內建訊號已收斂到 `js/classic-strategies.js` 並有 layered parity；剩 sizing／execution／metrics 相容路徑待 UI 遷移後退役（R-021）
 8. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
 9. `scripts/check-ui.js` 已把 runtime／security boundary gates 抽到 `scripts/ui-gates/runtime-boundaries.js`；其餘視覺／a11y gates 後續按領域續拆
+10. 24/7 Auto Paper server authority 尚未建立：目前 timer 只在瀏覽器頁面開啟期間運作；不可宣稱 unattended daemon（R-034）
 
 ## Enforcement（server side）
 
