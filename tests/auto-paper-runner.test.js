@@ -227,3 +227,39 @@ test("pausing Auto Paper cancels its working order and releases reservations", a
   assert.equal(account.orders[0].status, "CANCELED");
   assert.deepEqual(f.runner.status().workingOrderIds, []);
 });
+
+
+test("manual cancel is reconciled back into persisted Auto working state", async () => {
+  const f = fixture();
+  f.runner.recordResearchGate({ pass: true, evidence: { gate: "PASS" } });
+  f.runner.arm();
+  const bars = [bar("2026-10-22T05:30:00+08:00", 110)];
+  const open = await f.runner.cycle({
+    bars,
+    quoteEnvelope: quote("2330", 100, 100, f.now()),
+    now: f.now(),
+  });
+  assert.equal(open.code, "ORDER_WORKING");
+  const orderId = open.orders[0].id;
+  f.broker.cancelOrder("TW", orderId, { reason: "manual test cancel" });
+
+  const reconciled = await f.runner.cycle({
+    bars,
+    quoteEnvelope: quote("2330", 101, 100, f.now()),
+    now: f.now(),
+  });
+  assert.equal(reconciled.code, "ORDER_CANCELED");
+  assert.deepEqual(f.runner.status().workingOrderIds, []);
+
+  const reloaded = new AutoPaperRunner({
+    strategy: strategy(),
+    allocate: fixedFraction(0.10),
+    broker: f.broker,
+    risk: f.risk,
+    storage: f.storage,
+    market: "TW",
+    symbol: "2330",
+    clock: () => f.now(),
+  });
+  assert.deepEqual(reloaded.status().workingOrderIds, []);
+});
