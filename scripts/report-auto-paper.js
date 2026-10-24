@@ -20,6 +20,8 @@ function resolveStateFile(argv = process.argv, env = process.env) {
 }
 
 export function buildForwardTestReport({ stateFile }) {
+  if (typeof stateFile !== "string" || !stateFile || !isAbsolute(stateFile)) throw new Error("state file 必須是絕對路徑");
+  if (!existsSync(stateFile)) throw new Error(`找不到 state file：${stateFile}`);
   const storage = new FileKeyValueStorage(stateFile);
   const journal = new ForwardTestJournal({ storage });
   const entries = journal.entries();
