@@ -50,7 +50,7 @@
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
 - `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
-- `js/app.js`：目前仍是 UI orchestration 聚合點；不保存秘密。其體積與職責已超過理想邊界，下一輪重構會把串流／交易／研究 controller 與 renderer 分離，行為保持不變。
+- `js/app.js`：UI composition root；Live stream lifecycle 已移到 `js/app-stream-controller.js`。仍需續拆交易／研究／導覽 controller，重構不得改變交易語義。\n- `js/app-stream-controller.js`：Live SSE UI/controller；只碰 `#stream-*` DOM 與 `SseStreamClient`，gate 明確禁止接觸 PaperBroker／order-service／RiskEngine。
 - `js/stream-contract.js`：provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽、stale 政策）。
 - `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
 - `js/fugle-proxy-adapter.js`／`js/fixture-provider.js`／`js/providers/fugle-mapper.js`：真實行情 adapter 與 Fugle schema 映射（唯一懂 Fugle 格式的地方）。
