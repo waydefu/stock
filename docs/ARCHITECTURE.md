@@ -50,7 +50,8 @@
 - `js/paper-fee-model.js`：正式 forward-test 成本政策；TW dispatch 到 sourced FeeModel，US 在尚無來源化非佣金成本前明示 zero-fee；不猜當沖資格。
 - `js/paper-runtime.js`：App composition boundary，負責把 runtime fee policy 注入 PaperBroker。
 - `js/paper-reconciliation.js`：所有 Paper fill 後的 cash／position／fee／order-ledger 對帳；不符即視為安全事件。
-- `js/auto-paper-promotion.js`：browser／server 共用 Promotion evaluator；同一組 IS/OOS、3-fold walk-forward、cost stress、parameter surface 與 Gate，避免兩套 promotion 語義漂移。早期 walk-forward train 不足 warmup 時由 evaluation 自然保持 flat，不再整個刪窗。\n- `js/auto-paper-runner.js`：Automated Paper orchestration；Promotion Gate→completed daily bar→Signal→Portfolio sizing→Risk→MATCHING OPEN order→fresh quote touch→fill-time Risk→PaperBroker→reconciliation。pending intent／working order id 均持久化。
+- `js/auto-paper-promotion.js`：browser／server 共用 Promotion evaluator；同一組 IS/OOS、3-fold walk-forward、cost stress、parameter surface 與 Gate，避免兩套 promotion 語義漂移。早期 walk-forward train 不足 warmup 時由 evaluation 自然保持 flat，不再整個刪窗。
+- `js/auto-paper-runner.js`：Automated Paper orchestration；Promotion Gate→completed daily bar→Signal→Portfolio sizing→Risk→MATCHING OPEN order→fresh quote touch→fill-time Risk→PaperBroker→reconciliation。pending intent／working order id 均持久化。
 - `js/app-auto-paper-controller.js`：瀏覽器端 Fugle data／timer／UI composition；不擁有策略公式、不直接下單。現階段 runner 只在頁面開啟期間運作，24/7 server authority 尚未建立。
 - `js/order-state.js`：deterministic order status 與 transition event。
 - `js/order-service.js`：submit／match commit boundary；掛單提交與真正 fill 都重新讀帳戶並跑風控，matching fill 完成後立即 reconciliation。
@@ -67,7 +68,11 @@
 - `server/proxy-anti-abuse.js`：純 anti-abuse state——per-client token bucket、quote 短 TTL 快取、每日上游預算與 bounded maps；無 HTTP／provider schema／秘密。
 - `server/fugle-stream-manager.js`：Fugle WebSocket 管理器——單一上游多訂閱、per-client SSE 上限、per-key 狀態、upstream 錯誤路由與名額釋放。
 - `server/stream-sse.js`：瀏覽器端 SSE 序列化（只送 normalized envelope）。
-- `server/file-kv-storage.js`：server authority 的同步 key-value storage；temp write＋fsync＋atomic rename，格式或 IO 損壞直接錯誤，不靜默重置。\n- `server/auto-paper-service.js`：server scheduler；預設 disabled。啟用需 durable-storage／always-on 雙確認、絕對 state path、固定 TW symbol；無公開 mutation route。Paper／Risk／Audit 全開 strict persistence。\n- `server/start-market-proxy.js`：正式 entrypoint——fail-fast 設定、STALE 探測、可選 server Auto Paper lifecycle、graceful shutdown。
+- `server/forward-test-journal.js`：server Auto Paper 每輪 append semantic evidence，保存 mark-to-market account snapshot、fills、Gate/lifecycle/cycle code，並計算 forward-test return／max drawdown／fees／coverage；corruption 或容量耗盡 fail-closed。
+- `scripts/report-auto-paper.js`：只讀同一 durable state file，輸出 forward-test 摘要與最新 evidence；不連網、不寫帳本。
+- `server/file-kv-storage.js`：server authority 的同步 key-value storage；temp write＋fsync＋atomic rename，格式或 IO 損壞直接錯誤，不靜默重置。
+- `server/auto-paper-service.js`：server scheduler；預設 disabled。啟用需 durable-storage／always-on 雙確認、絕對 state path、固定 TW symbol；無公開 mutation route。Paper／Risk／Audit 全開 strict persistence。
+- `server/start-market-proxy.js`：正式 entrypoint——fail-fast 設定、STALE 探測、可選 server Auto Paper lifecycle、graceful shutdown。
 
 ## 架構取捨
 

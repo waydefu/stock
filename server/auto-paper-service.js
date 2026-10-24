@@ -21,6 +21,7 @@ import { fugleResearchRange } from "../js/research-range.js";
 import { MarketSessionClock } from "../js/session-clock.js";
 import { TW_INSTRUMENT, createTwFeeModel } from "../js/tw-fee-model.js";
 import { FileKeyValueStorage, acquireExclusiveFileLease } from "./file-kv-storage.js";
+import { ForwardTestJournal } from "./forward-test-journal.js";
 
 export const SERVER_AUTO_META_KEY = "tw-us-stock-server-auto-meta-v1";
 export const DEFAULT_SERVER_AUTO_INTERVAL_MS = 5 * 60_000;
@@ -146,6 +147,7 @@ export function createServerAutoPaperService({
     canTrade: () => true,
     auditEvent: (event, details) => audit.record(event, { ...details, actor: "server-auto-paper" }),
   });
+  const journal = new ForwardTestJournal({ storage: durable });
 
   let meta = loadMeta(durable);
   let timer = null;
@@ -156,6 +158,30 @@ export function createServerAutoPaperService({
 
   function log(event, details = {}) {
     logger({ component: "server-auto-paper", event, symbol: config.symbol, ...details });
+  }
+
+  function isDurableFailure(error) {
+    return String(error?.code ?? "").startsWith("DURABLE_");
+  }
+
+  function accountForQuote(quoteEnvelope) {
+    const quote = quoteEnvelope?.data;
+    if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) return null;
+    return broker.snapshot("TW", { [config.symbol]: { price: quote.price } });
+  }
+
+  function recordEvidence({ now, result, promotion = null, quoteEnvelope = null, detailCode = null }) {
+    return journal.recordCycle({
+      timestamp: new Date(now).toISOString(),
+      symbol: config.symbol,
+      code: result?.code ?? "UNKNOWN",
+      ok: result?.ok === true,
+      detailCode,
+      lifecycle: runner.status().lifecycle,
+      promotionPass: typeof promotion?.pass === "boolean" ? promotion.pass : null,
+      account: accountForQuote(quoteEnvelope),
+      fills: result?.fills ?? [],
+    });
   }
 
   function cacheKey(now) {
@@ -242,36 +268,56 @@ export function createServerAutoPaperService({
     if (fatal) return { ok: false, code: fatal.code, fatal: true };
     if (running) return { ok: false, code: "SERVER_AUTO_CYCLE_BUSY" };
     running = true;
+    const now = clock();
+    let promotion = null;
+    let quoteEnvelope = null;
     try {
-      const now = clock();
       const bars = await completedBars(now);
-      const promotion = await refreshPromotion(bars, now);
+      promotion = await refreshPromotion(bars, now);
       if (!promotion.pass) {
-        meta = { ...meta, lastCycleAt: new Date(now).toISOString(), lastCycleCode: "PROMOTION_GATE_FAIL" };
+        const result = { ok: false, code: "PROMOTION_GATE_FAIL", promotion, runner: runner.status() };
+        meta = { ...meta, lastCycleAt: new Date(now).toISOString(), lastCycleCode: result.code };
         saveMeta(durable, meta);
-        return { ok: false, code: "PROMOTION_GATE_FAIL", promotion, runner: runner.status() };
+        recordEvidence({ now, result, promotion });
+        return result;
       }
 
-      const quoteEnvelope = await data.quoteAsync(config.symbol);
+      quoteEnvelope = await data.quoteAsync(config.symbol);
       providerGuard(quoteEnvelope, config.symbol);
       const result = await runner.cycle({ bars, quoteEnvelope, now });
       meta = { ...meta, lastCycleAt: new Date(now).toISOString(), lastCycleCode: result.code };
       saveMeta(durable, meta);
+      recordEvidence({ now, result, promotion, quoteEnvelope });
       log("CYCLE", { code: result.code });
       return { ...result, promotion };
     } catch (error) {
       let finalError = error;
+      if (!isDurableFailure(finalError)) {
+        try {
+          meta = { ...meta, lastCycleAt: new Date(now).toISOString(), lastCycleCode: finalError?.code ?? "UNKNOWN" };
+          saveMeta(durable, meta);
+          recordEvidence({
+            now,
+            result: { ok: false, code: finalError?.code ?? "UNKNOWN" },
+            promotion,
+            quoteEnvelope,
+            detailCode: finalError?.code ?? "UNKNOWN",
+          });
+        } catch (evidenceError) {
+          finalError = evidenceError;
+        }
+      }
       try {
         audit.record("SERVER_AUTO_CYCLE_ERROR", {
           actor: "server-auto-paper",
           symbol: config.symbol,
-          code: error?.code ?? "UNKNOWN",
-          message: error?.message ?? "unknown",
+          code: finalError?.code ?? "UNKNOWN",
+          message: finalError?.message ?? "unknown",
         });
       } catch (auditError) {
         finalError = auditError;
       }
-      if (finalError?.code === "DURABLE_STORAGE_FAILED" || finalError?.code === "DURABLE_STATE_INVALID") {
+      if (isDurableFailure(finalError)) {
         markFatal(finalError);
       } else {
         log("CYCLE_ERROR", { code: finalError?.code ?? "UNKNOWN", message: finalError?.message ?? "unknown" });
@@ -322,6 +368,7 @@ export function createServerAutoPaperService({
       lastCycleAt: meta.lastCycleAt ?? null,
       lastCycleCode: meta.lastCycleCode ?? null,
       authorityLease: storage ? "injected-test-storage" : (authorityLease ? "HELD" : "RELEASED"),
+      evidence: journal.summary(),
     };
   }
 

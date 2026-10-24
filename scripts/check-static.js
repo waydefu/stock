@@ -40,6 +40,8 @@ const required = [
   "server/market-proxy.js",
   "server/auto-paper-service.js",
   "server/file-kv-storage.js",
+  "server/forward-test-journal.js",
+  "scripts/report-auto-paper.js",
   "README.md",
   "DISCLAIMER.md",
 ];
@@ -68,6 +70,8 @@ for (const requiredMarker of [
   "AUTO_PAPER_STATE_FILE",
   "strictPersistence: true",
   "FileKeyValueStorage",
+  "ForwardTestJournal",
+  "journal.recordCycle",
 ]) {
   if (!serverAuto.includes(requiredMarker)) {
     console.error(`server Auto authority missing fail-closed marker: ${requiredMarker}`);
@@ -80,6 +84,16 @@ if (!serverStart.includes("resolveServerAutoPaperConfig") || !serverStart.includ
 }
 if (/\/api\/(?:paper|trade|order|broker)/i.test(proxy)) {
   console.error("public market proxy exposes a trading mutation-shaped route");
+  process.exit(1);
+}
+const forwardJournal = readFileSync("server/forward-test-journal.js", "utf8");
+const forwardReport = readFileSync("scripts/report-auto-paper.js", "utf8");
+if (!/DURABLE_JOURNAL_INVALID/.test(forwardJournal) || !/DURABLE_JOURNAL_FULL/.test(forwardJournal)) {
+  console.error("forward-test journal must fail closed on corruption/capacity");
+  process.exit(1);
+}
+if (!/buildForwardTestReport/.test(forwardReport) || /setItem\s*\(/.test(forwardReport)) {
+  console.error("Auto Paper report must remain read-only");
   process.exit(1);
 }
 if (/live.?broker|real.?broker/i.test(serverAuto)) {

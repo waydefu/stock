@@ -132,6 +132,13 @@ test("server Auto runner uses durable state and MATCHING across cycles", async (
   assert.equal(account.positions["2330"].qty, 1000);
   assert.equal(counter.bars, 1, "same pre-close phase reuses historical-bar cache");
   assert.equal(counter.quotes, 2);
+  const evidence = service.status().evidence;
+  assert.equal(evidence.cycleCount, 2);
+  assert.equal(evidence.pricedCycleCount, 2);
+  assert.equal(evidence.workingOrderCycles, 1);
+  assert.equal(evidence.executedCycles, 1);
+  assert.equal(evidence.fillCount, 1);
+  assert.equal(evidence.sessionDays, 1);
 });
 
 test("server Auto promotion failure never arms or asks for a quote", async () => {
@@ -154,6 +161,10 @@ test("server Auto promotion failure never arms or asks for a quote", async () =>
   assert.equal(result.code, "PROMOTION_GATE_FAIL");
   assert.notEqual(service.status().lifecycle, "PAPER_ENABLED");
   assert.equal(counter.quotes, 0);
+  const evidence = service.status().evidence;
+  assert.equal(evidence.cycleCount, 1);
+  assert.equal(evidence.pricedCycleCount, 0);
+  assert.equal(evidence.promotionGateFails, 1);
 });
 
 test("durable storage failure makes server Auto fatal and stops further cycles", async () => {

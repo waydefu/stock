@@ -64,6 +64,7 @@ js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、genera
 js/fugle-proxy-adapter.js 經 proxy 取真實行情的 adapter（頁面不持金鑰）
 server/proxy-anti-abuse.js proxy 限流／每日 budget／quote cache 純 state 模組
 server/file-kv-storage.js server durable state 原子 JSON adapter（只允許 confirmed persistent mount）
+server/forward-test-journal.js 每輪 forward-test durable 證據＋績效摘要
 server/auto-paper-service.js server-side Auto Paper scheduler（預設 disabled、無公開交易 API）
 server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
 tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
@@ -120,6 +121,16 @@ AUTO_PAPER_ALWAYS_ON_CONFIRMED=1
 - https://render.com/docs/disks
 
 server scheduler 沒有新增任何公開下單 route；交易狀態只寫 confirmed durable storage，持久化錯誤或子狀態損壞即 fail-closed。啟用時還會建立 `${AUTO_PAPER_STATE_FILE}.lock` exclusive lease；同一 state file 第二個 instance 會拒絕啟動。若 process 非正常終止留下 stale lock，必須先確認沒有其他 authority 在跑，再由部署者人工移除 lock，系統不會自動猜測並搶鎖。
+
+每個 server cycle 都會追加 Forward Test Journal（equity／PnL／fees／session／fills／Gate／cycle code）。月底或任何時間可用只讀 CLI 產生摘要：
+
+```bash
+AUTO_PAPER_STATE_FILE=/persistent-mount/stock-auto-paper.json npm run report:auto
+# 或
+npm run report:auto -- /persistent-mount/stock-auto-paper.json
+```
+
+報告會輸出 session days、起訖 equity、window return、max drawdown、fees、fill 次數，以及 stale quote／Gate fail／kill switch／reconciliation 等阻擋統計；不連外、不寫入帳本。
 
 ## 券商接線（留白，不實作真單）
 
