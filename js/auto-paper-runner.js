@@ -268,12 +268,24 @@ export class AutoPaperRunner {
 
     // Existing working orders have priority over producing a new signal.
     if (this.#state.workingOrderIds.length) {
+      const tracked = new Set(this.#state.workingOrderIds);
+      const preExpired = this.#broker.expireOpenOrders(this.#market, { timestamp: new Date(now).toISOString() })
+        .filter((order) => tracked.has(order.id));
+      if (preExpired.length) {
+        for (const order of preExpired) this.#audit("AUTO_ORDER_EXPIRED", { symbol: this.#symbol, strategyId: this.#strategy.id, orderId: order.id });
+        const expiredIds = new Set(preExpired.map((order) => order.id));
+        this.#state.workingOrderIds = this.#state.workingOrderIds.filter((id) => !expiredIds.has(id));
+        if (!this.#state.workingOrderIds.length) {
+          this.#state.lastOutcome = "ORDER_EXPIRED";
+          this.#save();
+          return { ok: false, code: "ORDER_EXPIRED", expired: preExpired, status: this.status() };
+        }
+      }
       if (!quoteIsFresh(quoteEnvelope)) {
         this.#state.lastOutcome = "STALE_QUOTE_BLOCKED";
         this.#save();
         return { ok: false, code: "STALE_QUOTE", status: this.status() };
       }
-      const tracked = new Set(this.#state.workingOrderIds);
       const matched = processPaperMatches({
         broker: this.#broker,
         risk: this.#risk,
