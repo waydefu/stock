@@ -131,7 +131,11 @@ export class RiskEngine {
         updatedAt: this.#now(),
       }));
     } catch (error) {
-      if (this.#strictPersistence) throw new Error(`Risk persistence failed: ${error?.message ?? "unknown"}`);
+      if (this.#strictPersistence) {
+        const failure = new Error(`Risk persistence failed: ${error?.message ?? "unknown"}`);
+        failure.code = error?.code ?? "DURABLE_STORAGE_FAILED";
+        throw failure;
+      }
       /* Browser prototype: local persistence remains best effort; in-memory trip still applies. */
     }
   }
@@ -185,7 +189,11 @@ export class AuditLog {
     try {
       this.#storage.setItem(AUDIT_STORAGE_KEY, JSON.stringify({ version: 1, events: this.#events }));
     } catch (error) {
-      if (this.#strictPersistence) throw new Error(`Audit persistence failed: ${error?.message ?? "unknown"}`);
+      if (this.#strictPersistence) {
+        const failure = new Error(`Audit persistence failed: ${error?.message ?? "unknown"}`);
+        failure.code = error?.code ?? "DURABLE_STORAGE_FAILED";
+        throw failure;
+      }
       /* Browser prototype: local audit persistence is best effort. */
     }
   }
