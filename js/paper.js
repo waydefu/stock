@@ -43,18 +43,37 @@ function validPersistedOrder(order, market, ids) {
   return true;
 }
 
-function validAccountOrDefault(candidate, market) {
+function invalidPersistedAccount(fallback, strict, reason) {
+  if (strict) {
+    const error = new Error(`Paper persisted state invalid: ${reason}`);
+    error.code = "DURABLE_STATE_INVALID";
+    throw error;
+  }
+  return fallback;
+}
+
+function validAccountOrDefault(candidate, market, { strict = false } = {}) {
   const fallback = defaultState()[market];
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return fallback;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return invalidPersistedAccount(fallback, strict, `${market}:account-shape`);
   const account = { ...fallback, ...candidate };
-  if (!Number.isFinite(Number(account.initialCash)) || Number(account.initialCash) <= 0 || !Number.isFinite(Number(account.cash)) || Number(account.cash) < 0) return fallback;
-  if (!Number.isFinite(Number(account.realizedPnl)) || !Number.isFinite(Number(account.totalFees)) || Number(account.totalFees) < 0 || typeof account.feeModel !== "string") return fallback;
-  if (!account.positions || typeof account.positions !== "object" || Array.isArray(account.positions) || !Array.isArray(account.orders)) return fallback;
+  if (!Number.isFinite(Number(account.initialCash)) || Number(account.initialCash) <= 0 || !Number.isFinite(Number(account.cash)) || Number(account.cash) < 0) {
+    return invalidPersistedAccount(fallback, strict, `${market}:cash`);
+  }
+  if (!Number.isFinite(Number(account.realizedPnl)) || !Number.isFinite(Number(account.totalFees)) || Number(account.totalFees) < 0 || typeof account.feeModel !== "string") {
+    return invalidPersistedAccount(fallback, strict, `${market}:accounting`);
+  }
+  if (!account.positions || typeof account.positions !== "object" || Array.isArray(account.positions) || !Array.isArray(account.orders)) {
+    return invalidPersistedAccount(fallback, strict, `${market}:positions-orders`);
+  }
   for (const position of Object.values(account.positions)) {
-    if (!position || !Number.isInteger(position.qty) || position.qty <= 0 || !Number.isFinite(Number(position.avgCost)) || Number(position.avgCost) <= 0) return fallback;
+    if (!position || !Number.isInteger(position.qty) || position.qty <= 0 || !Number.isFinite(Number(position.avgCost)) || Number(position.avgCost) <= 0) {
+      return invalidPersistedAccount(fallback, strict, `${market}:position`);
+    }
   }
   const orderIds = new Set();
-  if (!account.orders.every((order) => validPersistedOrder(order, market, orderIds))) return fallback;
+  if (!account.orders.every((order) => validPersistedOrder(order, market, orderIds))) {
+    return invalidPersistedAccount(fallback, strict, `${market}:orders`);
+  }
   return { ...account, initialCash: Number(account.initialCash), cash: Number(account.cash), realizedPnl: Number(account.realizedPnl), totalFees: Number(account.totalFees) };
 }
 
@@ -88,9 +107,10 @@ export class PaperBroker {
   #feeModel;
   #defaultExecutionMode;
   #sessionClock;
+  #strictPersistence;
   #state;
 
-  constructor({ storage = browserStorage() ?? new MemoryStorage(), now = () => new Date().toISOString(), idGenerator = defaultOrderId, feeModel = ZERO_FEE_MODEL, executionMode = ExecutionMode.IMMEDIATE, sessionClock = new MarketSessionClock() } = {}) {
+  constructor({ storage = browserStorage() ?? new MemoryStorage(), now = () => new Date().toISOString(), idGenerator = defaultOrderId, feeModel = ZERO_FEE_MODEL, executionMode = ExecutionMode.IMMEDIATE, sessionClock = new MarketSessionClock(), strictPersistence = false } = {}) {
     this.#storage = storage;
     this.#now = now;
     this.#idGenerator = idGenerator;
@@ -98,6 +118,7 @@ export class PaperBroker {
     createExecutionModel(executionMode); // fail fast on unsupported mode
     this.#defaultExecutionMode = executionMode;
     this.#sessionClock = sessionClock;
+    this.#strictPersistence = strictPersistence === true;
     this.#state = this.#load();
   }
 
@@ -107,7 +128,15 @@ export class PaperBroker {
     try {
       const value = JSON.parse(raw);
       const fresh = defaultState();
-      if (value.schemaVersion !== undefined && value.schemaVersion !== PAPER_SCHEMA_VERSION) {
+      const schemaMismatch = this.#strictPersistence
+        ? value?.schemaVersion !== PAPER_SCHEMA_VERSION
+        : value?.schemaVersion !== undefined && value.schemaVersion !== PAPER_SCHEMA_VERSION;
+      if (schemaMismatch) {
+        if (this.#strictPersistence) {
+          const error = new Error(`Paper persisted schema invalid: expected ${PAPER_SCHEMA_VERSION}, found ${value?.schemaVersion}`);
+          error.code = "DURABLE_STATE_INVALID";
+          throw error;
+        }
         if (this.#storage) {
           try {
             const auditRaw = this.#storage.getItem("tw-us-stock-audit-v1");
@@ -125,14 +154,22 @@ export class PaperBroker {
               }
             }
           } catch {
-            // audit persistence is best effort
+            // Browser prototype audit persistence is best effort.
           }
         }
         return fresh;
       }
-      for (const market of Object.keys(DEFAULTS)) fresh[market] = validAccountOrDefault(value[market], market);
+      for (const market of Object.keys(DEFAULTS)) {
+        fresh[market] = validAccountOrDefault(value[market], market, { strict: this.#strictPersistence });
+      }
       return fresh;
-    } catch {
+    } catch (error) {
+      if (this.#strictPersistence) {
+        if (error?.code === "DURABLE_STATE_INVALID" || error?.code === "DURABLE_STORAGE_FAILED") throw error;
+        const failure = new Error(`Paper persisted state invalid: ${error?.message ?? "unknown"}`);
+        failure.code = "DURABLE_STATE_INVALID";
+        throw failure;
+      }
       return defaultState();
     }
   }
@@ -162,7 +199,11 @@ export class PaperBroker {
       const remaining = Number.isInteger(order.remainingQty) ? order.remainingQty : order.qty;
       if (order.side === "buy") {
         const notional = remaining * order.price;
-        const fee = feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty: remaining, price: order.price, notional });
+        // MATCHING order 的成本在 acceptance 時已凍結到 order.fee；
+        // restart／fee-policy 升版不得改寫既有掛單的 reservation 語義。
+        const fee = Number.isFinite(order.fee)
+          ? order.fee
+          : feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty: remaining, price: order.price, notional });
         reservedCash += notional + fee;
       } else {
         reservedPositions[order.symbol] = (reservedPositions[order.symbol] ?? 0) + remaining;
@@ -174,7 +215,12 @@ export class PaperBroker {
   #applyFill(account, order, price) {
     const qty = order.remainingQty ?? order.qty;
     const notional = qty * price;
-    const fee = feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty, price, notional });
+    const frozenMatchingFee = order.executionMode === ExecutionMode.MATCHING
+      && Number.isFinite(order.fee)
+      && Math.abs(price - order.price) <= 1e-9
+      ? order.fee
+      : null;
+    const fee = frozenMatchingFee ?? feeFor(this.#feeModel, { market: order.market, symbol: order.symbol, side: order.side, qty, price, notional });
     const existing = account.positions[order.symbol];
 
     if (order.side === "buy") {
@@ -344,7 +390,9 @@ export class PaperBroker {
     const { reservedCash, reservedPositions } = this.#reservations(account, order.id);
     const qty = order.remainingQty ?? order.qty;
     const notional = qty * fillPrice;
-    const fee = feeFor(this.#feeModel, { market, symbol: order.symbol, side: order.side, qty, price: fillPrice, notional });
+    const fee = Number.isFinite(order.fee)
+      ? order.fee
+      : feeFor(this.#feeModel, { market, symbol: order.symbol, side: order.side, qty, price: fillPrice, notional });
     if (order.side === "buy" && account.cash - reservedCash < notional + fee) {
       throw new OrderError(ORDER_ERROR_CODE.INSUFFICIENT_CASH, "成交時可用現金不足");
     }

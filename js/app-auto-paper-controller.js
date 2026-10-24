@@ -3,10 +3,11 @@
    to AutoPaperRunner. It never talks to a live broker and never owns strategy math. */
 "use strict";
 
+import { AUTO_PAPER_ALLOCATION } from "./auto-paper-promotion.js";
 import { AutoPaperRunner } from "./auto-paper-runner.js";
 import { fugleResearchRange } from "./research-range.js";
 
-export const AUTO_PAPER_ALLOCATION = 0.10;
+export { AUTO_PAPER_ALLOCATION };
 const AUTO_CYCLE_MS = 5 * 60_000;
 const $ = (selector) => document.querySelector(selector);
 

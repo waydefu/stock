@@ -10,8 +10,14 @@ test("startup config fails closed without a key", () => {
 });
 
 test("startup config accepts PORT and HOST overrides", () => {
-  assert.deepEqual(resolveRuntimeConfig({ FUGLE_API_KEY: "x" }), { port: 8787, host: "0.0.0.0" });
-  assert.deepEqual(resolveRuntimeConfig({ FUGLE_API_KEY: "x", PORT: "9999", HOST: "127.0.0.1" }), { port: 9999, host: "127.0.0.1" });
+  assert.deepEqual(resolveRuntimeConfig({ FUGLE_API_KEY: "x" }), { port: 8787, host: "0.0.0.0", autoPaper: { enabled: false } });
+  assert.deepEqual(resolveRuntimeConfig({ FUGLE_API_KEY: "x", PORT: "9999", HOST: "127.0.0.1" }), { port: 9999, host: "127.0.0.1", autoPaper: { enabled: false } });
+});
+
+test("startup config refuses server Auto Paper without durable and always-on confirmations", () => {
+  const base = { FUGLE_API_KEY: "x", AUTO_PAPER_SERVER_ENABLED: "1", AUTO_PAPER_SYMBOL: "2330", AUTO_PAPER_STATE_FILE: "/var/data/stock-auto.json" };
+  assert.throws(() => resolveRuntimeConfig(base), /durable storage/);
+  assert.throws(() => resolveRuntimeConfig({ ...base, AUTO_PAPER_DURABLE_STORAGE_CONFIRMED: "1" }), /always-on/);
 });
 
 test("entrypoint boots, serves health, and shuts down gracefully", async () => {

@@ -50,17 +50,21 @@ js/paper-fee-model.js forward-test 市場成本政策（TW sourced／US explicit
 js/paper-runtime.js  App PaperBroker composition＋fee policy injection
 js/paper-reconciliation.js Paper fill 後帳務／部位／訂單對帳
 js/auto-paper-runner.js Promotion Gate→數學 Signal→Portfolio→Risk→Paper→Reconciliation
+js/auto-paper-promotion.js browser/server 共用 Promotion Gate 證據計算
 js/app-auto-paper-controller.js Fugle data＋Auto Paper UI/timer orchestration
 js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
-js/app.js           UI composition root；交易／研究／導覽仍待續拆\njs/app-stream-controller.js Live SSE UI/controller（與 PaperBroker／風控隔離）
+js/app.js           UI composition root；交易／研究／導覽仍待續拆
+js/app-stream-controller.js Live SSE UI/controller（與 PaperBroker／風控隔離）
 js/app-risk-audit-controller.js Risk/Audit presentation（無下單／風控決策副作用）
 js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參考價與商品別）
 js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
 js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
 js/fugle-proxy-adapter.js 經 proxy 取真實行情的 adapter（頁面不持金鑰）
 server/proxy-anti-abuse.js proxy 限流／每日 budget／quote cache 純 state 模組
+server/file-kv-storage.js server durable state 原子 JSON adapter（只允許 confirmed persistent mount）
+server/auto-paper-service.js server-side Auto Paper scheduler（預設 disabled、無公開交易 API）
 server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
 tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
 docs/               ARCHITECTURE.md（模組研究矩陣）、GOVERNANCE.md、UI_UX.md
@@ -96,6 +100,26 @@ npm test
 npm install --no-save playwright@1.64.1 && npx playwright install chromium
 npm run e2e
 ```
+
+## Server Auto Paper（預設停用）
+
+程式已具備 server-side Paper scheduler，但**目前部署不會自動啟用**。啟用時四項環境設定缺一不可：
+
+```text
+AUTO_PAPER_SERVER_ENABLED=1
+AUTO_PAPER_SYMBOL=2330
+AUTO_PAPER_STATE_FILE=/persistent-mount/stock-auto-paper.json
+AUTO_PAPER_DURABLE_STORAGE_CONFIRMED=1
+AUTO_PAPER_ALWAYS_ON_CONFIRMED=1
+```
+
+其中後兩項是部署者的明確安全確認，不是自動偵測。Render 官方文件指出：Free Web Service 閒置約 15 分鐘會 spin down，且本機 filesystem 為 ephemeral；Free Web Service 不能掛 Persistent Disk。因此目前免費 Render proxy **不符合** server Auto Paper 的啟用條件，維持 disabled 是預期行為。
+
+官方依據：
+- https://render.com/docs/free
+- https://render.com/docs/disks
+
+server scheduler 沒有新增任何公開下單 route；交易狀態只寫 confirmed durable storage，持久化錯誤或子狀態損壞即 fail-closed。啟用時還會建立 `${AUTO_PAPER_STATE_FILE}.lock` exclusive lease；同一 state file 第二個 instance 會拒絕啟動。若 process 非正常終止留下 stale lock，必須先確認沒有其他 authority 在跑，再由部署者人工移除 lock，系統不會自動猜測並搶鎖。
 
 ## 券商接線（留白，不實作真單）
 

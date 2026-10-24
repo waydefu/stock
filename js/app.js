@@ -22,6 +22,7 @@ import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { createStreamController } from "./app-stream-controller.js";
 import { createRiskAuditController } from "./app-risk-audit-controller.js";
 import { AUTO_PAPER_ALLOCATION, createAutoPaperController } from "./app-auto-paper-controller.js";
+import { evaluateAutoPaperPromotion } from "./auto-paper-promotion.js";
 import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
@@ -634,43 +635,31 @@ async function runFugleResearch() {
       box.innerHTML = statePanel("error", "INSUFFICIENT_RESEARCH_HISTORY", `真實 K 棒僅 ${Array.isArray(bars) ? bars.length : 0} 根（需 ≥150 根），不補模擬資料。`);
       return;
     }
-    const def = registry.get("multiHorizonTrend");
     const costs = researchCosts(symbol, "TW");
-    const base = { symbol, strategy: def, allocate: fixedFraction(AUTO_PAPER_ALLOCATION), ...costs };
-    const split = splitIS_OOS(bars, 0.4);
-    const isR = evaluateWindow({ ...base, contextBars: [], evalBars: split.is });
-    const oosR = evaluateWindow({ ...base, contextBars: warmupTail(split.is, def.warmup), evalBars: split.oos });
-    const isS = summarizeResearch(isR, {});
-    const oosS = summarizeResearch(oosR, {});
-    const windows = walkForward(bars, { folds: 3, minWindow: 30 })
-      .map((w) => ({ ...w, start: w.train.length }))
-      .filter((w) => w.start >= def.warmup);
-    if (!windows.length) {
-      box.innerHTML = statePanel("error", "INSUFFICIENT_RESEARCH_HISTORY", "walk-forward 無可用窗口（context 不足 warmup），不硬算。");
-      return;
-    }
-    const oosWindows = windows.map((w) => summarizeResearch(evaluateWindow({ ...base, contextBars: warmupTail(w.train, def.warmup), evalBars: w.test }), {}));
-    const buy = registry.get("buyHold");
-    const buyOOS = summarizeResearch(evaluateWindow({ symbol, strategy: buy, allocate: researchAllocate(buy, AUTO_PAPER_ALLOCATION), contextBars: [], evalBars: split.oos, ...costs }), {});
-    const stress = runCostStress({ ...base, bars }, (r) => summarizeResearch(r, {}), [1, 2]);
-    const surfaceCells = evaluateTrendSurface({ symbol, bars, shorts: [10, 20, 30], evalLength: 60, makeVariant: (short) => makeTrendStrategy({ id: `trend-s${short}`, short }), allocate: fixedFraction(AUTO_PAPER_ALLOCATION), ...costs });
-    const surface = parameterSurface(surfaceCells);
-    const gate = evaluatePromotion({ strategyId: def.id, isSummary: isS, oosSummaries: oosWindows, costStress: stress, surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE", correctnessFindings: [] });
-    const last = def.generateSignal({ bars, index: bars.length - 1, symbol });
+    const promotion = evaluateAutoPaperPromotion({
+      symbol,
+      bars,
+      allocation: AUTO_PAPER_ALLOCATION,
+      ...costs,
+    });
+    const {
+      isSummary: isS,
+      oosSummary: oosS,
+      oosWindows,
+      buyHoldOos: buyOOS,
+      costStress: stress,
+      surface,
+      gate,
+      lastSignal: last,
+    } = promotion;
     const m = envelope.meta;
     const provenance = `${m.provider}・${m.dataKind}・norm-v${m.normalizationVersion}・${m.adjustmentMode}・${m.pointInTime}`;
     autoPaperController.recordResearchGate({
       symbol,
       pass: gate.pass,
       evidence: {
+        ...promotion.evidence,
         range: `${from}→${to}`,
-        bars: bars.length,
-        oosNetProfit: oosS.netProfit,
-        oosTradeCount: oosS.tradeCount,
-        walkForwardNetProfit: oosWindows.map((s) => s.netProfit),
-        costFragile: stress.fragile,
-        surfaceFlag: surface.overfitRisk ? "OVERFIT_RISK" : "STABLE",
-        checks: gate.checks,
         provenance,
       },
     });
