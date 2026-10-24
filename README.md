@@ -17,7 +17,7 @@
 | 選股 | Finviz／XQ／Stock Rover | 漲跌幅、量比、本益比、殖利率等多條件篩選 |
 | 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑）；研究策略走分層引擎：Cash／Buy&Hold 基準、多 horizon 趨勢、IS／OOS、walk-forward、cost stress、promotion gate |
 | 策略中心 | QuantConnect 研究框架精神 | 基準永遠同場比較、OOS 分段顯示、參數平面、provenance；gate FAIL 明示、不自動晉升 paper |
-| 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合；台股 TWD 100 萬、美股 USD 10 萬分帳）、持倉損益、下單票即時試算（advisory-only，不具決策權） |
+| 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合；台股 TWD 100 萬、美股 USD 10 萬分帳）；TW forward test 計一般股票手續費＋一般賣方稅，US 成本尚未來源化故明示 zero-fee；持倉損益與下單票即時試算 |
 | 風控 | IB TWS／QuantConnect | 單筆上限、日損斷路器（kill switch）、下單二次確認、稽核日誌（audit log）可匯出 CSV |
 | 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens）、專業快速鍵（/ 搜尋、1–6 頁籤、B／S 開單、? 說明） |
 
@@ -45,11 +45,14 @@ js/strategy.js     Strategy／Signal 契約、long-only 映射、註冊表、生
 js/alpha.js        研究基準庫（cash／buyHold／multi-horizon trend，皆有假說）
 js/portfolio.js    Allocator、capped 波動目標覆蓋、組合硬上限
 js/research.js     分層研究引擎（IS/OOS、walk-forward、cost stress、parameter surface、promotion gate）
-js/paper.js         紙上交易帳本（localStorage 持久化）
+js/paper.js         紙上交易帳本（localStorage 持久化；FeeModel 可注入）
+js/paper-fee-model.js forward-test 市場成本政策（TW sourced／US explicit zero）
+js/paper-runtime.js  App PaperBroker composition＋fee policy injection
 js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
-js/app.js           UI composition root；交易／研究／導覽仍待續拆\njs/app-stream-controller.js Live SSE UI/controller（與 PaperBroker／風控隔離）
+js/app.js           UI composition root；交易／研究／導覽仍待續拆
+js/app-stream-controller.js Live SSE UI/controller（與 PaperBroker／風控隔離）
 js/app-risk-audit-controller.js Risk/Audit presentation（無下單／風控決策副作用）
 js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參考價與商品別）
 js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
@@ -59,7 +62,7 @@ server/proxy-anti-abuse.js proxy 限流／每日 budget／quote cache 純 state 
 server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
 tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
 docs/               ARCHITECTURE.md（模組研究矩陣）、GOVERNANCE.md、UI_UX.md
-scripts/            check-static.js、check-ui.js（35 閘門）、ui-score.js（/100 評分）、
+scripts/            check-static.js、check-ui.js（37 閘門）、ui-score.js（/100 評分）、
                     check-syntax.js（跨平台語法檢查）、check-status.js（狀態同步閘）、
                     ci-summary.js（CI job summary）、smoke-*.js（真實資料煙霧測試）
 tests/e2e/          Playwright 瀏覽器 E2E（只在 CI 安裝工具，不進 runtime）
