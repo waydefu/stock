@@ -57,7 +57,8 @@
 - `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
 - `js/fugle-proxy-adapter.js`／`js/fixture-provider.js`／`js/providers/fugle-mapper.js`：真實行情 adapter 與 Fugle schema 映射（唯一懂 Fugle 格式的地方）。
 - `js/proxy-config.js`：公開 runtime config（proxy URL，非秘密）注入點。
-- `server/market-proxy.js`：trusted proxy——per-client token bucket、quote 短 TTL 快取、每日上游預算、CORS allowlist、GET only；日誌只留雜湊 client id。
+- `server/market-proxy.js`：trusted proxy HTTP routing／CORS／Fugle REST orchestration；日誌只留雜湊 client id。
+- `server/proxy-anti-abuse.js`：純 anti-abuse state——per-client token bucket、quote 短 TTL 快取、每日上游預算與 bounded maps；無 HTTP／provider schema／秘密。
 - `server/fugle-stream-manager.js`：Fugle WebSocket 管理器——單一上游多訂閱、per-client SSE 上限、per-key 狀態、upstream 錯誤路由與名額釋放。
 - `server/stream-sse.js`：瀏覽器端 SSE 序列化（只送 normalized envelope）。
 - `server/start-market-proxy.js`：正式 entrypoint——fail-fast 設定、STALE 探測排程、graceful shutdown。
