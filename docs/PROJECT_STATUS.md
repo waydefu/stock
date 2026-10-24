@@ -26,7 +26,7 @@
 | B4 | 跨平台相容（F-10） | 完成：跨平台語法檢查、proxy lifecycle 測試 |
 | C1 | Browser E2E 進 CI（R-032） | 完成：`.github/workflows/e2e.yml`＋`tests/e2e/*`（含 R-023 突變回放） |
 | C2 | 治理加固（branch protection／CodeQL／secret scanning／dependency review） | 完成：main branch protection（required `Quality`）、CodeQL workflow、secret scanning 已啟用、dependency review workflow |
-| C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字 |
+| C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字；Node 24 `ℹ tests/pass/fail` 解析已有單測防回歸 |
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
@@ -61,10 +61,10 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 
 - Branch protection（main）：**已啟用**（2026-10-22，API 查驗）：required status check＝`Quality`；
   不允許 force push／刪除分支；`enforce_admins` 未開（維護者可 bypass）。
-  `Browser E2E` 待該 workflow 上 main 後再加為 required context（避免 PR 卡住等不存在的 check）。
+  `Browser E2E` workflow 已在 main 並會執行，但尚未加為 required context；`CodeQL` 同樣是政策必跑、非 server required。
 - CodeQL（code scanning）：workflow 已上 main（`.github/workflows/codeql.yml`，javascript-typescript）。
 - Secret scanning：公開 repo 預設已開（含 push protection），2026-10-22 API 查驗為 `enabled`。
 - Dependency review：`.github/workflows/dependency-review.yml`（PR 檢視依賴變更）。
-- 仍缺：required PR review 數、ruleset、貢獻者身份一致性（見 FUTURE_PLAN Track C2）。
+- Ruleset 目前為空；required PR review 數與貢獻者身份一致性仍未強制。單人＋agent repo 暫不把「另一人 review」當必要條件，避免無意義自鎖。
 - `check:status` 門禁：改了程式／測試／閘門的 PR 必須同步本文件；Dependabot 的機械式版本更新豁免這項
   （內容契約照跑），避免為無關的 action 升級而改文件。
