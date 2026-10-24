@@ -124,7 +124,7 @@ export function createServerAutoPaperService({
 
   const durable = storage ?? new FileKeyValueStorage(config.stateFile);
   const nowIso = () => new Date(clock()).toISOString();
-  const { broker } = createAppPaperRuntime({ storage: durable, now: nowIso });
+  const { broker } = createAppPaperRuntime({ storage: durable, now: nowIso, strictPersistence: true });
   const risk = new RiskEngine(DEFAULT_RISK, { storage: durable, now: clock, strictPersistence: true });
   const audit = new AuditLog({ storage: durable, now: nowIso, strictPersistence: true });
   const data = adapter ?? new FugleProxyAdapter({ baseUrl: proxyBaseUrl, clock });
