@@ -9,7 +9,7 @@ import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
 import { evaluateWindow } from "./research.js";
 import { MemoryStorage } from "./paper.js";
 import { createAppPaperRuntime } from "./paper-runtime.js";
-import { executePaperOrder } from "./order-service.js";
+import { cancelPaperOrder, executePaperOrder } from "./order-service.js";
 import { buildOrderCandidate } from "./order-candidate.js";
 import { escapeHtml } from "./dom.js";
 import { loadFavorites, toggleFavorite } from "./favorites.js";
@@ -698,16 +698,61 @@ async function runFugleResearch() {
   }
 }
 
+function paperOrderStatus(order) {
+  const table = {
+    OPEN: ["掛單中", "brand"],
+    FILLED: ["已成交", "up"],
+    CANCELED: ["已取消", "neutral"],
+    EXPIRED: ["已過期", "neutral"],
+    REJECTED: ["已拒絕", "down"],
+    VALIDATED: ["已驗證", "neutral"],
+    NEW: ["新建", "neutral"],
+  };
+  return table[order?.status] ?? [String(order?.status ?? "UNKNOWN"), "neutral"];
+}
+
 function renderTrade() {
   const market = $("#trade-market").value || state.market;
   if (market !== state.market) state.market = market;
   const account = broker.snapshot(market, quoteMap(market));
   const meta = getSymbol($("#order-symbol").value || state.symbol);
-  $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>可用現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div><div class="row"><span>已實現／未實現</span><span>${money(account.realizedPnl, account.currency)} ／ ${money(account.unrealizedPnl, account.currency)}</span></div><div class="row"><span>累計交易成本</span><span>${money(account.totalFees, account.currency)}・${escapeHtml(account.feeModel)}</span></div><div class="row"><span>本 session 損益</span><span class="${tone(account.dailyPnl)}">${money(account.dailyPnl, account.currency)} (${account.sessionKey})</span></div>`;
+  $("#account-summary").innerHTML = `<div class="row"><span>帳戶模式</span><span class="badge brand">PAPER</span></div><div class="row"><span>帳面現金</span><span>${money(account.cash, account.currency)}</span></div><div class="row"><span>可下單現金</span><span>${money(account.availableCash ?? account.cash, account.currency)}</span></div><div class="row"><span>掛單保留</span><span>${money(account.reservedCash ?? 0, account.currency)}</span></div><div class="row"><span>持倉市值</span><span>${money(account.marketValue, account.currency)}</span></div><div class="row"><span>權益</span><span>${money(account.equity, account.currency)}</span></div><div class="row"><span>已實現／未實現</span><span>${money(account.realizedPnl, account.currency)} ／ ${money(account.unrealizedPnl, account.currency)}</span></div><div class="row"><span>累計交易成本</span><span>${money(account.totalFees, account.currency)}・${escapeHtml(account.feeModel)}</span></div><div class="row"><span>本 session 損益</span><span class="${tone(account.dailyPnl)}">${money(account.dailyPnl, account.currency)} (${account.sessionKey})</span></div>`;
   $("#positions-table tbody").innerHTML = Object.values(account.positions).length ? Object.values(account.positions).map((position) => `<tr><td><b>${escapeHtml(position.symbol)}</b></td><td class="n">${position.qty}</td><td class="n">${fmtPrice(position.avgCost)}</td><td class="n">${fmtPrice(position.last)}</td><td class="n ${tone(position.unrealized)}">${signed(position.unrealized)}</td></tr>`).join("") : stateRow(5, "empty", "尚無持倉", "紙上帳戶從零開始，不會自動載入券商資料。");
-  $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => `<tr><td>${escapeHtml(order.timestamp)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(order.price)}</td><td><span class="badge up">已成交・PAPER</span></td></tr>`).join("") : stateRow(6, "empty", "尚無訂單", "建立紙上訂單後，這裡會保留本機歷史。");
+  $("#orders-table tbody").innerHTML = account.orders.length ? account.orders.map((order) => {
+    const [label, badge] = paperOrderStatus(order);
+    const shownPrice = order.fillPrice ?? order.price;
+    const shownTime = order.filledAt ?? order.updatedAt ?? order.createdAt ?? "—";
+    const mode = order.executionMode === "MATCHING" ? "・MATCHING" : "";
+    const action = order.status === "OPEN"
+      ? `<button type="button" class="btn sm" data-cancel-paper-order="${escapeHtml(order.id)}">取消</button>`
+      : "—";
+    return `<tr><td>${escapeHtml(shownTime)}</td><td>${escapeHtml(order.symbol)}</td><td class="${order.side === "buy" ? "up" : "down"}">${order.side === "buy" ? "買進" : "賣出"}</td><td class="n">${order.qty}</td><td class="n">${fmtPrice(shownPrice)}</td><td><span class="badge ${badge}">${label}・PAPER${mode}</span></td><td>${action}</td></tr>`;
+  }).join("") : stateRow(7, "empty", "尚無訂單", "建立紙上訂單後，這裡會保留本機歷史。");
   updateOrderPrice();
   updateOrderEstimate();
+}
+
+function handlePaperOrderAction(event) {
+  const button = event.target.closest("[data-cancel-paper-order]");
+  if (!button) return;
+  const market = $("#trade-market").value || state.market;
+  const result = cancelPaperOrder({
+    broker,
+    market,
+    orderId: button.dataset.cancelPaperOrder,
+    canTrade: permissionsFor(state.role).includes("paper:order"),
+    now: Date.now(),
+    reason: "user canceled from order history",
+  });
+  if (result.canceled) {
+    auditEvent("ORDER_CANCELED_PAPER", { orderId: result.order.id, symbol: result.order.symbol });
+    $("#order-risk").className = "notice info order-ack";
+    $("#order-risk").textContent = `已取消 Paper 掛單［${result.order.id}］，保留資金／部位已釋放。`;
+  } else {
+    $("#order-risk").className = "notice order-ack";
+    $("#order-risk").textContent = `取消失敗［${result.decision?.code ?? "UNKNOWN"}］${result.decision?.reason ?? ""}`;
+  }
+  renderTrade();
 }
 
 function updateOrderEstimate() {
@@ -1071,6 +1116,7 @@ function initEvents() {
   $("#order-form").addEventListener("submit", (event) => { event.preventDefault(); if (!state.pendingOrder) previewOrder(event); });
   $("#order-confirm").addEventListener("click", confirmOrder);
   $("#order-cancel").addEventListener("click", () => { state.pendingOrder = null; closeOrderModal(); });
+  $("#orders-table").addEventListener("click", handlePaperOrderAction);
   $("#kill-switch").addEventListener("click", () => { if (!permissionsFor(state.role).includes("risk:trip")) return; risk.trip("使用者手動啟動"); auditEvent("KILL_SWITCH_TRIPPED", {}); renderRisk(); });
   $("#reset-risk").addEventListener("click", () => { if (!permissionsFor(state.role).includes("risk:reset")) return; risk.reset(); auditEvent("KILL_SWITCH_RESET", {}); renderRisk(); });
   $("#export-audit").addEventListener("click", downloadAudit);
