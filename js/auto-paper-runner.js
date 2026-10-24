@@ -118,6 +118,7 @@ export class AutoPaperRunner {
   #symbol;
   #clock;
   #sessionClock;
+  #canTrade;
   #state;
 
   constructor({
@@ -131,12 +132,14 @@ export class AutoPaperRunner {
     symbol,
     clock = () => Date.now(),
     sessionClock = new MarketSessionClock(),
+    canTrade = () => true,
   } = {}) {
     validateStrategy(strategy);
     if (typeof allocate !== "function") throw new Error("AutoPaperRunner 需要 Portfolio allocator");
     if (!broker || typeof broker.snapshot !== "function" || typeof broker.placeOrder !== "function") throw new Error("AutoPaperRunner 需要 PaperBroker");
     if (!risk || typeof risk.approveOrder !== "function" || typeof risk.trip !== "function") throw new Error("AutoPaperRunner 需要 RiskEngine");
     if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") throw new Error("AutoPaperRunner 需要 storage");
+    if (typeof canTrade !== "function") throw new Error("AutoPaperRunner 需要 canTrade 權限函式");
     if (market !== "TW") throw new Error("Automated Paper v1 目前只開放 TW");
     if (typeof symbol !== "string" || !symbol) throw new Error("AutoPaperRunner 需要 symbol");
 
@@ -150,6 +153,7 @@ export class AutoPaperRunner {
     this.#symbol = symbol;
     this.#clock = clock;
     this.#sessionClock = sessionClock;
+    this.#canTrade = canTrade;
     this.#state = this.#load();
   }
 
@@ -218,6 +222,7 @@ export class AutoPaperRunner {
   arm() {
     if (!this.#state.approval?.pass) throw new Error("研究 Promotion Gate 尚未 PASS，不可啟用自動 Paper");
     if (this.#risk.isTripped?.()) throw new Error("Risk kill switch 已啟動，不可武裝");
+    if (!this.#canTrade()) throw new Error("目前角色沒有 paper:order 權限，不可武裝");
     if (this.#state.lifecycle === LIFECYCLE.PAUSED) {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.RESEARCH_APPROVED);
     }
@@ -359,7 +364,7 @@ export class AutoPaperRunner {
         risk: this.#risk,
         order,
         quotes,
-        canTrade: true,
+        canTrade: this.#canTrade(),
         now,
       });
       if (!result.filled) {
