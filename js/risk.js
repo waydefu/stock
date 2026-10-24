@@ -29,11 +29,13 @@ export class RiskEngine {
   #reason = "";
   #storage;
   #now;
+  #strictPersistence;
 
-  constructor(config = {}, { storage = null, now = () => Date.now() } = {}) {
+  constructor(config = {}, { storage = null, now = () => Date.now(), strictPersistence = false } = {}) {
     this.#config = { ...DEFAULT_RISK, ...config };
     this.#storage = storage;
     this.#now = now;
+    this.#strictPersistence = strictPersistence === true;
     const persisted = loadKillSwitch(storage);
     if (persisted?.tripped) {
       this.#tripped = true;
@@ -128,7 +130,10 @@ export class RiskEngine {
         reason: this.#reason,
         updatedAt: this.#now(),
       }));
-    } catch { /* local persistence is best effort；trip 本身仍生效 */ }
+    } catch (error) {
+      if (this.#strictPersistence) throw new Error(`Risk persistence failed: ${error?.message ?? "unknown"}`);
+      /* Browser prototype: local persistence remains best effort; in-memory trip still applies. */
+    }
   }
 }
 
@@ -164,18 +169,25 @@ export class AuditLog {
   #idGenerator;
   #storage;
   #sequence;
+  #strictPersistence;
 
-  constructor({ now = () => new Date().toISOString(), idGenerator = ({ sequence }) => `audit-${sequence}`, storage = null } = {}) {
+  constructor({ now = () => new Date().toISOString(), idGenerator = ({ sequence }) => `audit-${sequence}`, storage = null, strictPersistence = false } = {}) {
     this.#now = now;
     this.#idGenerator = idGenerator;
     this.#storage = storage;
+    this.#strictPersistence = strictPersistence === true;
     this.#events = loadAuditEvents(storage);
     this.#sequence = this.#events.length;
   }
 
   #save() {
     if (!this.#storage) return;
-    try { this.#storage.setItem(AUDIT_STORAGE_KEY, JSON.stringify({ version: 1, events: this.#events })); } catch { /* local persistence is best effort */ }
+    try {
+      this.#storage.setItem(AUDIT_STORAGE_KEY, JSON.stringify({ version: 1, events: this.#events }));
+    } catch (error) {
+      if (this.#strictPersistence) throw new Error(`Audit persistence failed: ${error?.message ?? "unknown"}`);
+      /* Browser prototype: local audit persistence is best effort. */
+    }
   }
 
   record(event, details = {}) {
