@@ -106,6 +106,8 @@ test("forward-test journal persists cycle evidence and computes window metrics",
   assert.equal(summary.totalReturnPct, -10);
   assert.ok(Math.abs(summary.maxDrawdownPct - 18.1818181818) < 1e-6);
   assert.equal(summary.feesInWindow, 30);
+  assert.equal(summary.turnoverNotional, 190_000);
+  assert.ok(Math.abs(summary.costToTurnoverPct - (30 / 190_000) * 100) < 1e-12);
   assert.equal(summary.fillCount, 2);
   assert.equal(summary.buyFills, 1);
   assert.equal(summary.sellFills, 1);
