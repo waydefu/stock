@@ -54,8 +54,10 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
-5. browser E2E＋完整 WCAG audit＋viewport 幾何實測
+5. 完整 WCAG audit＋viewport 幾何實測（Browser E2E 已在 CI）
 6. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
+7. UI orchestration：Live stream 已抽成 `js/app-stream-controller.js`；`js/app.js` 仍需續拆交易／研究／導覽職責
+8. `scripts/check-ui.js` 仍是大型靜態 gate runner，後續拆規則模組
 
 ## Enforcement（server side）
 
