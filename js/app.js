@@ -19,6 +19,7 @@ import { SEARCH_ACTIONS, describeSearchAction, findLocalSymbol, resolveSearchQue
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
 import { createStreamController } from "./app-stream-controller.js";
+import { createRiskAuditController } from "./app-risk-audit-controller.js";
 import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
@@ -78,6 +79,15 @@ function auditEvent(event, details) {
 const streamController = createStreamController({
   getDataMode: () => state.dataMode,
   auditEvent,
+});
+
+const riskAuditController = createRiskAuditController({
+  risk,
+  audit,
+  getRole: () => state.role,
+  permissionsFor,
+  rolePermissions: ROLE_PERMISSIONS,
+  onAuditExport: () => auditEvent("AUDIT_EXPORTED", {}),
 });
 
 function setMarket(market) {
@@ -990,33 +1000,15 @@ async function handleSymbolSearch(event) {
 }
 
 function renderRisk(target = "#audit-log") {
-  const status = risk.status();
-  $("#risk-state").textContent = status.tripped ? "已凍結" : "運作中";
-  $("#risk-state").className = `kpi ${status.tripped ? "down" : "up"}`;
-  $("#risk-reason").textContent = status.tripped
-    ? `${status.reason || "斷路器已啟動"}${status.persisted ? "（已保存，重新整理後仍凍結）" : ""}`
-    : "所有紙上訂單仍需先經風控";
-  const canManage = permissionsFor(state.role).includes("risk:trip");
-  $("#kill-switch").disabled = !canManage || status.tripped;
-  $("#reset-risk").disabled = !permissionsFor(state.role).includes("risk:reset") || !status.tripped;
-  $("#permission-table").innerHTML = Object.entries(ROLE_PERMISSIONS).map(([role, permissions]) => `<div class="row"><span>${escapeHtml(role)}</span><span class="mono fs-11">${escapeHtml(permissions.join(" · "))}</span></div>`).join("");
-  renderAudit(target);
+  riskAuditController.renderRisk(target);
 }
 
 function renderAudit(target = "#audit-log") {
-  const element = $(target);
-  if (!element) return;
-  const entries = audit.list().slice(-40).reverse();
-  element.innerHTML = entries.length ? entries.map((entry) => `<div><span class="t">${escapeHtml(entry.timestamp)}</span><b>${escapeHtml(entry.event)}</b> <span class="muted">${escapeHtml(JSON.stringify(entry.details))}</span></div>`).join("") : statePanel("empty", "尚無事件", "完成研究、風控或紙上操作後，這裡會留下 session audit。");
+  riskAuditController.renderAudit(target);
 }
 
 function downloadAudit() {
-  const blob = new Blob([audit.toCSV()], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url; link.download = "stock-lab-audit.csv"; link.click();
-  URL.revokeObjectURL(url);
-  auditEvent("AUDIT_EXPORTED", {});
+  riskAuditController.downloadAudit();
 }
 
 function initEvents() {
