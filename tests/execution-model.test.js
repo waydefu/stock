@@ -23,6 +23,7 @@ test("matching execution model opens first and fills only on last-trade touch", 
   const touch = model.match(open, { price: 99 });
   assert.equal(touch.matched, true);
   assert.equal(touch.fillPrice, 100, "v1 does not invent price improvement");
+  assert.throws(() => model.fill(open, { price: 99 }), /submitted limit/);
   const filled = model.fill(open, { timestamp: "2025-01-01T00:00:02.000Z", price: touch.fillPrice });
   assert.equal(filled.status, ORDER_STATUS.FILLED);
   assert.equal(filled.filledQty, 10);
