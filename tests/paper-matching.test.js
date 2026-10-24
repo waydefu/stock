@@ -157,3 +157,30 @@ test("fill-time risk excludes the order's own cash reservation", () => {
   assert.equal(matched.fills.length, 1);
   assert.equal(broker.snapshot("TW", { "2330": { price: 99 } }).positions["2330"].qty, 6000);
 });
+
+
+test("OPEN matching order keeps its accepted fee across broker restart or fee-policy change", () => {
+  const storage = new MemoryStorage();
+  const feeV1 = { name: "fee-v1", calculate: () => 5 };
+  const feeV2 = { name: "fee-v2", calculate: () => 99 };
+  const first = new PaperBroker({
+    storage,
+    now: () => new Date(SESSION).toISOString(),
+    feeModel: feeV1,
+  });
+  const opened = first.placeOrder(matchingOrder({ clientOrderId: "fee-freeze" }));
+  assert.equal(opened.fee, 5);
+  assert.equal(first.snapshot("TW").reservedCash, 1005);
+
+  const restarted = new PaperBroker({
+    storage,
+    now: () => new Date(SESSION).toISOString(),
+    feeModel: feeV2,
+  });
+  assert.equal(restarted.snapshot("TW").reservedCash, 1005, "reservation must use accepted order.fee");
+  const filled = restarted.fillOpenOrder("TW", opened.id, { price: 100 });
+  assert.equal(filled.fee, 5, "fill must preserve accepted fee");
+  const account = restarted.snapshot("TW", { "2330": { price: 100 } });
+  assert.equal(account.totalFees, 5);
+  assert.equal(account.cash, 1_000_000 - 1000 - 5);
+});
