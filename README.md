@@ -55,6 +55,7 @@ js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參
 js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
 js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
 js/fugle-proxy-adapter.js 經 proxy 取真實行情的 adapter（頁面不持金鑰）
+server/proxy-anti-abuse.js proxy 限流／每日 budget／quote cache 純 state 模組
 server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
 tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
 docs/               ARCHITECTURE.md（模組研究矩陣）、GOVERNANCE.md、UI_UX.md
