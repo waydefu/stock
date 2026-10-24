@@ -109,6 +109,7 @@ export function createServerAutoPaperService({
   setIntervalImpl = setInterval,
   clearIntervalImpl = clearInterval,
   logger = () => {},
+  promotionEvaluator = evaluateAutoPaperPromotion,
 } = {}) {
   if (!config || config.enabled !== true) {
     return Object.freeze({
@@ -199,7 +200,7 @@ export function createServerAutoPaperService({
     const needsEvaluation = meta.lastPromotionBar !== latestBar || status.approval?.pass !== true;
     if (!needsEvaluation) return { pass: true, cached: true, gate: status.approval?.evidence?.checks ?? [] };
 
-    const promotion = evaluateAutoPaperPromotion({
+    const promotion = promotionEvaluator({
       symbol: config.symbol,
       bars,
       allocation: AUTO_PAPER_ALLOCATION,
@@ -256,18 +257,23 @@ export function createServerAutoPaperService({
       log("CYCLE", { code: result.code });
       return { ...result, promotion };
     } catch (error) {
-      audit.record("SERVER_AUTO_CYCLE_ERROR", {
-        actor: "server-auto-paper",
-        symbol: config.symbol,
-        code: error?.code ?? "UNKNOWN",
-        message: error?.message ?? "unknown",
-      });
-      if (error?.code === "DURABLE_STORAGE_FAILED" || error?.code === "DURABLE_STATE_INVALID") {
-        markFatal(error);
-      } else {
-        log("CYCLE_ERROR", { code: error?.code ?? "UNKNOWN", message: error?.message ?? "unknown" });
+      let finalError = error;
+      try {
+        audit.record("SERVER_AUTO_CYCLE_ERROR", {
+          actor: "server-auto-paper",
+          symbol: config.symbol,
+          code: error?.code ?? "UNKNOWN",
+          message: error?.message ?? "unknown",
+        });
+      } catch (auditError) {
+        finalError = auditError;
       }
-      return { ok: false, code: error?.code ?? "UNKNOWN", error: error?.message ?? "unknown", fatal: Boolean(fatal) };
+      if (finalError?.code === "DURABLE_STORAGE_FAILED" || finalError?.code === "DURABLE_STATE_INVALID") {
+        markFatal(finalError);
+      } else {
+        log("CYCLE_ERROR", { code: finalError?.code ?? "UNKNOWN", message: finalError?.message ?? "unknown" });
+      }
+      return { ok: false, code: finalError?.code ?? "UNKNOWN", error: finalError?.message ?? "unknown", fatal: Boolean(fatal) };
     } finally {
       running = false;
     }
