@@ -56,7 +56,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
    （見 Track B2 回報的缺口 G-1～G-8）
 5. 完整 WCAG audit＋viewport 幾何實測（Browser E2E 已在 CI）
 6. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
-7. UI orchestration：Live stream 已抽成 `js/app-stream-controller.js`；`js/app.js` 仍需續拆交易／研究／導覽職責
+7. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
 8. `scripts/check-ui.js` 仍是大型靜態 gate runner，後續拆規則模組
 
 ## Enforcement（server side）
