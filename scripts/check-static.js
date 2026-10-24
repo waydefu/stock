@@ -59,4 +59,32 @@ if (html.includes("api_key=") || html.includes("secret_key=")) {
   console.error("index.html contains a credential-shaped assignment");
   process.exit(1);
 }
+const serverAuto = readFileSync("server/auto-paper-service.js", "utf8");
+const serverStart = readFileSync("server/start-market-proxy.js", "utf8");
+const proxy = readFileSync("server/market-proxy.js", "utf8");
+for (const requiredMarker of [
+  "AUTO_PAPER_DURABLE_STORAGE_CONFIRMED",
+  "AUTO_PAPER_ALWAYS_ON_CONFIRMED",
+  "AUTO_PAPER_STATE_FILE",
+  "strictPersistence: true",
+  "FileKeyValueStorage",
+]) {
+  if (!serverAuto.includes(requiredMarker)) {
+    console.error(`server Auto authority missing fail-closed marker: ${requiredMarker}`);
+    process.exit(1);
+  }
+}
+if (!serverStart.includes("resolveServerAutoPaperConfig") || !serverStart.includes("autoPaper?.stop")) {
+  console.error("server entrypoint does not own Auto Paper startup/shutdown lifecycle");
+  process.exit(1);
+}
+if (/\/api\/(?:paper|trade|order|broker)/i.test(proxy)) {
+  console.error("public market proxy exposes a trading mutation-shaped route");
+  process.exit(1);
+}
+if (/live.?broker|real.?broker/i.test(serverAuto)) {
+  console.error("server Auto Paper module contains live-broker-shaped coupling");
+  process.exit(1);
+}
+
 console.log(`Static smoke check passed: ${required.length} files and ${html.length} HTML bytes`);
