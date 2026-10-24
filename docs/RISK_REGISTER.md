@@ -42,6 +42,8 @@
 
 | R-033 | P1 | Fixed on branch; regression tests added | `evaluateWindow()` 在第 j 根收盤產生 signal 後，先用第 j+1 根開盤改 cash/shares，才記錄第 j 根 equity；等於讓尚未發生的成交回寫到過去。 | Equity／drawdown／Sharpe／promotion gate 可被下一根開盤價污染，違反 next-bar-open 與因果時間軸。 | `tests/research-timeline.test.js`：改變未來開盤不得改變 signal bar equity；exit 也不得提前一根反映。 | 改成 `pendingExecution`：本根開盤只執行上一根 intent → 記本根 equity → 本根收盤才排下一根 intent；成交失敗仍依 R-031 保持 flat target。 |
 
+| R-034 | P1 | Mitigated for browser forward-test; server runner open | 自動 Paper 若直接由 UI timer 驅動，頁面關閉、背景節流或裝置休眠時不會持續執行；若未標示可能被誤認成 24/7 daemon。 | 遺漏交易週期、執行時間漂移，forward-test 證據不完整。 | `js/auto-paper-runner.js` 將策略決策做成 deterministic/persisted core；`js/app-auto-paper-controller.js` 明示「頁面開啟期間」、5 分鐘 cycle；`tests/auto-paper-runner.test.js` 鎖 gate／next-session／freshness／idempotency／reconciliation。 | v1 只允許 paper；Promotion Gate PASS 才能武裝、RBAC＋RiskEngine＋fresh quote fail-closed、對帳異常 trip kill switch。**剩餘**：遷到 server-authoritative scheduler＋durable ledger 前，不宣稱 24/7 unattended trading。 |
+
 ## Immediate priority
 
 Current next-action 不在 Risk Register 維護，避免風險證據與 roadmap 重複後漂移。
