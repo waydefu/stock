@@ -4,6 +4,8 @@ const required = [
   "index.html",
   "css/styles.css",
   "js/app.js",
+  "js/app-stream-controller.js",
+  "js/app-risk-audit-controller.js",
   "js/data.js",
   "js/accounting.js",
   "js/execution-model.js",

@@ -1,5 +1,10 @@
 # 未來計劃書：waydefu/stock 收斂到高品質股票研究系統
 
+> **治理狀態（2026-10-24）**：本檔是歷史執行計畫／驗收紀錄，不再擔任 current roadmap。
+> 任何「下一步／現況／open PR／測試數」若與 `docs/PROJECT_STATUS.md` 不同，一律以 PROJECT_STATUS 與 runtime／CI 證據為準。
+> 已完成 Phase／Track 保留作 audit trail，不再反覆改寫歷史。
+
+
 > 定位：research／education／paper-only prototype，不接真實券商。
 > 寫法：每個 Phase 都可照跑——前置、指令、驗收、證據四件齊全才算完成。
 > 規模以 S／M／L 相對標示，不虛構工時；牽涉外部規則的一律先查官方來源再實作。
@@ -254,11 +259,10 @@ B. 治理加固（全部要明確批准才做，逐項開 PR）：
 
 ---
 
-### Track A — 止血（下一可執行階段）
+### Track A — 止血（歷史執行紀錄）
 
-> **現況（2026-10-22）**：Track A1～A4、B2～B4、C1（E2E 進 CI）、C2（治理）、C3（狀態自動化）、
-> D2（TWSE 官方休市日）已完成並有證據。**下一個可合併的程式 PR＝B1（R-026 台股成本模型）**；
-> B1 之後只剩決策點與商品別規則缺口（Track B2 的 G-1～G-8）。
+> 這段保留 2026-09～10 的執行順序作 audit trail。A1～A4、B1～B4、C1～C3 與 D2 後續均已落地；
+> **不得再從本段推導「下一個 PR」**，目前優先序只看 `docs/PROJECT_STATUS.md`。
 
 目標：讓 production 主流程可用，並在更多流量進來前收掉公開 proxy 的濫用面。
 

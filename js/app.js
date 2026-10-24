@@ -18,7 +18,8 @@ import { FugleProxyAdapter } from "./fugle-proxy-adapter.js";
 import { SEARCH_ACTIONS, describeSearchAction, findLocalSymbol, resolveSearchQuery, validateRemoteSymbol } from "./symbol-search.js";
 import { fugleResearchRange } from "./research-range.js";
 import { MARKET_DATA_PROXY_URL } from "./proxy-config.js";
-import { SseStreamClient } from "./sse-stream-client.js";
+import { createStreamController } from "./app-stream-controller.js";
+import { createRiskAuditController } from "./app-risk-audit-controller.js";
 import { createTwFeeModel, describeTwFeeModel, DEFAULT_TW_FEE_ASSUMPTIONS, TW_INSTRUMENT } from "./tw-fee-model.js";
 import { getCurrentSession } from "./market-rules.js";
 import { buildDefaultRegistry, makeTrendStrategy } from "./alpha.js";
@@ -74,6 +75,20 @@ function auditEvent(event, details) {
   audit.record(event, { ...details, mode: "paper", role: state.role, market: state.market });
   renderAudit();
 }
+
+const streamController = createStreamController({
+  getDataMode: () => state.dataMode,
+  auditEvent,
+});
+
+const riskAuditController = createRiskAuditController({
+  risk,
+  audit,
+  getRole: () => state.role,
+  permissionsFor,
+  rolePermissions: ROLE_PERMISSIONS,
+  onAuditExport: () => auditEvent("AUDIT_EXPORTED", {}),
+});
 
 function setMarket(market) {
   state.market = market;
@@ -650,166 +665,6 @@ async function runFugleResearch() {
   }
 }
 
-/* 即時串流 Live UI（7C PR3）：provider-neutral SSE client 經 proxy 收 trades。
-   PAPER 隔離：trade handler 只碰 #stream-* 節點，永不寫入下單票／broker／風控。
-   更新政策：state 變化才寫 status（aria-live 節流，高頻逐筆不朗讀）；逐筆只做
-   targeted DOM 更新（latest＋前插一列，上限 10 列），不跑 renderAll；
-   audit 只記 START／STOP／ERROR（逐筆不記，避免洗 audit）。 */
-const STREAM_ERROR_TEXT = {
-  STREAM_AUTH_FAILED: "上游認證失敗，不自動重連；請部署者檢查 server 金鑰",
-  STREAM_SUBSCRIBE_FAILED: "訂閱失敗，不自動重連；請檢查標的後手動重試",
-  STREAM_RATE_LIMITED: "觸發限流，不自動重連；稍後手動重試",
-  STREAM_SCHEMA_INVALID: "串流資料結構異常，已停止",
-  STREAM_RECONNECT_EXHAUSTED: "上游重連用盡，已停止；請手動重試",
-  STREAM_UPSTREAM_CLOSED: "上游斷線，瀏覽器自動重連中",
-  STREAM_TIMEOUT: "逾時，瀏覽器自動重連中",
-  INVALID_SYMBOL: "商品代碼不正確，請修正標的",
-  RATE_LIMITED: "請求過於頻繁（proxy 限流），不自動重連；請稍候再按「開始串流」",
-  FUGLE_MODE_OFF: "目前是模擬模式",
-  PROXY_NOT_CONFIGURED: "Fugle mode unavailable：尚未設定 proxy URL",
-  UNSUPPORTED_CAPABILITY: "目前瀏覽器不支援 EventSource，不偽裝連線",
-};
-
-/* Track A4：終端錯誤要給「可行動」狀態，不是只有一行 status。
-   每一種錯誤都對應一個明確的下一步（改標的／等待／找維運／重試）。 */
-const STREAM_ERROR_ACTION = {
-  STREAM_SUBSCRIBE_FAILED: "請確認代號是否為有效的 Fugle 商品（例：2330、0050），或改用其他標的後按「開始串流」重試。",
-  STREAM_RATE_LIMITED: "本機連線數已達上限，請先按「停止」關閉其他分頁的串流，再按「開始串流」重試。",
-  RATE_LIMITED: "請等待約一分鐘再重試；若持續發生，代表同一來源請求過於頻繁。",
-  STREAM_AUTH_FAILED: "這是部署端問題：金鑰或 Fugle 方案不足，請通知維護者後再試。",
-  STREAM_RECONNECT_EXHAUSTED: "上游連續失敗，請稍候按「開始串流」重試。",
-  STREAM_SCHEMA_INVALID: "上游資料格式異常，請通知維護者（不要在此重試轟擊上游）。",
-  INVALID_SYMBOL: "請修正上方標的欄位後重試。",
-};
-let streamClient = null;
-let streamLastStatusText = "";
-
-function describeStreamText(snap) {
-  if (!snap || !snap.symbol) return "尚未啟動；切換「Fugle 真實行情」後可開始（瀏覽器經 proxy 收 SSE，不直連上游、不持金鑰）。";
-  const staleMark = snap.eventCount === 0 ? "尚無逐筆" : (snap.marketStale ? "STALE" : "FRESH");
-  const base = `傳輸 ${snap.transport}・上游 ${snap.upstream ?? "未知"}・${snap.symbol}・新鮮度 ${staleMark}・來源 FUGLE trades（經 proxy）・執行 PAPER`;
-  if (snap.error) {
-    const hint = STREAM_ERROR_TEXT[snap.error.code] ?? "未知錯誤";
-    return `${base}・錯誤 ${snap.error.code}：${hint}${snap.error.terminal ? "（已停止，需手動重試）" : "（自動重連中）"}`;
-  }
-  return base;
-}
-
-/* 逐筆數量放在獨立、aria-live=off 的元素：避免高頻成交朗讀到螢幕閱讀器。 */
-function paintStreamCount(snap) {
-  const counter = $("#stream-count");
-  if (!counter) return;
-  counter.textContent = `逐筆 ${snap?.eventCount ?? 0}`;
-}
-
-function paintStreamLatest(trade) {
-  const latest = $("#stream-latest");
-  if (!latest || !streamClient || !trade) return;
-  const snap = streamClient.getSnapshot();
-  const price = Number.isFinite(trade?.trade?.price) ? fmtPrice(trade.trade.price) : "N/A";
-  const fresh = snap.marketStale ? "STALE" : (trade.freshnessStatus ?? "UNKNOWN");
-  latest.textContent = `${trade.symbol} 最新 ${price}・${fmtTaipeiTime(trade.providerTimestamp)}・${fresh}・seq ${trade.sequence ?? "?"}`;
-}
-
-function renderStreamAlert(snap) {
-  const box = $("#stream-alert");
-  if (!box) return;
-  const error = snap?.error;
-  if (!error) {
-    box.innerHTML = "";
-    return;
-  }
-  const hint = STREAM_ERROR_TEXT[error.code] ?? "未知錯誤";
-  const action = STREAM_ERROR_ACTION[error.code] ?? "請按「開始串流」手動重試；若持續發生，請通知維護者。";
-  box.innerHTML = statePanel("error", `串流中止［${error.code}］${error.terminal ? "（需手動重試）" : "（自動重連中）"}`, `${hint}。${action}`);
-}
-
-function updateStreamPanel() {
-  const startBtn = $("#stream-start");
-  const stopBtn = $("#stream-stop");
-  const badge = $("#stream-state-badge");
-  const status = $("#stream-status");
-  if (!startBtn || !stopBtn || !badge || !status) return;
-  const snap = streamClient ? streamClient.getSnapshot() : null;
-  const active = !!snap && (snap.transport === "OPEN" || snap.transport === "CONNECTING" || snap.transport === "RECONNECTING");
-  startBtn.disabled = active;
-  stopBtn.disabled = !active;
-  const toneName = !snap || !snap.symbol ? "neutral" : snap.transport === "FAILED" ? "down" : snap.upstream === "LIVE" ? "up" : "neutral";
-  badge.className = `badge ${toneName}`;
-  badge.textContent = snap?.upstream ?? snap?.transport ?? "IDLE";
-  const text = describeStreamText(snap);
-  if (text !== streamLastStatusText) {
-    status.textContent = text;
-    streamLastStatusText = text;
-  }
-  renderStreamAlert(snap);
-  paintStreamCount(snap);
-  const trades = streamClient ? streamClient.recentTrades() : [];
-  if (trades.length) paintStreamLatest(trades[trades.length - 1]);
-}
-
-function renderStreamTrade(trade) {
-  paintStreamLatest(trade);
-  if (streamClient) paintStreamCount(streamClient.getSnapshot());
-  const box = $("#stream-trades");
-  if (!box || !trade) return;
-  const empty = box.querySelector(".state-block");
-  if (empty) empty.remove();
-  const row = document.createElement("div");
-  const price = Number.isFinite(trade?.trade?.price) ? fmtPrice(trade.trade.price) : "N/A";
-  const size = Number.isFinite(trade?.trade?.size) ? trade.trade.size : "?";
-  row.textContent = `${fmtTaipeiTime(trade.providerTimestamp)} ${trade.symbol} ${price} x${size}・${trade.freshnessStatus ?? "UNKNOWN"}`;
-  box.prepend(row);
-  while (box.children.length > 10) box.lastChild.remove();
-}
-
-function renderStreamError(detail) {
-  updateStreamPanel();
-  auditEvent("STREAM_ERROR", { symbol: detail?.symbol ?? null, code: detail?.code ?? "UNKNOWN" });
-}
-
-function startStream() {
-  const input = $("#stream-symbol");
-  const fallback = $("#fugle-symbol");
-  const want = (input?.value.trim() || fallback?.value.trim() || "2330").toUpperCase();
-  try {
-    if (state.dataMode !== "fugle-proxy") throw Object.assign(new Error("切換「Fugle 真實行情」後再開始串流"), { code: "FUGLE_MODE_OFF" });
-    if (!MARKET_DATA_PROXY_URL) throw Object.assign(new Error("部署時注入 proxy URL 後可用"), { code: "PROXY_NOT_CONFIGURED" });
-    if (typeof EventSource === "undefined") throw Object.assign(new Error("目前瀏覽器不支援串流"), { code: "UNSUPPORTED_CAPABILITY" });
-    if (!streamClient) {
-      streamClient = new SseStreamClient({ baseUrl: MARKET_DATA_PROXY_URL });
-      streamClient.on("transport", updateStreamPanel);
-      streamClient.on("upstream", updateStreamPanel);
-      streamClient.on("trade", renderStreamTrade);
-      streamClient.on("error", renderStreamError);
-    } else {
-      const snap = streamClient.getSnapshot();
-      const busy = snap.transport === "OPEN" || snap.transport === "CONNECTING" || snap.transport === "RECONNECTING";
-      if (busy && snap.symbol === want) return;
-    }
-    streamClient.start(want);
-    const opened = streamClient.getSnapshot();
-    if (input) input.value = opened.symbol ?? want;
-    auditEvent("STREAM_STARTED", { symbol: opened.symbol });
-    const stopBtn = $("#stream-stop");
-    if (stopBtn) stopBtn.focus();
-  } catch (error) {
-    const code = typeof error?.code === "string" ? error.code : "UNKNOWN";
-    streamLastStatusText = "";
-    const status = $("#stream-status");
-    if (status) status.textContent = `串流啟動失敗［${code}］：${STREAM_ERROR_TEXT[code] ?? "未知錯誤"}維持 Fugle 模式，不切回模擬。`;
-    renderStreamAlert({ error: { code, terminal: true } });
-    auditEvent("STREAM_ERROR", { symbol: want, code });
-  }
-  updateStreamPanel();
-}
-
-function stopStream() {
-  if (streamClient) streamClient.stop();
-  auditEvent("STREAM_STOPPED", {});
-  updateStreamPanel();
-}
-
 function renderTrade() {
   const market = $("#trade-market").value || state.market;
   if (market !== state.market) state.market = market;
@@ -1145,33 +1000,15 @@ async function handleSymbolSearch(event) {
 }
 
 function renderRisk(target = "#audit-log") {
-  const status = risk.status();
-  $("#risk-state").textContent = status.tripped ? "已凍結" : "運作中";
-  $("#risk-state").className = `kpi ${status.tripped ? "down" : "up"}`;
-  $("#risk-reason").textContent = status.tripped
-    ? `${status.reason || "斷路器已啟動"}${status.persisted ? "（已保存，重新整理後仍凍結）" : ""}`
-    : "所有紙上訂單仍需先經風控";
-  const canManage = permissionsFor(state.role).includes("risk:trip");
-  $("#kill-switch").disabled = !canManage || status.tripped;
-  $("#reset-risk").disabled = !permissionsFor(state.role).includes("risk:reset") || !status.tripped;
-  $("#permission-table").innerHTML = Object.entries(ROLE_PERMISSIONS).map(([role, permissions]) => `<div class="row"><span>${escapeHtml(role)}</span><span class="mono fs-11">${escapeHtml(permissions.join(" · "))}</span></div>`).join("");
-  renderAudit(target);
+  riskAuditController.renderRisk(target);
 }
 
 function renderAudit(target = "#audit-log") {
-  const element = $(target);
-  if (!element) return;
-  const entries = audit.list().slice(-40).reverse();
-  element.innerHTML = entries.length ? entries.map((entry) => `<div><span class="t">${escapeHtml(entry.timestamp)}</span><b>${escapeHtml(entry.event)}</b> <span class="muted">${escapeHtml(JSON.stringify(entry.details))}</span></div>`).join("") : statePanel("empty", "尚無事件", "完成研究、風控或紙上操作後，這裡會留下 session audit。");
+  riskAuditController.renderAudit(target);
 }
 
 function downloadAudit() {
-  const blob = new Blob([audit.toCSV()], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url; link.download = "stock-lab-audit.csv"; link.click();
-  URL.revokeObjectURL(url);
-  auditEvent("AUDIT_EXPORTED", {});
+  riskAuditController.downloadAudit();
 }
 
 function initEvents() {
@@ -1221,18 +1058,14 @@ function initEvents() {
     if (state.dataMode !== "fugle-proxy") {
       $("#fugle-quote").innerHTML = "切換「Fugle 真實行情」後可查詢；模擬模式不連外網。真實報價僅供研究參考，下單票價格仍為模擬。";
       $("#fugle-research").innerHTML = "";
-      if (streamClient) {
-        streamClient.stop();
-        auditEvent("STREAM_STOPPED", { reason: "DATA_MODE_CHANGED" });
-      }
-      updateStreamPanel();
+      streamController.stopForModeChange();
     }
   });
   $("#fugle-quote-btn").addEventListener("click", renderFugleQuote);
   $("#fugle-research-btn").addEventListener("click", runFugleResearch);
-  $("#stream-start").addEventListener("click", startStream);
-  $("#stream-stop").addEventListener("click", () => { stopStream(); const back = $("#stream-start"); if (back) back.focus(); });
-  $("#stream-symbol").addEventListener("keydown", (event) => { if (event.key === "Enter") startStream(); });
+  $("#stream-start").addEventListener("click", streamController.start);
+  $("#stream-stop").addEventListener("click", () => { streamController.stop(); const back = $("#stream-start"); if (back) back.focus(); });
+  $("#stream-symbol").addEventListener("keydown", (event) => { if (event.key === "Enter") streamController.start(); });
   $("#backtest-strategy").addEventListener("change", renderBacktest);
   $("#strategy-run").addEventListener("click", runStrategyComparison);
   document.addEventListener("keydown", handleGlobalKeydown);

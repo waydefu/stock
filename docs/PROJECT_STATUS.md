@@ -11,6 +11,7 @@
 - 真實狀態看兩處：CI job summary（HEAD、測試數、各閘門結果）與
   `docs/RISK_REGISTER.md`（每條風險的修復狀態與證據）。
 - 產品邊界：paper／research-only prototype；無 live broker path；公開 Pages 不持任何憑證。
+- **當前優先序**：技術債／模組化／治理收斂 → 純數學策略 Automated Paper Trading v1（真實行情 forward test）；第一階段不使用真錢、不接 live broker。
 
 ## 收斂進度（Track A–D；計畫與驗收見 `docs/FUTURE_PLAN.md`）
 
@@ -26,7 +27,7 @@
 | B4 | 跨平台相容（F-10） | 完成：跨平台語法檢查、proxy lifecycle 測試 |
 | C1 | Browser E2E 進 CI（R-032） | 完成：`.github/workflows/e2e.yml`＋`tests/e2e/*`（含 R-023 突變回放） |
 | C2 | 治理加固（branch protection／CodeQL／secret scanning／dependency review） | 完成：main branch protection（required `Quality`）、CodeQL workflow、secret scanning 已啟用、dependency review workflow |
-| C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字 |
+| C3 | 狀態自動化與文件收斂（R-032） | 完成：CI job summary 自動產生狀態數字；Node 24 `ℹ tests/pass/fail` 解析已有單測防回歸 |
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
@@ -54,17 +55,19 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
-5. browser E2E＋完整 WCAG audit＋viewport 幾何實測
+5. 完整 WCAG audit＋viewport 幾何實測（Browser E2E 已在 CI）
 6. legacy `runBacktest` 融合路徑只維護不擴充（R-021）
+7. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
+8. `scripts/check-ui.js` 仍是大型靜態 gate runner，後續拆規則模組
 
 ## Enforcement（server side）
 
 - Branch protection（main）：**已啟用**（2026-10-22，API 查驗）：required status check＝`Quality`；
   不允許 force push／刪除分支；`enforce_admins` 未開（維護者可 bypass）。
-  `Browser E2E` 待該 workflow 上 main 後再加為 required context（避免 PR 卡住等不存在的 check）。
+  `Browser E2E` workflow 已在 main 並會執行，但尚未加為 required context；`CodeQL` 同樣是政策必跑、非 server required。
 - CodeQL（code scanning）：workflow 已上 main（`.github/workflows/codeql.yml`，javascript-typescript）。
 - Secret scanning：公開 repo 預設已開（含 push protection），2026-10-22 API 查驗為 `enabled`。
 - Dependency review：`.github/workflows/dependency-review.yml`（PR 檢視依賴變更）。
-- 仍缺：required PR review 數、ruleset、貢獻者身份一致性（見 FUTURE_PLAN Track C2）。
+- Ruleset 目前為空；required PR review 數與貢獻者身份一致性仍未強制。單人＋agent repo 暫不把「另一人 review」當必要條件，避免無意義自鎖。
 - `check:status` 門禁：改了程式／測試／閘門的 PR 必須同步本文件；Dependabot 的機械式版本更新豁免這項
   （內容契約照跑），避免為無關的 action 升級而改文件。
