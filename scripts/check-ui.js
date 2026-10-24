@@ -603,6 +603,21 @@ const count = (text, re) => (text.match(re) ?? []).length;
   else fail("stream-actionable-errors", problems.join("；"));
 }
 
+// 36. Risk/Audit presentation controller 必須保持 presentation-only：不可下單、不可修改斷路器。
+{
+  const problems = [];
+  const riskUi = readFileSync("js/app-risk-audit-controller.js", "utf8");
+  const forbiddenImports = [
+    'from "./paper.js"', "from './paper.js'",
+    'from "./order-service.js"', "from './order-service.js'",
+  ];
+  if (forbiddenImports.some((entry) => riskUi.includes(entry))) problems.push("risk/audit UI controller 匯入 broker／order service");
+  if (/approveOrder\s*\(|\.trip\s*\(|\.reset\s*\(|executePaperOrder\s*\(/.test(riskUi)) problems.push("risk/audit UI controller 含風控決策或下單副作用");
+  if (!/risk\.status\s*\(/.test(riskUi) || !/audit\.list\s*\(/.test(riskUi)) problems.push("risk/audit UI controller 缺 read-only state 讀取");
+  if (problems.length === 0) ok("risk-audit-presentation-boundary");
+  else fail("risk-audit-presentation-boundary", problems.join("；"));
+}
+
 console.log(`\n通過 ${passes} 項，WARN ${warnings.length} 項，FAIL ${failures.length} 項`);
 for (const w of warnings) console.log(w);
 for (const f of failures) console.log(f);
