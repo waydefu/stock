@@ -123,3 +123,22 @@ test("TW DAY order expires at 13:30 close on the same session date", () => {
   assert.equal(expired[0].status, "EXPIRED");
   assert.match(expired[0].events.at(-1).reason, /13:30/);
 });
+
+
+test("permission revoke cancels OPEN matching order even before price touch", () => {
+  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => new Date(SESSION).toISOString() });
+  const risk = new RiskEngine();
+  executePaperOrder({ broker, risk, order: matchingOrder({ clientOrderId: "role-revoke" }), quotes: { "2330": { price: 100 } }, now: SESSION });
+  const result = processPaperMatches({
+    broker,
+    risk,
+    market: "TW",
+    quotes: { "2330": { price: 101 } },
+    canTrade: false,
+    now: SESSION,
+  });
+  assert.equal(result.fills.length, 0);
+  assert.equal(result.canceled.length, 1);
+  assert.equal(result.failures[0].decision.code, "ROLE_DENIED");
+  assert.equal(broker.findOrder("TW", "role-revoke").status, "CANCELED");
+});
