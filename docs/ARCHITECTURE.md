@@ -6,7 +6,7 @@
 [UI: Monitor / Explore / Operate]
               │
               ▼
-[MarketDataAdapter] ──> [deterministic seed data in prototype]
+[MarketDataAdapter] ──> [SimulatedAdapter | FugleProxyAdapter]
               │
               ├──> [Indicators + Screener]
               ├──> [Backtest: signal at close → fill next open]（legacy 相容路徑）
@@ -27,8 +27,8 @@
 
 ### 邊界
 
-- `js/data.js`：資料與純技術指標；目前只提供固定模擬資料（模擬窗固定 2025 終點）。
-- `js/market-data.js`：行情入口；UI／回測只經 adapter 取數。7A 起附 capability／envelope／provenance／freshness 契約（`js/market-data-contract.js`）；live adapter 照同介面替換。
+- `js/data.js`：固定模擬資料與純技術指標（模擬窗固定 2025 終點）；不是整個系統唯一行情來源。
+- `js/market-data.js`：本機 `SimulatedAdapter`；`js/fugle-proxy-adapter.js` 是真實 Fugle REST adapter。UI／研究透過 provider-neutral 契約取得資料；capability／envelope／provenance／freshness 定義在 `js/market-data-contract.js`。
 - `js/market-data-contract.js`：provider-neutral envelope／freshness／retry／transport 契約與 bar 缺棒分類（`classifyBars`）。
 - `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、FeeModel 契約與 invariants、每期利率換算（`perPeriodRate`）。**backtest slippage（`slippageBps`）是歷史模擬假設；paper fees（`FeeModel`）是執行模型。兩者名稱相似但實作分開、互不干涉。**
 - `js/market-rules.js`：TW／US market rules contract；TW sourced tick／limit／session 由 RiskEngine 在 commit boundary 強制驗證；商品別 tick 表（股票／ETF／ETN／REIT／封閉型基金／權證）可選傳入 `instrumentType`；漲跌停以整數最小單位計算。US 維持 simplified，不套 TW 規則。
@@ -50,7 +50,7 @@
 - `js/order-service.js`：confirm commit boundary；重新讀帳戶、風控與 paper broker。
 - `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
 - `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
-- `js/app.js`：UI 組裝；不應直接保存或處理秘密。
+- `js/app.js`：目前仍是 UI orchestration 聚合點；不保存秘密。其體積與職責已超過理想邊界，下一輪重構會把串流／交易／研究 controller 與 renderer 分離，行為保持不變。
 - `js/stream-contract.js`：provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽、stale 政策）。
 - `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
 - `js/fugle-proxy-adapter.js`／`js/fixture-provider.js`／`js/providers/fugle-mapper.js`：真實行情 adapter 與 Fugle schema 映射（唯一懂 Fugle 格式的地方）。
