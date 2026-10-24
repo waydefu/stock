@@ -1,11 +1,11 @@
-/* 跨平台語法檢查：走訪 js/ tests/ scripts/ 底下所有 .js，逐檔執行 `node --check`。
+/* 跨平台語法檢查：走訪 js/ server/ tests/ scripts/ 底下所有 .js，逐檔執行 `node --check`。
    取代原本依賴 find／xargs 的版本（Windows 無法使用，見 FUTURE_PLAN Track B4）。
    規則：每個 gate 都要能在 Windows 與 ubuntu 跑出同樣結果。 */
 import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
-const ROOTS = Object.freeze(["js", "tests", "scripts"]);
+const ROOTS = Object.freeze(["js", "server", "tests", "scripts"]);
 const SKIP_DIRS = new Set(["node_modules", ".git", "coverage", ".opencode"]);
 
 function collectJsFiles(dir, out) {

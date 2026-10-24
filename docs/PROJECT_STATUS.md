@@ -33,6 +33,7 @@
 | D | 產品與架構（TWSE 休市日曆、拆 `js/app.js`、真實串流撮合、server 帳本） | D2 完成（TWSE 官方 2026 休市日快照）；D1／D3／D4 逐項決策（見 FUTURE_PLAN） |
 | E1 | Automated Paper | 完成：Promotion Gate→數學 Signal→10% sizing→Risk→Paper costs→reconciliation；TW 單標的、browser runner |
 | E2 | Paper Matching v1 | 完成核心：DAY limit `OPEN→FILLED/CANCELED/EXPIRED`、reservation、fill-time Risk、Auto Runner 接線；無 L2／partial fill |
+| E3 | Server Auto Paper authority | 核心完成、部署未啟用：共享 Promotion evaluator、strict durable state、atomic file store、server scheduler、startup/shutdown lifecycle；需 confirmed persistent storage＋always-on compute 才可 enable |
 
 ## 真實資料與部署實測（2026-10-22，PR#37 合併後）
 
@@ -56,7 +57,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 
 1. corporate-action（除權息）調整資料尚未取得與套用（TWSE 休市日已改用官方 2026 快照，見 D2）
 2. matching microstructure realism（R-003）：核心 MATCHING 已完成，但目前只有 last-trade touch＋full-fill-at-limit；無 L2 queue／成交量配置／partial fill
-3. server authority／durable audit／secret management（ADR-005 誠實範圍）
+3. server authority **程式核心已完成但目前部署仍 disabled**：現有 Free Render 會休眠且無 Persistent Disk；要開始 unattended forward test，需先提供 always-on compute＋confirmed persistent storage（R-034）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
 5. Paper 成本殘留：尚無 acquisition-session provenance，故不套當沖減稅；US 非佣金成本尚未來源化，現在明示 zero-fee
@@ -64,7 +65,7 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 7. legacy `runBacktest` 的內建訊號已收斂到 `js/classic-strategies.js` 並有 layered parity；剩 sizing／execution／metrics 相容路徑待 UI 遷移後退役（R-021）
 8. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
 9. `scripts/check-ui.js` 已把 runtime／security boundary gates 抽到 `scripts/ui-gates/runtime-boundaries.js`；其餘視覺／a11y gates 後續按領域續拆
-10. 24/7 Auto Paper server authority 尚未建立：目前 timer 只在瀏覽器頁面開啟期間運作；不可宣稱 unattended daemon（R-034）
+10. 24/7 部署條件尚未成立：server scheduler 已可用且 fail-closed，但目前 Free Render proxy 不符合 always-on／durable storage 條件；因此 production env 保持 `AUTO_PAPER_SERVER_ENABLED!=1`（R-034）
 
 ## Enforcement（server side）
 
