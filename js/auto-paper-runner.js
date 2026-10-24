@@ -13,13 +13,13 @@
 
 import { DATA_KINDS, FRESHNESS } from "./market-data-contract.js";
 import { buildOrderCandidate } from "./order-candidate.js";
-import { executePaperOrder } from "./order-service.js";
+import { ExecutionMode } from "./execution-model.js";
+import { executePaperOrder, processPaperMatches } from "./order-service.js";
 import { defaultLotForMarket, getCurrentSession } from "./market-rules.js";
 import { MarketSessionClock } from "./session-clock.js";
 import { LIFECYCLE, normalizeSignal, signalToTargetWeight, transitionLifecycle, validateStrategy } from "./strategy.js";
-import { reconcileImmediateFill } from "./paper-reconciliation.js";
 
-export const AUTO_PAPER_STATE_VERSION = 1;
+export const AUTO_PAPER_STATE_VERSION = 2;
 export const AUTO_PAPER_STORAGE_KEY = "tw-us-stock-auto-paper-v1";
 
 const TERMINAL = new Set([LIFECYCLE.KILL_SWITCHED, LIFECYCLE.RETIRED]);
@@ -43,6 +43,7 @@ function defaultEntry(strategy) {
     approval: null,
     lastEvaluatedBar: null,
     pendingIntent: null,
+    workingOrderIds: [],
     lastExecution: null,
     lastOutcome: "IDLE",
     updatedAt: null,
@@ -212,6 +213,7 @@ export class AutoPaperRunner {
     } else if (this.#state.lifecycle === LIFECYCLE.DRAFT) {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.BACKTESTED);
     }
+    this.#cancelWorking("research gate rejected");
     this.#state.approval = null;
     this.#state.pendingIntent = null;
     this.#state.lastOutcome = "RESEARCH_REJECTED";
@@ -238,6 +240,7 @@ export class AutoPaperRunner {
   }
 
   pause(reason = "manual") {
+    this.#cancelWorking(`pause:${reason}`);
     if (this.#state.lifecycle === LIFECYCLE.PAPER_ENABLED) {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.PAUSED);
     }
@@ -257,6 +260,75 @@ export class AutoPaperRunner {
       return { ok: false, code: "KILL_SWITCH", status: this.status() };
     }
 
+    const quote = quoteEnvelope?.data;
+    if (!quote || quote.symbol !== this.#symbol || !Number.isFinite(quote.price) || quote.price <= 0) {
+      return { ok: false, code: "INVALID_QUOTE", status: this.status() };
+    }
+    const quotes = quoteMap(this.#symbol, quote);
+
+    // Existing working orders have priority over producing a new signal.
+    if (this.#state.workingOrderIds.length) {
+      if (!quoteIsFresh(quoteEnvelope)) {
+        this.#state.lastOutcome = "STALE_QUOTE_BLOCKED";
+        this.#save();
+        return { ok: false, code: "STALE_QUOTE", status: this.status() };
+      }
+      const tracked = new Set(this.#state.workingOrderIds);
+      const matched = processPaperMatches({
+        broker: this.#broker,
+        risk: this.#risk,
+        market: this.#market,
+        quotes,
+        canTrade: this.#canTrade(),
+        now,
+      });
+      const fills = matched.fills.filter((entry) => tracked.has(entry.fill.id));
+      const canceled = matched.canceled.filter((order) => tracked.has(order.id));
+      const expired = matched.expired.filter((order) => tracked.has(order.id));
+      const failures = matched.failures.filter((entry) => tracked.has(entry.orderId));
+      this.#state.workingOrderIds = matched.open.filter((order) => tracked.has(order.id)).map((order) => order.id);
+
+      for (const entry of fills) {
+        this.#audit("AUTO_ORDER_FILLED", {
+          symbol: this.#symbol,
+          strategyId: this.#strategy.id,
+          orderId: entry.fill.id,
+          side: entry.fill.side,
+          qty: entry.fill.filledQty ?? entry.fill.qty,
+          price: entry.fill.fillPrice ?? entry.fill.price,
+          fee: entry.fill.fee,
+          matching: entry.match,
+        });
+      }
+      for (const order of expired) this.#audit("AUTO_ORDER_EXPIRED", { symbol: this.#symbol, strategyId: this.#strategy.id, orderId: order.id });
+      for (const order of canceled) this.#audit("AUTO_ORDER_CANCELED", { symbol: this.#symbol, strategyId: this.#strategy.id, orderId: order.id });
+
+      const reconciliationFailure = failures.find((entry) => entry.decision?.code === "RECONCILIATION_FAILED");
+      if (reconciliationFailure || this.#risk.isTripped?.()) {
+        this.#tripLifecycle(reconciliationFailure ? "RECONCILIATION_FAILED" : "KILL_SWITCH_ACTIVE");
+        return { ok: false, code: reconciliationFailure ? "RECONCILIATION_FAILED" : "KILL_SWITCH", matched, status: this.status() };
+      }
+      if (this.#state.workingOrderIds.length) {
+        this.#state.lastOutcome = "ORDER_WORKING";
+        this.#save();
+        return { ok: true, code: "ORDER_WORKING", matched, status: this.status() };
+      }
+      if (fills.length) {
+        this.#state.lastExecution = {
+          executedAt: new Date(now).toISOString(),
+          fillIds: fills.map((entry) => entry.fill.id),
+        };
+        this.#state.lastOutcome = "EXECUTED";
+        this.#save();
+        return { ok: true, code: "EXECUTED", fills: fills.map((entry) => entry.fill), matched, status: this.status() };
+      }
+      if (expired.length || canceled.length || failures.length) {
+        this.#state.lastOutcome = expired.length ? "ORDER_EXPIRED" : "ORDER_CANCELED";
+        this.#save();
+        return { ok: false, code: this.#state.lastOutcome, matched, status: this.status() };
+      }
+    }
+
     const completed = latestCompletedTwBar(bars, now);
     if (!completed || completed.index < this.#strategy.warmup) {
       this.#state.lastOutcome = "INSUFFICIENT_COMPLETED_BARS";
@@ -264,12 +336,7 @@ export class AutoPaperRunner {
       return { ok: false, code: "INSUFFICIENT_COMPLETED_BARS", status: this.status() };
     }
 
-    const quote = quoteEnvelope?.data;
-    if (!quote || quote.symbol !== this.#symbol || !Number.isFinite(quote.price) || quote.price <= 0) {
-      return { ok: false, code: "INVALID_QUOTE", status: this.status() };
-    }
-
-    const account = this.#broker.snapshot(this.#market, quoteMap(this.#symbol, quote));
+    const account = this.#broker.snapshot(this.#market, quotes);
     if (this.#state.lastEvaluatedBar !== completed.bar.t) {
       const history = bars.slice(0, completed.index + 1);
       const raw = this.#strategy.generateSignal({ bars: history, index: completed.index, symbol: this.#symbol });
@@ -301,9 +368,7 @@ export class AutoPaperRunner {
       });
     }
 
-    if (!this.#state.pendingIntent) {
-      return { ok: true, code: "NO_TARGET_CHANGE", status: this.status() };
-    }
+    if (!this.#state.pendingIntent) return { ok: true, code: "NO_TARGET_CHANGE", status: this.status() };
 
     const currentSession = getCurrentSession(this.#market, now);
     const signalSessionKey = this.#sessionClock.sessionKey(this.#market, new Date(this.#state.pendingIntent.signalBarTimestamp).toISOString());
@@ -324,7 +389,7 @@ export class AutoPaperRunner {
   #executePending({ quoteEnvelope, now }) {
     const quote = quoteEnvelope.data;
     const quotes = quoteMap(this.#symbol, quote);
-    let account = this.#broker.snapshot(this.#market, quotes);
+    const account = this.#broker.snapshot(this.#market, quotes);
     const intent = this.#state.pendingIntent;
     const currentQty = account.positions[this.#symbol]?.qty ?? 0;
     let desiredQty = 0;
@@ -346,10 +411,10 @@ export class AutoPaperRunner {
     }
 
     const chunks = splitDelta(this.#market, delta);
+    const workingOrders = [];
     const fills = [];
     for (let index = 0; index < chunks.length; index++) {
       const chunk = chunks[index];
-      const before = this.#broker.snapshot(this.#market, quotes);
       const order = buildOrderCandidate({
         market: this.#market,
         symbol: this.#symbol,
@@ -359,6 +424,8 @@ export class AutoPaperRunner {
         lot: chunk.lot,
         quote,
         orderType: "limit",
+        timeInForce: "DAY",
+        executionMode: ExecutionMode.MATCHING,
         clientOrderId: `auto:${this.#strategy.id}:${this.#symbol}:${intent.signalBarTimestamp}:${chunk.side}:${chunk.lot}:${index}`,
       });
       const result = executePaperOrder({
@@ -369,7 +436,12 @@ export class AutoPaperRunner {
         canTrade: this.#canTrade(),
         now,
       });
-      if (!result.filled) {
+      if (!result.accepted) {
+        for (const working of workingOrders) {
+          const current = this.#broker.findOrderById(this.#market, working.id);
+          if (current?.status === "OPEN") this.#broker.cancelOrder(this.#market, working.id, { reason: "sibling order rejected" });
+        }
+        this.#state.workingOrderIds = [];
         this.#state.lastOutcome = `EXECUTION_REJECTED:${result.decision.code}`;
         this.#save();
         this.#audit("AUTO_ORDER_REJECTED", {
@@ -378,39 +450,35 @@ export class AutoPaperRunner {
           code: result.decision.code,
           reason: result.decision.reason,
         });
-        return { ok: false, code: result.decision.code, decision: result.decision, fills, status: this.status() };
+        return { ok: false, code: result.decision.code, decision: result.decision, status: this.status() };
       }
 
-      if (!result.duplicate) {
-        const reconciliation = reconcileImmediateFill({ before, after: result.account, fill: result.fill });
-        if (!reconciliation.ok) {
-          this.#risk.trip(`AUTO_RECONCILIATION_FAILED:${reconciliation.violations.join(",")}`);
-          this.#tripLifecycle("RECONCILIATION_FAILED");
-          this.#audit("AUTO_RECONCILIATION_FAILED", {
-            symbol: this.#symbol,
-            strategyId: this.#strategy.id,
-            orderId: result.fill.id,
-            violations: reconciliation.violations,
-          });
-          return { ok: false, code: "RECONCILIATION_FAILED", reconciliation, fills, status: this.status() };
-        }
+      if (result.filled) {
+        fills.push(result.fill);
+        continue;
       }
-
-      fills.push(result.fill);
-      account = result.account;
-      this.#audit("AUTO_ORDER_FILLED", {
-        symbol: this.#symbol,
-        strategyId: this.#strategy.id,
-        orderId: result.fill.id,
-        side: result.fill.side,
-        qty: result.fill.qty,
-        price: result.fill.price,
-        fee: result.fill.fee,
-        duplicate: result.duplicate === true,
-      });
+      if (result.order?.status === "OPEN") {
+        workingOrders.push(result.order);
+        this.#audit("AUTO_ORDER_OPEN", {
+          symbol: this.#symbol,
+          strategyId: this.#strategy.id,
+          orderId: result.order.id,
+          side: result.order.side,
+          qty: result.order.qty,
+          limitPrice: result.order.price,
+          timeInForce: result.order.timeInForce,
+        });
+      }
     }
 
     this.#state.pendingIntent = null;
+    this.#state.workingOrderIds = workingOrders.map((order) => order.id);
+    if (this.#state.workingOrderIds.length) {
+      this.#state.lastOutcome = "ORDER_WORKING";
+      this.#save();
+      return { ok: true, code: "ORDER_WORKING", orders: workingOrders, fills, status: this.status() };
+    }
+
     this.#state.lastExecution = {
       signalBarTimestamp: intent.signalBarTimestamp,
       executedAt: new Date(now).toISOString(),
@@ -418,10 +486,23 @@ export class AutoPaperRunner {
     };
     this.#state.lastOutcome = "EXECUTED";
     this.#save();
-    return { ok: true, code: "EXECUTED", fills, account, status: this.status() };
+    return { ok: true, code: "EXECUTED", fills, status: this.status() };
+  }
+
+  #cancelWorking(reason) {
+    for (const orderId of this.#state.workingOrderIds ?? []) {
+      try {
+        const current = this.#broker.findOrderById(this.#market, orderId);
+        if (current?.status === "OPEN") this.#broker.cancelOrder(this.#market, orderId, { reason });
+      } catch {
+        // Safety stop remains fail-closed even if cleanup cannot mutate a corrupt order.
+      }
+    }
+    this.#state.workingOrderIds = [];
   }
 
   #tripLifecycle(reason) {
+    this.#cancelWorking(`trip:${reason}`);
     if (this.#state.lifecycle === LIFECYCLE.PAPER_ENABLED) {
       this.#state.lifecycle = transitionLifecycle(this.#state.lifecycle, LIFECYCLE.KILL_SWITCHED);
     }
