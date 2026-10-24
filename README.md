@@ -63,7 +63,8 @@ js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯�
 js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
 js/fugle-proxy-adapter.js 經 proxy 取真實行情的 adapter（頁面不持金鑰）
 server/proxy-anti-abuse.js proxy 限流／每日 budget／quote cache 純 state 模組
-server/file-kv-storage.js server durable state 原子 JSON adapter（只允許 confirmed persistent mount）\nserver/forward-test-journal.js 每輪 forward-test durable 證據＋績效摘要
+server/file-kv-storage.js server durable state 原子 JSON adapter（只允許 confirmed persistent mount）
+server/forward-test-journal.js 每輪 forward-test durable 證據＋績效摘要
 server/auto-paper-service.js server-side Auto Paper scheduler（預設 disabled、無公開交易 API）
 server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
 tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
