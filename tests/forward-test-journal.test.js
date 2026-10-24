@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemoryStorage } from "../js/paper.js";
@@ -186,6 +186,19 @@ test("report CLI helper reads the durable state file without mutating journal ev
     assert.equal(report.summary.cycleCount, 1);
     assert.equal(report.latest.code, "NO_TARGET_CHANGE");
     assert.deepEqual(new ForwardTestJournal({ storage: new FileKeyValueStorage(file) }).entries(), before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+
+test("report helper refuses a missing state file without creating it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "stock-forward-report-missing-"));
+  const file = join(dir, "missing.json");
+  try {
+    assert.equal(existsSync(file), false);
+    assert.throws(() => buildForwardTestReport({ stateFile: file }), /找不到 state file/);
+    assert.equal(existsSync(file), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
