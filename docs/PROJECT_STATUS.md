@@ -23,7 +23,7 @@
 | A2 | proxy／串流防濫用（R-024、R-025） | 完成：per-client token bucket、quote 短 TTL 快取、每日上游預算、per-client SSE 上限、upstream 錯誤路由、per-key 串流狀態 |
 | A3 | 文件同步（README／STATUS／RISK／LEDGER 對齊） | 持續進行 |
 | A4 | Live UI 可行動錯誤態（`STREAM_SUBSCRIBE_FAILED`／`RATE_LIMITED`） | 完成：`#stream-alert` ＋ `STREAM_ERROR_ACTION` |
-| B1 | 台股成本模型（R-026） | 完成：`js/tw-fee-model.js`（證交稅＋最低手續費，來源可查）；paper broker 仍 zero-fee |
+| B1 | 台股成本模型（R-026／R-018） | 完成：`js/tw-fee-model.js`（證交稅＋最低手續費）；正式 App 的 TW Paper 已注入一般股票成本政策，Broker constructor 仍可 DI zero-fee |
 | B2 | 市場規則精度（R-028、R-029） | 完成：整數最小單位漲跌停、商品別跳動單位、零股限價 |
 | B3 | 狀態與引擎（R-027、R-030、R-031） | 完成：斷路器持久化、probeStale 排程、target 依成交更新 |
 | B4 | 跨平台相容（F-10） | 完成：跨平台語法檢查、proxy lifecycle 測試 |
@@ -57,10 +57,11 @@ paper／research-only prototype；無 live broker path；公開 Pages 不持任�
 3. server authority／durable audit／secret management（ADR-005 誠實範圍）
 4. 商品別完整規則：ETF／權證的漲跌幅公式、上櫃（TPEx）規則、債券 tick 尚未建模
    （見 Track B2 回報的缺口 G-1～G-8）
-5. 完整 WCAG audit＋viewport 幾何實測（Browser E2E 已在 CI）
-6. legacy `runBacktest` 的內建訊號已收斂到 `js/classic-strategies.js` 並有 layered parity；剩 sizing／execution／metrics 相容路徑待 UI 遷移後退役（R-021）
-7. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
-8. `scripts/check-ui.js` 已把 runtime／security boundary gates 抽到 `scripts/ui-gates/runtime-boundaries.js`；其餘視覺／a11y gates 後續按領域續拆
+5. Paper 成本殘留：尚無 acquisition-session provenance，故不套當沖減稅；US 非佣金成本尚未來源化，現在明示 zero-fee
+6. 完整 WCAG audit＋viewport 幾何實測（Browser E2E 已在 CI）
+7. legacy `runBacktest` 的內建訊號已收斂到 `js/classic-strategies.js` 並有 layered parity；剩 sizing／execution／metrics 相容路徑待 UI 遷移後退役（R-021）
+8. UI orchestration：Live stream 與 Risk/Audit presentation 已抽離；`js/app.js` 仍需續拆交易／研究／導覽職責
+9. `scripts/check-ui.js` 已把 runtime／security boundary gates 抽到 `scripts/ui-gates/runtime-boundaries.js`；其餘視覺／a11y gates 後續按領域續拆
 
 ## Enforcement（server side）
 
