@@ -31,12 +31,12 @@ js/accounting.js    AccountSnapshot、invariants、zero-fee paper FeeModel
 js/execution-model.js Immediate／future matching execution boundary
 js/order-errors.js  stable risk／validation／broker error codes
 js/dom.js           safe DOM text escaping helper
-js/market-data.js   行情資料入口（目前只有本機模擬實作）
+js/market-data.js   本機 SimulatedAdapter；真實 Fugle 走 fugle-proxy-adapter.js
 js/favorites.js     自選清單本機持久化（不影響帳本）
 js/view.js          純顯示 helper（金額／狀態塊／標籤，無 DOM）
 js/market-rules.js  TW／US 市場規則 contract（TW partial sourced、US simplified）
 js/session-clock.js market-local timezone session key；calendar policy 明確是 simplified-weekday
-js/trading-calendar.js simplified weekday calendar；不含 exchange holidays
+js/trading-calendar.js TWSE 2026 休市日＋市場時區；US 仍 simplified weekday
 js/corporate-actions.js corporate-action schema contract；不自動調整價格
 js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
 js/backtest.js      回測引擎（bar-close 評估、次根開盤成交、無未來函數；legacy 相容路徑，見 R-021）
@@ -48,7 +48,7 @@ js/paper.js         紙上交易帳本（localStorage 持久化）
 js/order-state.js   訂單狀態機與 transition event
 js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
 js/risk.js          風控＋稽核日誌
-js/app.js           UI 組裝＋角色治理
+js/app.js           UI orchestration 聚合點（待拆 controller／renderer；不持秘密）
 js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參考價與商品別）
 js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
 js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
@@ -103,7 +103,7 @@ npm run e2e
 - `docs/UI_UX.md` — 設計代幣與頁面規格
 - `docs/UI_UX_BENCHMARK.md` — 全球網頁設計／股票產品 benchmark、目前評分與 P0/P1/P2 改造路線
 - `docs/DELIVERY_REPORT.md` — 交付、驗證、工時、成本與來源
-- `docs/PROJECT_STATUS.md` — 唯一 current truth（HEAD／tests／gates／open PR／缺口）
+- `docs/PROJECT_STATUS.md` — 唯一 current truth（scope／缺口／enforcement；HEAD／tests／gates 由 CI summary 產生）
 - `docs/PROJECT_AUDIT.md` — baseline＋歷史快照 audit
 - `docs/PROJECT_ROADMAP.md` — correctness-first 長程路線
 - `docs/RISK_REGISTER.md` — P0/P1/P2 風險、證據與修復驗證
