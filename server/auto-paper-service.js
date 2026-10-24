@@ -179,6 +179,7 @@ export function createServerAutoPaperService({
       detailCode,
       lifecycle: runner.status().lifecycle,
       promotionPass: typeof promotion?.pass === "boolean" ? promotion.pass : null,
+      marketPrice: Number.isFinite(quoteEnvelope?.data?.price) ? quoteEnvelope.data.price : null,
       account: accountForQuote(quoteEnvelope),
       fills: result?.fills ?? [],
     });
