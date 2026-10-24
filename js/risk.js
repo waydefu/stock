@@ -36,7 +36,7 @@ export class RiskEngine {
     this.#storage = storage;
     this.#now = now;
     this.#strictPersistence = strictPersistence === true;
-    const persisted = loadKillSwitch(storage);
+    const persisted = loadKillSwitch(storage, { strict: this.#strictPersistence });
     if (persisted?.tripped) {
       this.#tripped = true;
       this.#reason = persisted.reason || "斷路器於上一個工作階段被啟動";
@@ -141,15 +141,28 @@ export class RiskEngine {
   }
 }
 
-function loadKillSwitch(storage) {
+function loadKillSwitch(storage, { strict = false } = {}) {
   if (!storage) return null;
   try {
     const raw = storage.getItem(KILL_SWITCH_STORAGE_KEY);
     if (!raw) return null;
     const payload = JSON.parse(raw);
-    if (payload?.version !== KILL_SWITCH_VERSION || typeof payload.tripped !== "boolean") return null;
+    if (payload?.version !== KILL_SWITCH_VERSION || typeof payload.tripped !== "boolean") {
+      if (strict) {
+        const error = new Error("Risk persisted state invalid");
+        error.code = "DURABLE_STATE_INVALID";
+        throw error;
+      }
+      return null;
+    }
     return payload;
-  } catch {
+  } catch (error) {
+    if (strict) {
+      if (error?.code === "DURABLE_STATE_INVALID") throw error;
+      const failure = new Error(`Risk persisted state invalid: ${error?.message ?? "unknown"}`);
+      failure.code = error?.code ?? "DURABLE_STATE_INVALID";
+      throw failure;
+    }
     return null;
   }
 }
@@ -180,7 +193,7 @@ export class AuditLog {
     this.#idGenerator = idGenerator;
     this.#storage = storage;
     this.#strictPersistence = strictPersistence === true;
-    this.#events = loadAuditEvents(storage);
+    this.#events = loadAuditEvents(storage, { strict: this.#strictPersistence });
     this.#sequence = this.#events.length;
   }
 
@@ -227,15 +240,34 @@ function csvCell(value) {
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-function loadAuditEvents(storage) {
+function loadAuditEvents(storage, { strict = false } = {}) {
   if (!storage) return [];
   try {
     const raw = storage.getItem(AUDIT_STORAGE_KEY);
     if (!raw) return [];
     const payload = JSON.parse(raw);
-    if (payload.version !== 1 || !Array.isArray(payload.events)) return [];
-    return payload.events.filter((entry) => entry && entry.version === 1 && typeof entry.eventId === "string" && typeof entry.timestamp === "string" && typeof entry.event === "string" && entry.details && typeof entry.details === "object");
-  } catch {
+    if (payload.version !== 1 || !Array.isArray(payload.events)) {
+      if (strict) {
+        const error = new Error("Audit persisted state invalid");
+        error.code = "DURABLE_STATE_INVALID";
+        throw error;
+      }
+      return [];
+    }
+    const valid = payload.events.filter((entry) => entry && entry.version === 1 && typeof entry.eventId === "string" && typeof entry.timestamp === "string" && typeof entry.event === "string" && entry.details && typeof entry.details === "object");
+    if (strict && valid.length !== payload.events.length) {
+      const error = new Error("Audit persisted event invalid");
+      error.code = "DURABLE_STATE_INVALID";
+      throw error;
+    }
+    return valid;
+  } catch (error) {
+    if (strict) {
+      if (error?.code === "DURABLE_STATE_INVALID") throw error;
+      const failure = new Error(`Audit persisted state invalid: ${error?.message ?? "unknown"}`);
+      failure.code = error?.code ?? "DURABLE_STATE_INVALID";
+      throw failure;
+    }
     return [];
   }
 }
