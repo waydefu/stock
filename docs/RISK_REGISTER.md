@@ -42,6 +42,7 @@
 
 ## Immediate priority
 
-2026-09-14 全案稽核後的收斂已完成大部分：Track A（A1～A4）、B2、B3、B4、C1（E2E 進 CI）、C3（狀態自動化）、D2（TWSE 官方休市日）已落地，證據見各列與 `docs/PROJECT_STATUS.md` 的進度表。
-**下一可執行＝B1（R-026 台股成本模型）**，其後是 C2（治理：branch protection／CodeQL／secret scanning）與剩餘的商品別規則缺口（G-1～G-8）。
-仍待決策：D1（公開 proxy 前門與 Fugle 條款）、D2（斷路器後是否允許減碼）、D3（台股紙上單是否強制真實時段）。
+Current next-action 不在 Risk Register 維護，避免風險證據與 roadmap 重複後漂移。
+- **現在狀態／目前優先序**：只看 `docs/PROJECT_STATUS.md`。
+- 本表只維護「風險、影響、證據、修復狀態」；已完成項目不再在此宣告成下一步。
+- 產品方向已明確為：先完成技術債／模組化收斂，再進入純數學策略的 Automated Paper Trading forward test；live broker 不在當前範圍。
