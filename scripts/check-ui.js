@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";\nimport { checkRuntimeBoundaries } from "./ui-gates/runtime-boundaries.js";
+import { readdirSync, readFileSync } from "node:fs";
+import { checkRuntimeBoundaries } from "./ui-gates/runtime-boundaries.js";
 
 // 純程式 UI 品質閘門：只讀原始碼，不開瀏覽器、不連網路。
 // 任何 FAIL 代表實作與文件承諾不一致；WARN 代表量測值需人工確認。
