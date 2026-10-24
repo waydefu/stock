@@ -17,7 +17,7 @@
 | 選股 | Finviz／XQ／Stock Rover | 漲跌幅、量比、本益比、殖利率等多條件篩選 |
 | 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑）；研究策略走分層引擎：Cash／Buy&Hold 基準、多 horizon 趨勢、IS／OOS、walk-forward、cost stress、promotion gate |
 | 策略中心 | QuantConnect 研究框架精神 | 基準永遠同場比較、OOS 分段顯示、參數平面、provenance；gate FAIL 明示、不自動晉升 paper |
-| 交易 | Alpaca／Shioaji 模擬單 | 紙上即時模擬成交（非真實限價撮合）；TW forward test 計交易成本。Automated Paper v1 已串 Strategy→Portfolio→Risk→Paper→Reconciliation，Promotion Gate PASS 才能武裝，fresh quote 才執行；目前僅 TW 單標的、頁面開啟期間運作 |
+| 交易 | Alpaca／Shioaji 模擬單 | 手動單維持 IMMEDIATE 相容模式；Automated Paper 改走 MATCHING DAY 限價掛單：OPEN→FILLED／CANCELED／EXPIRED，fresh quote 觸價才改帳，成交前保留資金／部位，fill boundary 重跑 Risk＋Reconciliation。TW forward test 計交易成本；目前僅 TW 單標的、頁面開啟期間運作 |
 | 風控 | IB TWS／QuantConnect | 單筆上限、日損斷路器（kill switch）、下單二次確認、稽核日誌（audit log）可匯出 CSV |
 | 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens）、專業快速鍵（/ 搜尋、1–6 頁籤、B／S 開單、? 說明） |
 
@@ -28,7 +28,7 @@ index.html          單頁殼＋六頁籤
 css/styles.css      設計代幣＋元件（深色數據密度風）
 js/data.js          種子隨機行情產生器（mulberry32，確定性、可重現）
 js/accounting.js    AccountSnapshot、invariants、zero-fee paper FeeModel
-js/execution-model.js Immediate／future matching execution boundary
+js/execution-model.js Immediate／MATCHING execution；last-trade touch、full-fill-at-limit、無假 L2 queue
 js/order-errors.js  stable risk／validation／broker error codes
 js/dom.js           safe DOM text escaping helper
 js/market-data.js   本機 SimulatedAdapter；真實 Fugle 走 fugle-proxy-adapter.js
