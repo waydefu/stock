@@ -11,6 +11,7 @@
 - 真實狀態看兩處：CI job summary（HEAD、測試數、各閘門結果）與
   `docs/RISK_REGISTER.md`（每條風險的修復狀態與證據）。
 - 產品邊界：paper／research-only prototype；無 live broker path；公開 Pages 不持任何憑證。
+- **當前優先序**：技術債／模組化／治理收斂 → 純數學策略 Automated Paper Trading v1（真實行情 forward test）；第一階段不使用真錢、不接 live broker。
 
 ## 收斂進度（Track A–D；計畫與驗收見 `docs/FUTURE_PLAN.md`）
 
