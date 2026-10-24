@@ -51,6 +51,9 @@
 | 手續費：經紀商依客戶成交金額自行訂定費率標準、折讓與每筆委託最低費用，實施前報證交所備查；所訂費率逾成交金額千分之一點四二五者應於委託前通知委託人並留存紀錄 | [130] | 臺灣證券交易所營業細則第 94 條（修正 115/09/24） | TW FeeModel 的手續費率、最低手續費、折讓 | Time-sensitive（費率與門檻會調整） | 0.1425% 是「事前通知門檻」不是硬上限；折讓與每筆最低費用由券商自訂 → 預設 0.1425%、不假設折讓、最低 20 元，並在 assumptions 標明來源與查閱日。 |
 | 證券商同業公會自律：會員手續費率於主管機關核定之上限範圍內自行訂定；逾千分之 1.425 應於委託前通知客戶 | [131] | 中華民國證券商業同業公會「會員受託買賣有價證券收取手續費自律規則」第 2 條、第 6 條 | TW FeeModel 折讓與最低費用 | Time-sensitive | 「核定上限」的數值在自律規則中未列，實作不得自行編造上限數字。 |
 | 市場實務（券商收費標準）：台股現股買賣手續費以成交金額乘千分之 1.425 計算，電子交易另有折扣；每筆手續費不足 20 元以 20 元計收 | [132] | 元大證券官方交易手續費說明（券商收費標準／受託契約條款） | TW FeeModel 最低手續費 20 元 | Time-sensitive（券商可各自訂定，須逐家確認） | 最低 20 元是市場慣例而非法律明定，模型把 minCommission 做成參數；本輪未建模零股 1 元低消與電子下單折扣。 |
+| Render Free Web Service 連續約 15 分鐘沒有 inbound HTTP request／WebSocket message 會 spin down；spin down、restart、redeploy 時本機 filesystem 變更會遺失 | [133] | Render Docs「Deploy for Free」 | Server Auto Paper deployment liveness／durability | Highly time-sensitive（查閱 2026-10-24） | Free proxy 不可宣稱 24/7 unattended authority；`AUTO_PAPER_ALWAYS_ON_CONFIRMED=1` 未明確設定時 server scheduler 拒絕啟用。 |
+| Render Persistent Disk 只可掛在付費 Web Service／Private Service／Background Worker；只有 mount path 內資料跨 restart／deploy 保留，且掛 disk 的 service 只能單 instance | [134] | Render Docs「Persistent Disks」 | Server Auto Paper durable state | Highly time-sensitive（查閱 2026-10-24） | `AUTO_PAPER_STATE_FILE` 必須指向部署者已確認的 persistent mount，並要求 `AUTO_PAPER_DURABLE_STORAGE_CONFIRMED=1`；Free Web Service 不符合此條件。 |
+
 ## Evidence policy
 
 - Government／exchange／regulator > official broker/API docs > official design system > primary repo > secondary comparison。
@@ -139,3 +142,5 @@
 [130] https://twse-regulation.twse.com.tw/TW/law/DOC01.aspx?FLCODE=FL007304&FLNO=94
 [131] https://www.twsa.org.tw/DOC/970709.html
 [132] https://www.yuanta.com.tw/eYuanta/Securities/Node/Index?MainId=00415
+[133] https://render.com/docs/free
+[134] https://render.com/docs/disks
