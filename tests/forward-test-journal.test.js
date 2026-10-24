@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { MemoryStorage } from "../js/paper.js";
+import { buildForwardTestReport } from "../scripts/report-auto-paper.js";
+import { FileKeyValueStorage } from "../server/file-kv-storage.js";
 import {
   FORWARD_TEST_JOURNAL_KEY,
   ForwardTestJournal,
@@ -156,4 +161,30 @@ test("journal capacity fails closed instead of dropping old evidence", () => {
     (error) => error?.code === "DURABLE_JOURNAL_FULL",
   );
   assert.equal(journal.entries().length, 100);
+});
+
+
+test("report CLI helper reads the durable state file without mutating journal evidence", () => {
+  const dir = mkdtempSync(join(tmpdir(), "stock-forward-report-"));
+  const file = join(dir, "state.json");
+  try {
+    const storage = new FileKeyValueStorage(file);
+    const journal = new ForwardTestJournal({ storage });
+    journal.recordCycle({
+      timestamp: "2026-10-27T01:10:00.000Z",
+      symbol: "2330",
+      code: "NO_TARGET_CHANGE",
+      ok: true,
+      lifecycle: "PAPER_ENABLED",
+      promotionPass: true,
+      account: account({ sessionKey: "2026-10-27", equity: 1_000_000 }),
+    });
+    const before = journal.entries();
+    const report = buildForwardTestReport({ stateFile: file });
+    assert.equal(report.summary.cycleCount, 1);
+    assert.equal(report.latest.code, "NO_TARGET_CHANGE");
+    assert.deepEqual(new ForwardTestJournal({ storage: new FileKeyValueStorage(file) }).entries(), before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
