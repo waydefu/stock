@@ -170,7 +170,7 @@ export function createServerAutoPaperService({
     return broker.snapshot("TW", { [config.symbol]: { price: quote.price } });
   }
 
-  function recordEvidence({ now, result, promotion = null, quoteEnvelope = null, detailCode = null }) {
+  function recordEvidence({ now, result, promotion = null, quoteEnvelope = null, accountBefore = null, detailCode = null }) {
     return journal.recordCycle({
       timestamp: new Date(now).toISOString(),
       symbol: config.symbol,
@@ -180,6 +180,7 @@ export function createServerAutoPaperService({
       lifecycle: runner.status().lifecycle,
       promotionPass: typeof promotion?.pass === "boolean" ? promotion.pass : null,
       marketPrice: Number.isFinite(quoteEnvelope?.data?.price) ? quoteEnvelope.data.price : null,
+      equityBefore: Number.isFinite(accountBefore?.equity) ? accountBefore.equity : null,
       account: accountForQuote(quoteEnvelope),
       fills: result?.fills ?? [],
     });
@@ -272,6 +273,7 @@ export function createServerAutoPaperService({
     const now = clock();
     let promotion = null;
     let quoteEnvelope = null;
+    let accountBefore = null;
     try {
       const bars = await completedBars(now);
       promotion = await refreshPromotion(bars, now);
@@ -285,10 +287,11 @@ export function createServerAutoPaperService({
 
       quoteEnvelope = await data.quoteAsync(config.symbol);
       providerGuard(quoteEnvelope, config.symbol);
+      accountBefore = accountForQuote(quoteEnvelope);
       const result = await runner.cycle({ bars, quoteEnvelope, now });
       meta = { ...meta, lastCycleAt: new Date(now).toISOString(), lastCycleCode: result.code };
       saveMeta(durable, meta);
-      recordEvidence({ now, result, promotion, quoteEnvelope });
+      recordEvidence({ now, result, promotion, quoteEnvelope, accountBefore });
       log("CYCLE", { code: result.code });
       return { ...result, promotion };
     } catch (error) {
@@ -302,6 +305,7 @@ export function createServerAutoPaperService({
             result: { ok: false, code: finalError?.code ?? "UNKNOWN" },
             promotion,
             quoteEnvelope,
+            accountBefore,
             detailCode: finalError?.code ?? "UNKNOWN",
           });
         } catch (evidenceError) {
