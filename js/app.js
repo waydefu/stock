@@ -5,7 +5,8 @@
 import { SYMBOLS, fmtDate, fmtInt, fmtPrice, getSymbol, rsi, volumeRatio } from "./data.js";
 import { selectAdapter } from "./fixture-provider.js";
 import { drawCandles, drawLine, candleHoverAt } from "./charts.js";
-import { formatMetric, runBacktest, STRATEGIES } from "./backtest.js";
+import { formatMetric } from "./backtest.js";
+import { CLASSIC_UI_POSITION_FRACTION, runClassicLayeredBacktest } from "./classic-backtest-runner.js";
 import { evaluateWindow } from "./research.js";
 import { MemoryStorage } from "./paper.js";
 import { createAppPaperRuntime } from "./paper-runtime.js";
@@ -325,15 +326,16 @@ function renderScreener() {
 function renderBacktest() {
   const select = $("#backtest-symbol");
   if (select) state.symbol = select.value || state.symbol;
-  const strategy = $("#backtest-strategy").value;
-  const research = isResearchStrategy(strategy);
-  $("#backtest-legacy-ma").hidden = research;
-  $("#backtest-legacy-slow").hidden = research;
+  const strategyId = $("#backtest-strategy").value;
+  const research = isResearchStrategy(strategyId);
+  $("#backtest-classic-ma").hidden = research;
+  $("#backtest-classic-slow").hidden = research;
   $("#backtest-research-alloc").hidden = !research;
   if (research) {
-    renderResearchBacktest(strategy);
+    renderResearchBacktest(strategyId);
     return;
   }
+
   const options = {
     initialCapital: Number($("#backtest-capital").value) || 1_000_000,
     fast: Number($("#backtest-fast").value) || 20,
@@ -342,9 +344,19 @@ function renderBacktest() {
     slippageBps: Number($("#backtest-slippage").value) || 0,
   };
   const feeModel = feeModelForSymbol(state.symbol, options.commissionRate);
-  let result;
-  try { result = runBacktest(marketData.getBars(state.symbol), strategy, { ...options, feeModel }); }
-  catch (error) {
+  let composed;
+  try {
+    composed = runClassicLayeredBacktest({
+      symbol: state.symbol,
+      bars: marketData.getBars(state.symbol),
+      strategyId,
+      strategyOptions: { fast: options.fast, slow: options.slow },
+      initialCapital: options.initialCapital,
+      commissionRate: options.commissionRate,
+      slippageBps: options.slippageBps,
+      feeModel,
+    });
+  } catch (error) {
     $("#backtest-metrics").innerHTML = statePanel("error", "回測無法執行", error.message);
     $("#backtest-assumptions").innerHTML = statePanel("error", "模型假設不可用", "修正輸入參數後重新執行。");
     $("#backtest-trades tbody").innerHTML = stateRow(7, "error", "沒有成交明細", "回測尚未產生可解釋的結果。");
@@ -352,16 +364,37 @@ function renderBacktest() {
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
-  const m = result.metrics;
+
+  const { strategy, result, summary: m, positionFraction } = composed;
+  const sharpeText = m.sharpeInsufficient
+    ? "樣本不足"
+    : m.sharpe === null ? "N/A・無變異" : formatMetric(m.sharpe);
   $("#backtest-metrics").innerHTML = [
     ["淨損益", money(m.netProfit, getSymbol(state.symbol).ccy), tone(m.netProfit)],
     ["最大回撤", `${m.maxDrawdownPct.toFixed(2)}%`, "down"],
     ["勝率／交易數", m.tradeCount ? `${m.winRate.toFixed(1)}% / ${m.tradeCount}` : "N/A・無交易", "neutral"],
-    ["Sharpe", m.sharpeInsufficient ? "樣本不足" : formatMetric(m.sharpe), m.sharpeInsufficient ? "neutral" : m.sharpe >= 1 ? "up" : "neutral"],
+    ["Sharpe", sharpeText, m.sharpe !== null && m.sharpe >= 1 ? "up" : "neutral"],
   ].map(([label, value, cls]) => `<article class="card"><h2>${label}</h2><div class="kpi ${cls}">${value}</div></article>`).join("");
+
   drawLine($("#equity-chart"), result.equity, { color: "#855bfb", baseline: options.initialCapital });
-  $("#backtest-assumptions").innerHTML = `<div class="row"><span>策略</span><span>${escapeHtml(STRATEGIES[strategy] ?? strategy)}</span></div><div class="row"><span>成交</span><span>立即紙上模擬成交</span></div><div class="row"><span>手續費</span><span>${feeModel ? escapeHtml(feeAssumptionText(feeModel)) : `${(options.commissionRate * 100).toFixed(4)}%（簡化模型，未含稅與最低額）`}</span></div><div class="row"><span>滑價</span><span>${options.slippageBps} bp</span></div><div class="row"><span>Sharpe</span><span>年化 risk-free ${((result.assumptions.riskFreeRate ?? 0) * 100).toFixed(2)}%・樣本 ${m.sharpeSamples}/${result.assumptions.minSharpeSamples}${m.sharpeInsufficient ? "・不足不採信" : ""}</span></div><div class="row"><span>資料</span><span>固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}</span></div>`;
-  $("#backtest-trades tbody").innerHTML = result.trades.length ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("") : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
+  const riskSamples = Math.max(0, result.equity.length - 1);
+  $("#backtest-assumptions").innerHTML = [
+    ["策略", `${escapeHtml(strategy.name)} ${escapeHtml(strategy.version)}`],
+    ["引擎", "Strategy → Portfolio → Research execution（分層）"],
+    ["成交", "next-bar-open；資料結束時 last-close 強制平倉"],
+    ["配置", `固定比例 ${(positionFraction * 100).toFixed(0)}%（Portfolio 層決定，策略不碰股數）`],
+    ["手續費", feeModel
+      ? escapeHtml(feeAssumptionText(feeModel))
+      : `${(options.commissionRate * 100).toFixed(4)}%（簡化模型，未含稅與最低額）`],
+    ["滑價", `${options.slippageBps} bp`],
+    ["Sharpe", `年化 risk-free 0.00%・樣本 ${riskSamples}/3${m.sharpeInsufficient ? "・不足不採信" : ""}`],
+    ["費用合計", `手續費 ${money(result.totalFees, getSymbol(state.symbol).ccy)}・滑價 ${money(result.totalSlippage, getSymbol(state.symbol).ccy)}`],
+    ["資料", `固定 250 根模擬日 K・${escapeHtml(dataProvenanceTag())}`],
+  ].map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join("");
+
+  $("#backtest-trades tbody").innerHTML = result.trades.length
+    ? result.trades.map((trade) => `<tr><td>${fmtDay(trade.entryTime)}</td><td>${fmtDay(trade.exitTime)}</td><td class="n">${trade.qty}</td><td class="n">${fmtPrice(trade.entryPrice)}</td><td class="n">${fmtPrice(trade.exitPrice)}</td><td class="n ${tone(trade.netPnl)}">${signed(trade.netPnl)}</td><td><span class="badge neutral">${trade.exitReason === "end" ? "資料結束" : "訊號"}</span></td></tr>`).join("")
+    : stateRow(7, "empty", "此參數組合沒有完成交易", "不要把零交易誤當成低風險；調整策略或檢查樣本。");
 }
 
 function researchCosts(symbol = state.symbol, marketHint = null) {
