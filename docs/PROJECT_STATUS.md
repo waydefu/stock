@@ -14,6 +14,7 @@
 - Proxy anti-abuse state 已從 HTTP router 抽成 `server/proxy-anti-abuse.js`；限流／budget／cache 行為由單測與既有 proxy integration tests 鎖定。
 - Research execution 時間軸：next-bar-open intent 只在實際下一根開盤改帳；未來價格不得回寫前一根 equity（R-033）。
 - **當前優先序**：技術債／模組化／治理收斂 → 純數學策略 Automated Paper Trading v1（真實行情 forward test）；第一階段不使用真錢、不接 live broker。
+- 30-Day 部署設計已定案於 `docs/AUTO_PAPER_DEPLOYMENT_DESIGN.md`：首選 Render Starter + 1 GB Persistent Disk；正式 enable 前先補 crash-safe lease recovery、read-only authority status、restart recovery integration test。
 - Forward Test Journal 已接 server authority：不只保存交易帳本，也保存每輪 equity／PnL／fees／fills／Gate／阻擋原因，月底可直接產生 evidence report（R-035）。
 
 ## 收斂進度（Track A–D；計畫與驗收見 `docs/FUTURE_PLAN.md`）
