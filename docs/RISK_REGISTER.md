@@ -15,7 +15,7 @@
 | C-11 | 交易場所/USDT/法遵風險 | OPEN | 區域與帳戶資格、交易所風險 |
 | C-12 | fixture 被誤認成實盤 | PARTIAL | 無網路、無交易 API、模式拒絕測試 |
 
-| C-13 | 供應鏈／發行不可重現 | OPEN | npm lock 與 Cargo 解析雜湊 gate；完整 Cargo.lock/Gradle 驗證、SBOM、原生掃描、簽章、tag 保護、實機驗收仍待完成 |
+| C-13 | 供應鏈／發行不可重現 | OPEN | npm lock、完整已核對 Cargo.lock（SHA-256 與既有 digest 相同）、cargo metadata/build --locked 及前後雜湊 gate；glib 0.18.5（GHSA-wrw7-89jp-8q8g，#82）僅存於 Linux 依賴樹，經維護者核准於 Dependency Review 單項例外，新增 Linux 交付前須移除；Gradle 驗證、SBOM、原生掃描、簽章、tag 保護、實機驗收仍待完成 |
 | C-14 | 封存或交付邊界退化 | PARTIAL | Git tree SHA 閘門、dist 白名單與瀏覽器拒絕封存資源測試、封存分支技術保護 |
 
 | C-15 | 跨層耦合／繞過獨立風控 | PARTIAL | 明確模組圖、獨立層級方向檢查、禁止循環與跨層反例測試、純函式測試；未來 adapter/權限與實際執行邊界仍需驗收 |

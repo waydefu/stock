@@ -4,3 +4,8 @@
 決策：提交 npm lock 並使用 npm ci；暫以同一經驗證 Cargo lock 的 hash 在 native build 前後阻擋解析漂移，不宣稱完整 Cargo 鎖定或可重現建置。下一步須匯入完整 Cargo.lock 並使用 --locked；不能為綠燈直接更新 digest。移除原 tag 自動發布及 contents:write，直到可信發布工作、tag 保護、簽章與驗收完成。保留兩平台 Actions preview artifacts。
 來源：https://docs.npmjs.com/cli/commands/npm-ci/ ; https://doc.rust-lang.org/cargo/commands/cargo-build.html ; https://docs.gradle.org/current/userguide/dependency_verification.html ; https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
 取捨：Cargo 上游版本更新可能阻斷 preview，這是預期 fail-closed 行為；不能以 hash gate 替代真正 lockfile。Gradle 鎖定/驗證、SBOM、簽章、真機、舊 Render 遷移仍未完成。
+
+## 補充決策（自 PR #77 拆出的鎖檔 PR，待審核）
+run 45400689430 於 Windows/Android 的 Cargo resolution gate 失敗，Windows 新解析 SHA-256 0dad7c2564cbc4ba17e39e1ff5fd88662d5dbbe0fad5bda6868b930b5e0fe173 與核准值不同。從成功 run 45376975327 artifact 14911981758 恢復 111058-byte 原始 lock，ZIP SHA-256 5d954cb5945d695f33040de7d0de2717b4cab20bfbd074184e408c76963895ea 及 lock SHA-256 與既有證據匹配，Git blob e5c54719806a4e4218c8d8f3b5ae9be3b84af7e0。保留原 digest，不重新解析；固定 LF、locked metadata 與兩平台 build runner --locked，保留前後 hash，權限及發布規則不變。新同提交 CI 待驗，Gradle、簽章、實機及正式發行仍未完成。
+2026-11-24 PR #83 run 45424021983 兩平台 Cargo resolution gate 再次因上游解析漂移失敗，與該 PR 變更無關；確認未提交 lock 會阻斷所有 PR，故先單獨合入同一份已核對 lock 與 --locked，#77 只保留行情變更。
+例外（維護者 2026-11-24 核准）：Dependency Review 對 glib 0.18.5 的 GHSA-wrw7-89jp-8q8g 設 allow-ghsas，僅此一項。理由：`cargo tree --locked -i glib` 顯示 glib 只在 x86_64-unknown-linux-gnu 依賴樹（Tauri GTK3：gtk/atk/webkit2gtk/muda），x86_64-pc-windows-msvc 與 aarch64-linux-android 皆無；本專案不建 Linux 包。解除條件：上游升至 glib ≥0.20，或新增 Linux 交付時先移除例外。追蹤 #82。
