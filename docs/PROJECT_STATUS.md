@@ -15,6 +15,8 @@
 
 - SoC：拆分風控 domain、fixture 與流程 projection application、DOM/router/settings/flow UI、composition root；新增模組契約閘門及純流程單元測試；保持離線，不增加網路、執行、帳本或實盤權限。初次 SoC 提交 Quality 與 Dependency Review 已通過；新增獨立層級方向與反例測試，最新提交須重新驗證。
 
+- PR #62 已合併；main c50f09a 的 Quality、Browser E2E、CodeQL、Native packages、Pages 成功。已實際下載 deb4b77 兩端 artifact，三個二進位檔 SHA-256 皆相符。M0 後續 PR 固定 npm lock、Cargo 解析雜湊前後檢查、移除未充分保護的自動 tag 發布。完整 Cargo.lock/Gradle 驗證、簽章、實機與舊 Render 處置仍待完成。
+
 ## Scope
 離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
 
