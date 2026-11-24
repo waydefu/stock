@@ -8,5 +8,5 @@
 - 任何資料失效、斷線、未知狀態、失衡、超額、持久化故障應拒絕新增曝險。未來 reduce-only 退出、停機及對帳政策須獨立驗證；不得用停機保證損失上限。
 - 所有重大變更（權限、CI、資料庫、執行語義、依賴、部署）必須獨立審查並記錄 ADR；禁止以假數據通過驗收。
 - 審查：單元測試＋反例測試＋UI E2E＋來源版本＋驗收證據。使用者有最終系統管理權。
-- Web/EXE/APK 由相同白名單 dist 建置，archive 不進任何交付。Native packages 須驗證產物、SHA-256、簽章及真機；preview tag 由維護者建立，僅受控發布工作具 contents:write。未正式簽章與依賴鎖定不得視為正式發行，見 docs/DEPLOYMENT.md。
+- Web/EXE/APK 由相同白名單 dist 建置，archive 不進任何交付。Native packages 須驗證產物、SHA-256、簽章及真機；自動 tag 發布暫停，native CI 僅 contents:read；可信發布工作、tag 保護、鎖定與正式驗收另案批准。未正式簽章與依賴鎖定不得視為正式發行，見 docs/DEPLOYMENT.md。
 - 模組化與關注點分離為架構原則；domain 無 I/O，application 透過明確契約協調，ui 不直接依賴風控或執行端，平台殼不承擔交易責任。CI 檢查明確模組圖、循環及交付白名單。架構邊界變更需 ADR 與審查。

@@ -5,14 +5,14 @@ Web（Pages）、Windows x64（portable EXE、NSIS setup EXE）、Android ARM64�
 ## Actions
 - PR 與 main push 執行 Native packages；兩平台獨立 runner，失敗不吞掉。Actions artifacts 保留 14 日，含原始建置解析的 npm/Cargo lock 與 SHA256SUMS。
 - Windows x64 目標 MSVC，EXE 未做 Authenticode 簽章；安裝器需 WebView2。Android aarch64-linux-android 目標，APK debug key 由建置環境產生，apksigner 及 ELF ABI 路徑檢查，不代表實機啟動。不同 debug key 可能無法覆蓋安裝。
-- 維護者在已審查 main commit 建立符合 package.version 的 preview-vX.Y.Z tag 後，兩平台成功才建立 GitHub prerelease。release job 重驗檔案 hash、tag 與 main 祖先；PR 沒有 release write 權限。預設不自動建立 tag、不發布正式 release。Web 仍由 Pages workflow 自動部署。
-- 初版 CLI/Core/Build helper 使用明確版本，傳遞依賴尚未鎖定在 repo；成功建置的解析 lock 隨 artifact 保存供後續驗證後提交。正式發布前必須提交並使用 npm ci / cargo --locked、核對上游安全公告、固定 runner/toolchain、產出 SBOM、驗證簽章與真機測試。此限制不可被宣稱為可重現正式發行。
+- 自動 tag 發布暫停：Native workflow 僅唯讀建置及上傳 preview artifacts，無 contents:write。待可信發布工作、tag 保護、完整鎖定、簽章與真機證據後另案恢復；Web 仍由 Pages workflow 自動部署。
+- npm lock 已從兩平台相同解析結果固定，native CI 使用 npm ci。Cargo 暫以同一已驗證 lockfile 的 SHA-256 前後檢查，若上游解析漂移即失敗；尚未把完整 Cargo.lock 提交，不等於可重現。正式發布前須匯入完整 Cargo.lock、cargo --locked、Gradle 依賴鎖與驗證、固定工具鏈、SBOM、簽章及真機測試。
 - Windows 正式簽章與 Android release keystore、簽章輪替/升級驗收另案；禁止提交 keystore、password、金鑰或交易秘密。更新服務未實作。
 
 ## 本機
 安裝官方前置環境 Node 24、Rust/MSVC+WebView2（Windows），或 JDK/Android SDK/NDK（Android）。在 repo 根目錄：
 ```sh
-npm install --ignore-scripts
+npm ci --ignore-scripts
 npm run check:packaging
 npm run native:icons
 npm run native:windows -- --target x86_64-pc-windows-msvc
