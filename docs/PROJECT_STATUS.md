@@ -6,9 +6,9 @@
 - 研究 R1–20 僅為探索性，不等於交易策略已晉升。
 - 供應鏈：npm lock 已固定；deb4b77 artifact 已下載，三個二進位檔 SHA-256 皆相符。
 - 待辦：Windows/Android 真機安裝啟動驗收（含沉浸式 overlay 遮擋）、簽章；完整 Cargo.lock 與 --locked 已由 #84 合入；glib 公告追蹤於 #82；舊 Render 服務處置；CodeQL 與 Dependency Review 尚非 GitHub 必要檢查。
-- 本次變更：PR 空白檢查改為與 base 比對；Dependabot 將 codeql init/analyze 合併成一組；Web CSP 與 Tauri CSP 完全一致並由 check:packaging 檢查；移除多餘的風控條件與多餘的 Android overlay 步驟；README 的 tag 發布敘述已更正。
-
+- CI 閘門（#83）：PR 空白檢查改為與 base 比對；Dependabot 將 codeql init/analyze 合併成一組；Web CSP 與 Tauri CSP 完全一致並由 check:packaging 檢查；移除多餘的風控條件與多餘的 Android overlay 步驟；README 的 tag 發布敘述已更正。
 - 鎖檔：自 #77 拆出完整已核對 Cargo.lock（SHA-256 e063673d…，與 Cargo.lock.sha256 相同）、固定 LF、cargo metadata 與兩平台建置 --locked。起因是 2026-11-24 上游解析漂移使所有 PR 的 Native 失敗（PR #83 run 45424021983）。同提交原生 CI 待驗；glib 公告（#82）經維護者核准單項例外：cargo tree 確認只在 Linux 依賴樹，Windows/Android 無；新增 Linux 交付前須移除。
+- CI actions 升級：合併 Dependabot #36、#78、#79、#80、#81（setup-node 7.1.0、codeql-action init/analyze 同步 4.39.4、dependency-review-action 5.0.1、upload-artifact 7.0.2）；釘選 SHA 已逐一對照官方 tag，大版本僅改 Node 24 runtime 與新增選項，未用到被移除功能。Dependabot 與 check:status 的衝突見 #86。
 
 ## Scope
 離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
