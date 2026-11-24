@@ -22,5 +22,10 @@ try{
   assert.deepEqual(config.app.security.capabilities,[]);
   assert.match(config.app.security.csp,/connect-src 'none'/);
   assert.doesNotMatch(readFileSync("src-tauri/src/lib.rs","utf8"),/\.plugin\(|\.invoke_handler\(/);
+  const activity=readFileSync("src-tauri/android-overlay/MainActivity.kt","utf8");
+  for(const token of ["BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE","controller.hide(WindowInsetsCompat.Type.systemBars())","getInsetsIgnoringVisibility","Type.displayCutout()","Type.mandatorySystemGestures()","onWindowFocusChanged"])assert.ok(activity.includes(token),token);
+  assert.match(pkg.scripts["native:android:init"],/apply-android-overlay/);
+  assert.match(pkg.scripts["native:android"],/apply-android-overlay/);
+  assert.doesNotMatch(activity,/addJavascriptInterface|FLAG_KEEP_SCREEN_ON|FLAG_SHOW_WHEN_LOCKED/);
   console.log("Packaging isolation PASS");
 }finally{rmSync(root,{recursive:true,force:true})}

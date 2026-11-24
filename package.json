@@ -17,8 +17,8 @@
     "tauri": "tauri",
     "native:icons": "tauri icon assets/app-icon.svg",
     "native:windows": "tauri build --ci --bundles nsis",
-    "native:android:init": "tauri android init --ci",
-    "native:android": "tauri android build --ci --debug --apk --target aarch64",
+    "native:android:init": "tauri android init --ci && node scripts/apply-android-overlay.js",
+    "native:android": "node scripts/apply-android-overlay.js && tauri android build --ci --debug --apk --target aarch64",
     "check:packaging": "node scripts/check-packaging.js"
   },
   "devDependencies": {

@@ -34,3 +34,6 @@ npm run native:android
 
 ## Native 版本相容性
 Tauri Core 2.12.7、CLI 2.12.6、Build 2.7.6 依上游同一版本樹對齊（https://github.com/tauri-apps/tauri/tree/tauri-v2.12.7）；原 Core 2.11.5 與解析出的 Runtime 2.12.4 / Wry 2.12.5 型別不相容，兩平台 CI 已證實。新版需重新建置驗證，仍未提交完整傳遞依賴鎖。
+
+## Android 專屬 Activity
+生成 Gradle 專案後，由 scripts/apply-android-overlay.js 將受版本管理的 src-tauri/android-overlay/MainActivity.kt 覆寫到固定 package 下的 MainActivity。native:android:init 與 native:android 都必須執行 overlay，缺少生成專案或 package 不符直接失敗。原生沉浸式顯示與 WindowInsets 安全區僅影響 Android；不更動 Web/Windows，不新增 JS bridge 或權限。實際遮擋及滑動系統列需真機驗收，見 UI_UX.md。

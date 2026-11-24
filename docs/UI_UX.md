@@ -8,3 +8,7 @@ M3 後續由權威服務供應 runId、nodeId、依賴、事件時間、開始/�
 
 ## 驗收
 320/390/1440px E2E，五頁導覽、深連結、返回/重新整理、唯一可見頁、未接線控制禁用、模式不變、無橫向溢位、四情境風控。流程初始全部 off、節點可選、示範失敗定位於獨立風控、下游 blocked、復原後清除。後續需真機、可及性、真實 run 資料及故障注入驗收。
+
+## Android APK 特化（沉浸式全螢幕）
+Android 原生 MainActivity 預設隱藏狀態列與導覽列，邊緣滑動可暫時喚回；視窗恢復焦點重新進入沉浸模式。不攔截 Android 返回、Home 或系統手勢，不強制常亮或鎖定方向。原生 content root 使用 WindowInsetsCompat 的穩定系統列、display cutout、mandatory gestures 計算四邊安全距離；隱藏系統列仍保留必要邊距，避免短暫喚回時遮住 UI。WebView 保留 IME inset；前端不自行猜測手機狀態列高度。Web/Windows 不啟用沉浸模式。
+驗收：POCO F8 Ultra / Android 16，直向及橫向、手勢及三鍵導覽、喚回系統列、切換背景/前景、旋轉、鍵盤、五頁底部導航及流程節點均不遮擋；真機截圖及操作結果必須另存。CI 可驗證 Kotlin 編譯與打包，不能替代上述實機驗收。

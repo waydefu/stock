@@ -101,6 +101,7 @@ jobs:
           npm run native:icons
           npm run native:android:init
           npm run native:icons
+          node scripts/apply-android-overlay.js
       - name: Build debug APK
         run: npm run native:android
       - name: Collect and verify ARM64 APK
