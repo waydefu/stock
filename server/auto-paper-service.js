@@ -152,6 +152,7 @@ export function createServerAutoPaperService({
     clock,
     sessionClock,
     canTrade: () => true,
+    strictPersistence: true,
     auditEvent: (event, details) => audit.record(event, { ...details, actor: "server-auto-paper" }),
   });
   const journal = new ForwardTestJournal({ storage: durable });
@@ -159,6 +160,8 @@ export function createServerAutoPaperService({
   let meta = loadMeta(durable);
   let timer = null;
   let running = false;
+  let stopped = false;
+  let activeCycle = null;
   let fatal = null;
   let barsCache = null;
   let barsCacheKey = null;
@@ -239,6 +242,9 @@ export function createServerAutoPaperService({
     const approvalMissingAfterPass = meta.lastGatePass === true && status.approval?.pass !== true;
     const needsEvaluation = meta.lastPromotionBar !== latestBar || meta.lastGatePass === null || approvalMissingAfterPass;
     if (!needsEvaluation) {
+      // Recover a crash between saving the promotion result and arming the runner.
+      // Never auto-clear a paused/terminal lifecycle or an active risk kill switch here.
+      if (meta.lastGatePass === true && status.lifecycle === "RESEARCH_APPROVED") runner.arm();
       return {
         pass: meta.lastGatePass === true,
         cached: true,
@@ -281,7 +287,7 @@ export function createServerAutoPaperService({
     return { pass: promotion.gate.pass, cached: false, gate: promotion.gate };
   }
 
-  async function runOnce() {
+  async function runCycle() {
     if (fatal) return { ok: false, code: fatal.code, fatal: true };
     if (running) return { ok: false, code: "SERVER_AUTO_CYCLE_BUSY" };
     const now = clock();
@@ -300,7 +306,9 @@ export function createServerAutoPaperService({
     let accountBefore = null;
     try {
       const bars = await completedBars(now);
+      if (stopped) return { ok: false, code: "SERVER_AUTO_STOPPED" };
       promotion = await refreshPromotion(bars, now);
+      if (stopped) return { ok: false, code: "SERVER_AUTO_STOPPED" };
       if (!promotion.pass) {
         const result = { ok: false, code: "PROMOTION_GATE_FAIL", promotion, runner: runner.status() };
         meta = { ...meta, lastCycleAt: new Date(now).toISOString(), lastCycleCode: result.code };
@@ -310,6 +318,7 @@ export function createServerAutoPaperService({
       }
 
       quoteEnvelope = await data.quoteAsync(config.symbol);
+      if (stopped) return { ok: false, code: "SERVER_AUTO_STOPPED" };
       providerGuard(quoteEnvelope, config.symbol);
       accountBefore = accountForQuote(quoteEnvelope);
       const result = await runner.cycle({ bars, quoteEnvelope, now });
@@ -357,8 +366,18 @@ export function createServerAutoPaperService({
     }
   }
 
+  function runOnce() {
+    if (stopped) return Promise.resolve({ ok: false, code: "SERVER_AUTO_STOPPED" });
+    if (activeCycle) return Promise.resolve({ ok: false, code: "SERVER_AUTO_CYCLE_BUSY" });
+    activeCycle = runCycle().finally(() => {
+      activeCycle = null;
+      if (stopped) releaseLease();
+    });
+    return activeCycle;
+  }
+
   async function start() {
-    if (timer !== null) return status();
+    if (stopped || fatal || timer !== null) return status();
     timer = setIntervalImpl(() => { void runOnce(); }, config.intervalMs);
     timer?.unref?.();
     const first = await runOnce();
@@ -366,11 +385,7 @@ export function createServerAutoPaperService({
     return status();
   }
 
-  function stop() {
-    if (timer !== null) {
-      try { clearIntervalImpl(timer); } catch { /* already cleared */ }
-      timer = null;
-    }
+  function releaseLease() {
     if (authorityLease) {
       try {
         authorityLease.release();
@@ -379,12 +394,26 @@ export function createServerAutoPaperService({
         log("LEASE_RELEASE_FAILED", { code: error?.code ?? "UNKNOWN", message: error?.message ?? "unknown" });
       }
     }
+  }
+
+  function stop() {
+    stopped = true;
+    if (timer !== null) {
+      try { clearIntervalImpl(timer); } catch { /* already cleared */ }
+      timer = null;
+    }
+    // Hold single-writer ownership until the in-flight cycle has settled.
+    // A stopped service is terminal; construct a new authority to restart.
+    if (activeCycle) return activeCycle.then(() => { log("STOPPED"); });
+    releaseLease();
     log("STOPPED");
+    return Promise.resolve();
   }
 
   function status() {
     return {
       enabled: true,
+      stopped,
       fatal,
       running,
       scheduled: timer !== null,

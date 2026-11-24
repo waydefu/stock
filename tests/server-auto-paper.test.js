@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
+import { AUTO_PAPER_STORAGE_KEY } from "../js/auto-paper-runner.js";
+import { SERVER_AUTO_META_KEY } from "../server/auto-paper-service.js";
 import { tmpdir } from "node:os";
 import { MemoryStorage, PaperBroker } from "../js/paper.js";
 import { AuditLog, RiskEngine } from "../js/risk.js";
@@ -365,4 +367,83 @@ test("closed-market server cycles do not consume Fugle calls or journal capacity
   assert.ok(counter.quotes <= 1);
   assert.equal(promotions, 1);
   assert.equal(service.status().lastScheduleDecision.session, "preMarket");
+});
+
+test("stop drains in-flight work before releasing durable writer lease and forbids reuse", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "stock-auto-drain-"));
+  const cfg = { ...config(), stateFile: join(dir, "state.json") };
+  const now = () => Date.parse("2026-10-23T01:10:00.000Z");
+  let releaseQuote;
+  let quoteStarted;
+  const started = new Promise((resolve) => { quoteStarted = resolve; });
+  const fixture = adapterFixture(now);
+  const adapter = {
+    ...fixture,
+    async quoteAsync(symbol) {
+      quoteStarted();
+      await new Promise((resolve) => { releaseQuote = resolve; });
+      return fixture.quoteAsync(symbol);
+    },
+  };
+  const options = { config: cfg, proxyBaseUrl: "http://127.0.0.1:8787", adapter, clock: now, promotionEvaluator: passingPromotion };
+  let first;
+  let restarted;
+  try {
+    first = createServerAutoPaperService(options);
+    const cycle = first.runOnce();
+    await started;
+    const stopping = first.stop();
+    assert.equal(first.status().authorityLease, "HELD");
+    assert.throws(() => createServerAutoPaperService(options), (error) => error.code === "DURABLE_STORAGE_LOCKED");
+    assert.equal((await first.runOnce()).code, "SERVER_AUTO_STOPPED");
+    releaseQuote();
+    assert.equal((await cycle).code, "SERVER_AUTO_STOPPED");
+    await stopping;
+    assert.equal(first.status().authorityLease, "RELEASED");
+    assert.equal((await first.start()).scheduled, false);
+    restarted = createServerAutoPaperService({ ...options, adapter: fixture });
+    assert.equal(restarted.status().authorityLease, "HELD");
+    assert.equal((await restarted.runOnce()).code, "ORDER_WORKING");
+  } finally {
+    releaseQuote?.();
+    await first?.stop();
+    await restarted?.stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("server rejects malformed runner state rather than resetting trading lifecycle", () => {
+  for (const raw of ["{broken", JSON.stringify({ version: 2, entries: [] })]) {
+    const storage = new MemoryStorage();
+    storage.setItem(AUTO_PAPER_STORAGE_KEY, raw);
+    assert.throws(() => createServerAutoPaperService({
+      config: config(), proxyBaseUrl: "http://127.0.0.1:8787", storage,
+    }), (error) => error.code === "DURABLE_STATE_INVALID");
+  }
+});
+
+test("restart after cached promotion approval but before arm resumes without re-evaluation", async () => {
+  const storage = new MemoryStorage();
+  const now = () => Date.parse("2026-10-23T01:10:00.000Z");
+  const options = { config: config(), proxyBaseUrl: "http://127.0.0.1:8787", storage,
+    clock: now, adapter: adapterFixture(now), promotionEvaluator: passingPromotion };
+  const initial = createServerAutoPaperService(options);
+  await initial.runOnce();
+  await initial.stop();
+  const all = JSON.parse(storage.getItem(AUTO_PAPER_STORAGE_KEY));
+  const key = Object.keys(all.entries)[0];
+  // Simulate a saved RESEARCH_APPROVED checkpoint before the first order/arm.
+  all.entries[key].lifecycle = "RESEARCH_APPROVED";
+  all.entries[key].workingOrderIds = [];
+  all.entries[key].pendingIntent = null;
+  all.entries[key].lastEvaluatedBar = null;
+  const recovered = new MemoryStorage();
+  recovered.setItem(AUTO_PAPER_STORAGE_KEY, JSON.stringify(all));
+  recovered.setItem(SERVER_AUTO_META_KEY, storage.getItem(SERVER_AUTO_META_KEY));
+  const next = createServerAutoPaperService({ ...options, storage: recovered,
+    promotionEvaluator: () => { throw new Error("cached approval should be reused"); } });
+  const outcome = await next.runOnce();
+  assert.equal(next.status().lifecycle, "PAPER_ENABLED");
+  assert.equal(outcome.promotion.cached, true);
+  await next.stop();
 });
