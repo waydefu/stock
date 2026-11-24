@@ -13,7 +13,7 @@
 
 - M0 稽核：8b9d93a 的 Quality、Browser E2E、CodeQL、Dependency Review 已通過；Native 檢查中。已修正原型風控資料形狀/分項向上捨入、流程拒絕語義、初始頁與重設、發布目錄 E2E、封存 hash 與狀態同步閘門、憑證忽略。新提交須重新驗證。未有 native 真機、鎖檔與舊 Render 轉移證據。
 
-- SoC：拆分風控 domain、fixture 與流程 projection application、DOM/router/settings/flow UI、composition root；新增模組契約閘門及純流程單元測試；保持離線，不增加網路、執行、帳本或實盤權限。最新 CI 待驗證。
+- SoC：拆分風控 domain、fixture 與流程 projection application、DOM/router/settings/flow UI、composition root；新增模組契約閘門及純流程單元測試；保持離線，不增加網路、執行、帳本或實盤權限。初次 SoC 提交 Quality 與 Dependency Review 已通過；新增獨立層級方向與反例測試，最新提交須重新驗證。
 
 ## Scope
 離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。

@@ -35,3 +35,5 @@ public market feeds + news + macro → immutable evidence/event store
 | src-tauri/ | 平台生命週期與顯示 | 僅交付 dist，無交易權限 |
 後續按業務能力新增 market、intelligence、events、decision、quant、risk、paper-execution、ledger/reconciliation、observability 模組；外部 REST/WS、LLM、SQLite、通知為 adapters，domain 不讀 DOM、HTTP、DB、環境變數或系統時鐘；時間、資料及政策以明確輸入傳入。應用層協調用例；持久化與交易執行有單一權威。事件稽核獨立於成交，HOLD、拒絕、錯誤均須留存。所有跨模組契約版本化，禁止循環、隱含全域狀態及跨層直接寫入；未實作模組只列規劃，不建立假 adapter。
 Module contract 以顯式 inventory/allowed import graph + CI 驗證；現行檢查是受限 ESM 形式的架構回歸閘門，非 JS sandbox 或完整安全分析。新增模組需同步白名單、測試、架構文件及 ADR。
+
+獨立層級方向矩陣（root → application/ui；application → domain/application；domain → domain；ui → ui），即使修改 import inventory 也不能繞過方向規則；新增禁止依賴、循環、未登記模組和 host API 的反例測試。未來 adapters 需 ADR 擴充矩陣。
