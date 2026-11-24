@@ -5,3 +5,5 @@
 驗收：正確來源與 decimal 保留、非法 symbol、未來/過期、時鐘偏差、sequence 重複/回退/缺口、固定唯讀 GET、429/418、網路/JSON/大 body 失敗；實際 REST smoke 及歷史/交易規則/WS 仍待 #64。
 
 追加稽核：批次最終評估時間加時鐘不確定性，早期已過期證據不再標 FRESH；時鐘回退即拒絕。獨立 backend module graph 及前端交付隔離反例測試；CodeQL 掃描涵蓋 server/。
+
+大掃補強：watchlist 複製與稀疏陣列拒絕；每筆 port 回傳的 fetchedAt 須落在本地請求/收到時間區間，批次時鐘回退拒絕；到期時刻即失效；序列診斷要求合法 symbol/source、正規安全整數 ID 與有效 decimal/方向；adapter 發現本地時鐘回退後保持拒絕，取消 body 失敗不掩蓋限流結果。此處仍使用 wall clock，無法保證偵測所有向前跳時，持續服務需 monotonic clock 與重同步。

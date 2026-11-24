@@ -62,3 +62,28 @@ test("backward clock changes abort the snapshot",async()=>{
   const result=await readMarketSnapshot({now:()=>at,market:{serverTime:async()=>({ok:true,data:{serverTime:at},fetchedAt:at}),latestTrade:async()=>({ok:true,data:[row],fetchedAt:at-1})}});
   assert.equal(result.code,"INVALID_CLOCK");
 });
+
+test("trade expiry is exclusive and sequence evidence is canonical",()=>{
+  assert.equal(normalizeTrade("BTCUSDT",[row],at+15000).code,"STALE_TRADE");
+  const a=normalizeTrade("BTCUSDT",[row],at).evidence;
+  for(const patch of [{sequence:"0123"},{sequence:"9999999999999999"},{source:"other"},{symbol:"UNKNOWN"},{price:1},{buyerMaker:null}])assert.equal(compareSequence(a,{...a,...patch}),"INVALID_SEQUENCE");
+});
+test("sparse or mutable watchlists cannot change the selected symbols",async()=>{
+  let calls=0;const market={serverTime:async()=>{calls++;return {ok:true,data:{serverTime:at},fetchedAt:at}},latestTrade:async()=>({ok:true,data:[row],fetchedAt:at})};
+  assert.equal((await readMarketSnapshot({market,now:()=>at,symbols:Array(1)})).code,"INVALID_WATCHLIST");assert.equal(calls,0);
+  const symbols=["BTCUSDT","ETHUSDT"],seen=[];
+  market.latestTrade=async symbol=>{seen.push(symbol);symbols.push("SOLUSDT");return {ok:true,data:[row],fetchedAt:at}};
+  const result=await readMarketSnapshot({market,now:()=>at,symbols});assert.equal(result.ok,true);assert.deepEqual(seen,["BTCUSDT","ETHUSDT"]);
+});
+test("snapshot rejects impossible receipt times and malformed port envelopes",async()=>{
+  const market={serverTime:async()=>({ok:true,data:{serverTime:at},fetchedAt:at}),latestTrade:async()=>({ok:true,data:[row],fetchedAt:at+1})};
+  assert.equal((await readMarketSnapshot({market,now:()=>at})).code,"INVALID_CLOCK");
+  market.latestTrade=async()=>null;
+  assert.equal((await readMarketSnapshot({market,now:()=>at})).code,"INVALID_RESPONSE");
+});
+test("rate limit survives cleanup failure and invalid clock latches closed",async()=>{
+  let time=at,calls=0;const market=createBinanceRest({now:()=>time,transport:async()=>{calls++;return {status:429,headers:new Headers({"retry-after":"10"}),body:{cancel:()=>Promise.reject(new Error("cleanup"))}}}});
+  assert.equal((await market.latestTrade("BTCUSDT")).code,"RATE_LIMITED");
+  time-=1;assert.equal((await market.latestTrade("BTCUSDT")).code,"INVALID_CLOCK");
+  time=at+20000;assert.equal((await market.latestTrade("BTCUSDT")).code,"INVALID_CLOCK");assert.equal(calls,1);
+});

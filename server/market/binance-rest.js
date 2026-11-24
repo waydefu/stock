@@ -1,6 +1,10 @@
-import {validSymbol,failure} from "./contract.js";
+import {validSymbol,failure,validTimestamp} from "./contract.js";
 const ORIGIN="https://data-api.binance.vision";
 const MAX_BYTES=128*1024;
+// Cleanup must not mask the original failure or extend the request deadline.
+function cancelBody(body){
+  try{Promise.resolve(body?.cancel()).catch(()=>{});}catch{/* best-effort cleanup */}
+}
 async function boundedJson(response){
   if(!response.body)return failure("INVALID_RESPONSE");
   const reader=response.body.getReader(),decoder=new TextDecoder("utf-8",{fatal:true});
@@ -9,7 +13,7 @@ async function boundedJson(response){
     for(;;){
       const {done,value}=await reader.read();if(done)break;
       size+=value.byteLength;
-      if(size>MAX_BYTES){await reader.cancel();return failure("RESPONSE_TOO_LARGE")}
+      if(size>MAX_BYTES){cancelBody(reader);return failure("RESPONSE_TOO_LARGE")}
       text+=decoder.decode(value,{stream:true});
     }
     text+=decoder.decode();return {ok:true,data:JSON.parse(text)};
@@ -18,11 +22,18 @@ async function boundedJson(response){
 }
 export function createBinanceRest({transport,now,timeoutMs=8000}){
   if(typeof transport!=="function"||typeof now!=="function"||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>10000)throw new TypeError("Invalid public transport");
-  let busy=false,blockedUntil=0,banned=false;
+  let busy=false,blockedUntil=0,banned=false,lastObserved=0,clockInvalid=false;
+  function sampleClock(){
+    const value=now();
+    if(!validTimestamp(value)||value<lastObserved){clockInvalid=true;return null;}
+    lastObserved=value;
+    return value;
+  }
   async function request(path,params={}){
     if(banned)return failure("IP_BANNED");
-    const current=now();
-    if(!Number.isSafeInteger(current)||current<0)return failure("INVALID_CLOCK");
+    if(clockInvalid)return failure("INVALID_CLOCK");
+    const current=sampleClock();
+    if(current===null)return failure("INVALID_CLOCK");
     if(current<blockedUntil)return failure("RATE_LIMITED",blockedUntil-current);
     if(busy)return failure("BUSY");
     busy=true;
@@ -32,14 +43,18 @@ export function createBinanceRest({transport,now,timeoutMs=8000}){
       if(response.status===418||response.status===429){
         const header=response.headers.get("retry-after");
         const wait=header&&/^\d{1,8}$/.test(header)?Number(header)*1000:60000;
-        blockedUntil=now()+Math.max(1000,wait);
+        const retryAfterMs=Math.max(1000,wait),receivedAt=sampleClock();
+        if(receivedAt===null||!validTimestamp(receivedAt+retryAfterMs))clockInvalid=true;
+        else blockedUntil=receivedAt+retryAfterMs;
         if(response.status===418)banned=true;
-        await response.body?.cancel();
-        return failure(banned?"IP_BANNED":"RATE_LIMITED",Math.max(1000,wait));
+        cancelBody(response.body);
+        return failure(banned?"IP_BANNED":"RATE_LIMITED",retryAfterMs);
       }
-      if(!response.ok){await response.body?.cancel();return failure("HTTP_"+response.status)}
+      if(!response.ok){cancelBody(response.body);return failure("HTTP_"+response.status)}
       const result=await boundedJson(response);
-      return result.ok?{...result,fetchedAt:now()}:result;
+      if(!result.ok)return result;
+      const fetchedAt=sampleClock();
+      return fetchedAt===null?failure("INVALID_CLOCK"):{...result,fetchedAt};
     }catch(e){return failure(e?.name==="TimeoutError"||e?.name==="AbortError"?"TIMEOUT":"NETWORK_ERROR")}
     finally{busy=false}
   }
