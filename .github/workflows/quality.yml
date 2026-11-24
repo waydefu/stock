@@ -39,8 +39,10 @@ jobs:
           npm --version
           git --version
 
-      - name: Check committed patch whitespace
-        run: git show --check --pretty=short HEAD
+      - name: Check patch whitespace against base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: git diff --check "${BASE_SHA:-HEAD~1}" HEAD
 
       - name: Check JavaScript syntax
         run: npm run check:syntax

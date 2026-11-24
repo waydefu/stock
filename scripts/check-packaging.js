@@ -26,6 +26,7 @@ try{
   assert.equal(config.app.withGlobalTauri,false);
   assert.deepEqual(config.app.security.capabilities,[]);
   assert.match(config.app.security.csp,/connect-src 'none'/);
+  assert.ok(readFileSync("index.html","utf8").includes(`<meta http-equiv="Content-Security-Policy" content="${config.app.security.csp}">`),"Web CSP must match Tauri CSP");
   assert.doesNotMatch(readFileSync("src-tauri/src/lib.rs","utf8"),/\.plugin\(|\.invoke_handler\(/);
   const activity=readFileSync("src-tauri/android-overlay/MainActivity.kt","utf8");
   for(const token of ["BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE","controller.hide(WindowInsetsCompat.Type.systemBars())","getInsetsIgnoringVisibility","Type.displayCutout()","Type.mandatorySystemGestures()","onWindowFocusChanged"])assert.ok(activity.includes(token),token);

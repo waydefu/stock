@@ -27,7 +27,7 @@ export function assess(intent, ctx) {
   const ceil=(a,b)=>(a+b-1n)/b;
   // Each leg and stop amount rounds upward independently; never round total down.
   const cost=ceil(n*30n,10000n), loss=ceil(n*BigInt(intent.stopBps),10000n)+2n*cost;
-  if(n<5000000n || n*85n<500000000n) return reject("MIN_NOTIONAL_BUFFER");
+  if(n*85n<500000000n) return reject("MIN_NOTIONAL_BUFFER");
   if(n*100n>e*60n) return reject("EXPOSURE_LIMIT");
   if(n+cost>c) return reject("CASH_LIMIT");
   if(loss*100n>e) return reject("RISK_BUDGET");
