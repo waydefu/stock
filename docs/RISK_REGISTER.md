@@ -10,7 +10,7 @@
 | C-06 | 回測過擬合 | OPEN | 未見資料、成本、前向、樣本數 |
 | C-07 | 金鑰洩漏/越權 | OPEN | secret isolation、RBAC、無 live path |
 | C-08 | 帳務遷移/部署中斷 | OPEN | 外部資料備份、舊 Render 遷移 |
-| C-09 | UI 顯示假即時/假收益 | PARTIAL | mode/source 標示與瀏覽器驗收 |
+| C-09 | UI 顯示假即時/假收益 | PARTIAL | mode/source、流程示範與實際狀態隔離、瀏覽器與實機驗收 |
 | C-10 | AI/主機成本高於收益 | OPEN | 全成本預算與衡量 |
 | C-11 | 交易場所/USDT/法遵風險 | OPEN | 區域與帳戶資格、交易所風險 |
 | C-12 | fixture 被誤認成實盤 | PARTIAL | 無網路、無交易 API、模式拒絕測試 |

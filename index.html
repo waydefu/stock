@@ -1,11 +1,79 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="自主交易研究工作台，離線紙上原型"><title>Crypto Lab｜AI 自主交易研究</title><link rel="stylesheet" href="css/styles.css"></head>
-<body><header><a href="./" class="brand">CRYPTO<span> LAB</span></a><span class="mode" id="mode">PAPER / OFF</span><span class="header-note">離線研究原型</span></header>
-<div class="layout"><nav aria-label="工作區"><p>研究工作區</p><a href="#overview">總覽</a><a href="#market">市場與情報</a><a href="#decision">決策與風控</a><a href="#execution">執行與持倉</a><a href="#research">研究與驗收</a></nav>
-<main id="overview"><noscript>需啟用 JavaScript 才能使用離線示範。</noscript><div class="intro"><div><p class="eyebrow">AUTONOMOUS RESEARCH / 01</p><h1>交易決策控制中心</h1><p class="muted">以市場證據為核心，獨立風控審核。現階段無即時行情與真實交易連線。</p></div><span class="pill">系統未部署</span></div>
-<section class="metrics" aria-label="資金概況"><article><h2>研究初始本金</h2><strong>30.00 <small>USDT</small></strong><p>虛擬設定，非真實餘額</p></article><article><h2>帳戶權益</h2><strong>—</strong><p>未接持久帳本</p></article><article><h2>持倉 / 掛單</h2><strong>— / —</strong><p>沒有可驗證的交易</p></article><article><h2>真實交易</h2><strong>停用</strong><p>無交易權限與執行端</p></article></section>
-<section id="market" class="panel"><div class="heading"><h2>市場與情報</h2><span class="pill">尚未接線</span></div><div class="split"><div><h3>觀察清單</h3><div class="table-wrap"><table><thead><tr><th scope="col">幣種</th><th scope="col">價格</th><th scope="col">資料狀態</th></tr></thead><tbody><tr><td>BTC/USDT</td><td>—</td><td>未接線</td></tr><tr><td>ETH/USDT</td><td>—</td><td>未接線</td></tr><tr><td>SOL/USDT</td><td>—</td><td>未接線</td></tr></tbody></table></div></div><div><h3>事件與市場證據</h3><p class="empty">尚未連接新聞或官方公告來源。</p><p class="muted">來源、事件時間、取得時間及反證將在此顯示。</p></div></div></section>
-<section id="decision" class="panel"><div class="heading"><h2>決策與風控</h2><span class="pill">固定情境示範</span></div><p class="muted">測試獨立風控規則，不執行訂單，不使用市場價格。預設風險預算為示意帳戶權益 1%，含成本；不保證真實損失上限。</p><div class="controls"><label for="scenario">測試情境</label><select id="scenario"><option value="normal">正常意圖</option><option value="stale">過期行情</option><option value="risk">超出風險預算</option><option value="halt">系統停機</option></select><button id="run" type="button">執行離線風控示範</button></div><div id="result" class="result" role="status" aria-live="polite">等待執行示範</div></section>
-<section id="execution" class="panel"><div class="heading"><h2>執行與持倉</h2><span class="pill">OFF</span></div><div class="split"><div><h3>執行權威</h3><p class="empty">未建立自動模擬撮合服務。</p></div><div><h3>帳本與對帳</h3><p class="empty">未接帳本；不顯示假成交與假收益。</p></div></div></section>
-<section id="research" class="panel"><div class="heading"><h2>研究與驗收</h2><span class="pill">M0 基礎</span></div><ol class="steps"><li>新介面與治理：基礎原型</li><li>公開行情及事件：待開發</li><li>AI 決策與量化：待開發</li><li>自動紙上執行及持久帳本：待開發</li><li>完整風控與前向驗收：待完成</li><li>實盤：未授權、未實作</li></ol></section>
-<footer>Crypto Lab · 研究原型 · 無實盤、無秘密、無行情串流</footer></main></div><script type="module" src="js/app.js"></script></body></html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Crypto Lab｜自主交易研究</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<header><div class="top"><a class="brand" href="#overview">Crypto Lab</a><div class="system"><span id="mode">PAPER / OFF</span><span>離線原型</span></div></div></header>
+<div class="layout">
+<nav aria-label="主要導覽">
+  <a href="#overview" data-route="overview" aria-current="page"><span aria-hidden="true">⌂</span>總覽</a>
+  <a href="#decision" data-route="decision"><span aria-hidden="true">◇</span>AI 決策</a>
+  <a href="#trade" data-route="trade"><span aria-hidden="true">↗</span>交易</a>
+  <a href="#flow" data-route="flow"><span aria-hidden="true">⌘</span>流程</a>
+  <a href="#settings" data-route="settings"><span aria-hidden="true">⚙</span>設定</a>
+</nav>
+<main>
+<p class="notice">系統未啟用 · 無即時行情、AI 或真實交易連線</p>
+<noscript><p>需啟用 JavaScript 才能切換頁面與執行離線測試。</p></noscript>
+<section id="overview" data-page aria-labelledby="overview-title">
+  <h1 id="overview-title" tabindex="-1">總覽</h1>
+  <div class="hero"><p class="muted">總資產（USDT）</p><p id="equity" class="balance">—</p><p class="muted">累計損益 —</p><div class="chart-empty">尚無可驗證的資產曲線</div><p class="small">研究本金設定：30 USDT · 非實際餘額</p></div>
+  <div class="block"><div class="line"><h2>AI 狀態</h2><span>未啟用</span></div><p class="muted">尚未連接模型與市場資料。</p><a href="#decision">查看 AI 決策</a></div>
+  <div class="block"><div class="line"><h2>目前持倉</h2><span>—</span></div><p class="muted">尚未連接帳本。</p><a href="#trade">查看交易</a></div>
+  <div class="block"><div class="line"><h2>系統流程</h2><span>未接線</span></div><a href="#flow">查看節點與故障位置</a></div>
+  <button class="wide" id="start-paper" disabled type="button" aria-describedby="start-note">啟動模擬交易</button><p class="small" id="start-note">模擬服務尚未建立。</p>
+</section>
+<section id="decision" data-page aria-labelledby="decision-title">
+  <h1 id="decision-title" tabindex="-1">AI 決策</h1>
+  <div class="hero"><p class="muted">最新判斷</p><h2 class="headline">尚無決策</h2><p>行情、時事與模型尚未接線，未產生交易訊號。</p></div>
+  <div class="block"><h2>判斷依據</h2><p class="muted">目前無來源、時間戳或可驗證證據。</p></div>
+  <details><summary>市場與時事情報</summary><div class="table-wrap"><table><thead><tr><th scope="col">觀察標的</th><th scope="col">價格</th><th scope="col">狀態</th></tr></thead><tbody><tr><td>BTC/USDT</td><td>—</td><td>未接線</td></tr><tr><td>ETH/USDT</td><td>—</td><td>未接線</td></tr><tr><td>SOL/USDT</td><td>—</td><td>未接線</td></tr></tbody></table></div><p class="muted">尚無新聞、公告或宏觀資料。</p></details>
+  <details><summary>量化研究與驗收</summary><p class="muted">目前僅 M0 離線原型；真實資料與前向驗證待完成。研究不代表實盤收益。</p></details>
+</section>
+<section id="trade" data-page aria-labelledby="trade-title">
+  <h1 id="trade-title" tabindex="-1">交易</h1>
+  <div class="hero"><p class="muted">累計損益（USDT）</p><p class="balance">—</p><p class="muted">未接帳本，無法計算績效。</p></div>
+  <div class="block"><div class="line"><h2>持倉</h2><span>—</span></div><p class="muted">帳本未接通，無可驗證持倉。</p></div>
+  <div class="block"><div class="line"><h2>訂單</h2><span>—</span></div><p class="muted">尚未建立自動模擬撮合服務。</p></div>
+  <details><summary>交易歷史與績效</summary><p class="muted">尚無可驗證的成交、費用及歷史績效。</p></details>
+</section>
+<section id="flow" data-page aria-labelledby="flow-title">
+  <h1 id="flow-title" tabindex="-1">流程</h1>
+  <div class="line"><h2 id="flow-mode">系統架構 · 未接線</h2><span id="flow-count">0 / 8 節點已驗證運行</span></div>
+  <p id="flow-summary" class="muted" role="status" aria-live="polite">目前沒有實際執行紀錄。點選節點可查看職責與阻塞原因。</p>
+  <div class="flow-legend" aria-label="節點狀態"><span class="ok">✓ 通過</span><span class="wait">○ 待執行</span><span class="error">× 失敗</span><span class="blocked">⊘ 阻塞</span><span class="off">— 未接線</span></div>
+  <div id="flow-canvas" class="canvas" aria-label="交易流程圖">
+    <div class="source-grid">
+      <button class="node" data-node="market" type="button"><span class="node-name">市場行情</span><span class="node-state">— 未接線</span></button>
+      <button class="node" data-node="news" type="button"><span class="node-name">時事情報</span><span class="node-state">— 未接線</span></button>
+    </div>
+    <svg class="merge" viewBox="0 0 240 32" preserveAspectRatio="none" aria-hidden="true"><path d="M60 0V16H180V0M120 16V32"/></svg>
+    <button class="node" data-node="event" type="button"><span class="node-name">事件觸發</span><span class="node-state">— 未接線</span></button>
+    <div class="edge" aria-hidden="true">↓</div>
+    <button class="node" data-node="ai" type="button"><span class="node-name">AI 決策</span><span class="node-state">— 未接線</span></button>
+    <div class="edge" aria-hidden="true">↓</div>
+    <button class="node" data-node="quant" type="button"><span class="node-name">量化驗證</span><span class="node-state">— 未接線</span></button>
+    <div class="edge" aria-hidden="true">↓</div>
+    <button class="node" data-node="risk" type="button"><span class="node-name">獨立風控</span><span class="node-state">— 未接線</span></button>
+    <div class="edge" aria-hidden="true">↓</div>
+    <button class="node" data-node="execution" type="button"><span class="node-name">紙上執行</span><span class="node-state">— 未接線</span></button>
+    <div class="edge" aria-hidden="true">↓</div>
+    <button class="node" data-node="audit" type="button"><span class="node-name">帳務與稽核</span><span class="node-state">— 未接線</span></button>
+  </div>
+  <div class="block" id="node-detail" aria-live="polite"><h2 id="node-title">節點詳情</h2><p id="node-description">請選擇流程節點。</p><p id="node-reason" class="muted">無執行證據。</p><p class="small">最後執行：—　耗時：—</p></div>
+  <details><summary>離線故障定位示範</summary><p class="muted">僅執行固定風控 fixture，其餘流程節點不是實際執行。通過不代表下單。</p><div class="controls"><label for="flow-scenario">情境</label><select id="flow-scenario"><option value="normal">正常意圖</option><option value="stale">行情過期</option><option value="risk">超出風險預算</option><option value="halt">系統停機</option></select><button id="flow-run" type="button">執行示範</button><button id="flow-reset" type="button">返回系統架構</button></div></details>
+</section>
+<section id="settings" data-page aria-labelledby="settings-title">
+  <h1 id="settings-title" tabindex="-1">設定</h1>
+  <div class="block"><div class="line"><h2>AI 模型</h2><span>未連接</span></div><div class="line"><h2>行情 API</h2><span>未連接</span></div><div class="line"><h2>風控</h2><span>僅離線測試</span></div><div class="line"><h2>交易模式</h2><span>紙上原型／停用</span></div></div>
+  <div class="block"><h2>系統控制</h2><p class="muted">服務未建立，無遠端控制權限。</p><div class="controls"><button id="stop-system" disabled type="button">停止服務</button><button id="emergency-stop" disabled type="button">緊急停止</button></div><p class="small">未接線，不能用此介面停止外部服務。</p></div>
+  <details id="advanced"><summary>進階 · 離線風控測試</summary><p class="muted">固定情境，不送單。預估風險預算為示意權益 1%，含成本，不保證實際損失上限。</p><div class="controls"><label for="scenario">情境</label><select id="scenario"><option value="normal">正常意圖</option><option value="stale">過期行情</option><option value="risk">超出風險預算</option><option value="halt">系統停機</option></select><button id="run" type="button">執行離線測試</button></div><div id="result" role="status" aria-live="polite">等待測試</div></details>
+  <details><summary>系統日誌與診斷</summary><p class="muted">尚未連接服務日誌或稽核帳本。</p><a href="#flow">查看流程</a></details>
+</section>
+<footer>Crypto Lab · 研究原型</footer>
+</main></div><script type="module" src="js/app.js"></script></body>
+</html>

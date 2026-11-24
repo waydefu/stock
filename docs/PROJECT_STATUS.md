@@ -6,7 +6,8 @@
 - 舊台美股完整封存，不執行其測試或 deployment。新系統測試/CI 結果以最新 PR 與 workflow 證據為準。
 - 研究 R1–20 的結果為探索性，不等於交易策略已晉升；前向尚未取得未來資料。
 
-- Native 第二輪：Quality、Browser E2E、Dependency Review、CodeQL 通過；Windows/Android 均於上游 Tauri 相依編譯失敗。已對齊 Core/CLI/Build 版本，等待同一新提交重新驗證。
+- Native 歷史驗收：b22bfd4 的 Web CI 及 Windows/Android 建置通過，artifact run 45364864648；不代表本次 UI 修改的驗收。
+- #70：M0 先落地四個極簡主頁及獨立流程頁，提供八節點架構、可點選詳情、真正執行單一風控 fixture 的故障定位示範；全鏈路運行紀錄、真實時間與後端接線尚未完成。新 CI 待驗證。
 
 ## Scope
 離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。

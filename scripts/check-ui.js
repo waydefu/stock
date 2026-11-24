@@ -1,1 +1,12 @@
-import {readFileSync} from "node:fs";import assert from "node:assert/strict";const h=readFileSync("index.html","utf8"),c=readFileSync("css/styles.css","utf8");for(const x of ['lang="zh-Hant"','id="mode"','PAPER / OFF','id="scenario"','id="result"','role="status"','scope="col"','無即時行情'])assert.ok(h.includes(x),x);assert.ok(c.includes("prefers-reduced-motion"));assert.ok(c.includes("focus-visible"));assert.ok(c.includes("@media"));console.log("UI static PASS");
+import {readFileSync} from "node:fs";
+import assert from "node:assert/strict";
+const h=readFileSync("index.html","utf8"),c=readFileSync("css/styles.css","utf8");
+for(const x of ['lang="zh-Hant"','id="mode"','PAPER / OFF','id="scenario"','id="result"','role="status"','scope="col"','無即時行情'])assert.ok(h.includes(x),x);
+const routes=["overview","decision","trade","flow","settings"];
+assert.deepEqual([...h.matchAll(/data-route="([^"]+)"/g)].map(m=>m[1]),routes);
+assert.deepEqual([...h.matchAll(/<section id="([^"]+)" data-page/g)].map(m=>m[1]),routes);
+assert.equal([...h.matchAll(/data-node="/g)].length,8);
+for(const x of ["start-paper","stop-system","emergency-stop"])assert.match(h,new RegExp('<button[^>]+id="'+x+'"[^>]*disabled'));
+assert.match(h,/id="equity" class="balance">—/);
+for(const x of ["prefers-reduced-motion","focus-visible","@media","safe-area-inset-bottom"])assert.ok(c.includes(x),x);
+console.log("UI static PASS");
