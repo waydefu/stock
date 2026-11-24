@@ -12,6 +12,16 @@
     "check:static": "node scripts/check-static.js",
     "check:ui": "node scripts/check-ui.js",
     "check:status": "node scripts/check-status.js",
-    "e2e": "node tests/e2e/run-e2e.js"
+    "e2e": "node tests/e2e/run-e2e.js",
+    "stage:web": "node scripts/stage-web.js",
+    "tauri": "tauri",
+    "native:icons": "tauri icon assets/app-icon.svg",
+    "native:windows": "tauri build --ci --bundles nsis",
+    "native:android:init": "tauri android init --ci",
+    "native:android": "tauri android build --ci --debug --apk --target aarch64",
+    "check:packaging": "node scripts/check-packaging.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
   }
 }

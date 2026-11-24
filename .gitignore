@@ -8,3 +8,11 @@ coverage/
 playwright-report/
 test-results/
 public/
+dist/
+native-artifacts/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/
+*.jks
+*.keystore
+keystore.properties

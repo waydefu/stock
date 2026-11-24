@@ -58,9 +58,15 @@ jobs:
       - name: Check status sync gate
         run: npm run check:status
 
+      - name: Check packaging isolation
+        run: npm run check:packaging
+
+      - name: Stage shared UI
+        run: npm run stage:web
+
       - name: Smoke-test static server
         run: |
-          python3 -m http.server 4173 --directory . > /tmp/stock-http.log 2>&1 &
+          python3 -m http.server 4173 --directory dist > /tmp/stock-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
           for attempt in 1 2 3 4 5; do

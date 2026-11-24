@@ -7,3 +7,4 @@
 - [paper-execution](paper-execution/SKILL.md) — 模擬與對帳
 - [ui-workstation](ui-workstation/SKILL.md) — 交易工作台
 - [release-review](release-review/SKILL.md) — PR 與驗收
+- [native-release](native-release/SKILL.md) — Web／EXE／APK 跨平台交付

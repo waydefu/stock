@@ -9,6 +9,9 @@ Node.js 24、零 runtime 依賴。
 - `python3 -m http.server 8080`：開啟 http://localhost:8080/。
 - `npm run e2e`：需另裝 Playwright 與 Chromium，CI 安裝。
 
+## 跨平台交付
+同一份 UI 可由 GitHub Pages、Tauri Windows EXE/NSIS、Android ARM64 debug APK 使用。Native packages 在 PR/main 建置測試 artifact；維護者明確建立 preview tag 才發布預覽版。正式簽章、依賴鎖定及真機驗收待完成。詳見 [部署與發行規格](docs/DEPLOYMENT.md)。
+
 ## 文件
 - [專案狀態](docs/PROJECT_STATUS.md)｜唯一現況來源
 - [架構與路線圖](docs/ARCHITECTURE.md)
