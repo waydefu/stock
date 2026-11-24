@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileKeyValueStorage, acquireExclusiveFileLease } from "../server/file-kv-storage.js";
@@ -71,6 +71,33 @@ test("lease owner mismatch refuses to delete another instance lock", () => {
       () => lease.release(),
       (error) => error?.code === "DURABLE_STORAGE_LOCKED",
     );
+  } finally {
+    rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
+test("failed write or removal leaves committed in-memory values intact", () => {
+  const t = tempPath();
+  try {
+    const storage = new FileKeyValueStorage(t.file);
+    storage.setItem("paper", "committed");
+    mkdirSync(`${t.file}.tmp`);
+    assert.throws(() => storage.setItem("paper", "uncommitted"), (error) => error.code === "DURABLE_STORAGE_FAILED");
+    assert.equal(storage.getItem("paper"), "committed");
+    assert.throws(() => storage.removeItem("paper"), (error) => error.code === "DURABLE_STORAGE_FAILED");
+    assert.equal(storage.getItem("paper"), "committed");
+    assert.equal(new FileKeyValueStorage(t.file).getItem("paper"), "committed");
+  } finally {
+    rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
+test("file storage preserves special property names as ordinary string keys", () => {
+  const t = tempPath();
+  try {
+    const storage = new FileKeyValueStorage(t.file);
+    storage.setItem("__proto__", "ordinary");
+    assert.equal(new FileKeyValueStorage(t.file).getItem("__proto__"), "ordinary");
   } finally {
     rmSync(t.dir, { recursive: true, force: true });
   }

@@ -5,7 +5,7 @@
 // - STATUS 必須保留三個固定段落：Scope、Known gaps、Enforcement。
 // - push 到 main（無 base ref）直接通過：合併前 PR 階段已把關。
 // 用法：node scripts/check-status.js [--base <branch>]（CI 由 npm run check:status 呼叫）
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const TRIGGER_PREFIXES = ["js/", "tests/", "server/", "scripts/", "package.json", "index.html", "css/", ".github/workflows/"];
@@ -20,24 +20,18 @@ const STALE_PATTERNS = [
   { re: /Last verified[^\n]*\b[0-9a-f]{7,40}\b/i, hint: "手寫 commit SHA（由 CI 產生）" },
 ];
 
-function sh(command) {
-  return execSync(command, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+function git(...args) {
+  return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 function changedFiles(base, head) {
-  try {
-    sh(`git fetch --no-tags --depth=1 origin ${base}`);
-  } catch {
-    console.log(`CHECK-STATUS SKIP：抓不到 base ${base}（非標準 PR 環境），改由人工確認 STATUS`);
-    return null;
-  }
-  try {
-    const out = sh(`git diff --name-only origin/${base}..${head}`);
-    return out ? out.split("\n").map((line) => line.trim()).filter(Boolean) : [];
-  } catch {
-    console.log("CHECK-STATUS SKIP：無法計算 diff，改由人工確認 STATUS");
-    return null;
-  }
+  // Never interpolate an externally supplied branch name into a shell command.
+  // Fetch the exact ref explicitly; shallow PR checkouts may lack origin/<base>.
+  git("check-ref-format", `refs/heads/${base}`);
+  const remote = `refs/remotes/origin/${base}`;
+  git("fetch", "--no-tags", "--depth=1", "origin", `+refs/heads/${base}:${remote}`);
+  const out = git("diff", "--name-only", "-z", `${remote}..${head}`, "--");
+  return out.split("\0").filter(Boolean);
 }
 
 function needsStatusUpdate(files) {
@@ -75,14 +69,23 @@ function main() {
   const args = process.argv.slice(2);
   const baseFlag = args.indexOf("--base");
   const base = baseFlag >= 0 && args[baseFlag + 1] ? args[baseFlag + 1] : process.env.GITHUB_BASE_REF;
-  if (!base) {
-    console.log("CHECK-STATUS PASS：非 PR 事件（main push），合併前已把關");
-    return;
-  }
-  const files = changedFiles(base, "HEAD");
-  if (files === null) return;
   const contentOk = checkStatusContent();
   if (!contentOk) process.exit(1);
+  if (!base) {
+    if (process.env.GITHUB_EVENT_NAME === "pull_request") {
+      console.error("CHECK-STATUS FAIL：PR 缺少 base ref");
+      process.exit(1);
+    }
+    console.log("CHECK-STATUS PASS：非 PR 事件，STATUS 內容契約已檢查");
+    return;
+  }
+  let files;
+  try {
+    files = changedFiles(base, "HEAD");
+  } catch {
+    console.error("CHECK-STATUS FAIL：無法驗證 base ref 或 diff；拒絕靜默放行");
+    process.exit(1);
+  }
   if (!needsStatusUpdate(files)) {
     console.log("CHECK-STATUS PASS：未觸及程式／測試／閘門");
     return;
@@ -90,7 +93,7 @@ function main() {
   // Dependabot 的機械式版本更新不改 scope／gaps，不該要求人手改文件；
   // 但內容契約（不得手寫過期數字）仍照跑。
   const headRef = process.env.GITHUB_HEAD_REF ?? "";
-  if (headRef.startsWith("dependabot/")) {
+  if (headRef.startsWith("dependabot/") && process.env.GITHUB_ACTOR === "dependabot[bot]") {
     console.log("CHECK-STATUS PASS：dependabot 機械式更新，不要求同步 STATUS（內容契約已檢查）");
     return;
   }

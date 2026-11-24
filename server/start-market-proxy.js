@@ -76,12 +76,14 @@ async function main() {
         console.log(JSON.stringify({ ...entry, at: new Date().toISOString() }));
       },
     });
-    await autoPaper.start();
+    const autoStatus = await autoPaper.start();
+    if (autoStatus?.fatal) throw new Error(`Auto Paper startup fatal: ${autoStatus.fatal.code}`);
     if (autoPaper.enabled) {
       console.log(JSON.stringify({ component: "server-auto-paper", event: "RUNTIME_READY", status: autoPaper.status(), at: new Date().toISOString() }));
     }
   } catch (error) {
     console.error(`server-auto-paper refusing to start: ${error?.message ?? "unknown"}`);
+    try { await autoPaper?.stop?.(); } catch { /* best effort */ }
     try { streams.shutdown(); } catch { /* best effort */ }
     try { await running.close(); } catch { /* best effort */ }
     process.exitCode = 1;
@@ -95,7 +97,7 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     staleProbe.stop();
-    autoPaper?.stop?.();
+    await autoPaper?.stop?.();
     streams.shutdown();
     await running.close();
     process.exitCode = 0;

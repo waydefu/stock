@@ -123,9 +123,9 @@ export class FileKeyValueStorage {
       } catch (error) {
         throw new DurableStorageError(`durable storage 無法讀取／解析：${error.message}`, error);
       }
-      this.#values = { ...validatePayload(parsed, this.#filePath).values };
+      this.#values = Object.assign(Object.create(null), validatePayload(parsed, this.#filePath).values);
     } else {
-      this.#values = {};
+      this.#values = Object.create(null);
       this.#flush();
     }
   }
@@ -136,21 +136,25 @@ export class FileKeyValueStorage {
   }
 
   setItem(key, value) {
-    this.#values[String(key)] = String(value);
-    this.#flush();
+    const next = Object.assign(Object.create(null), this.#values);
+    next[String(key)] = String(value);
+    this.#flush(next);
+    this.#values = next;
   }
 
   removeItem(key) {
-    delete this.#values[String(key)];
-    this.#flush();
+    const next = Object.assign(Object.create(null), this.#values);
+    delete next[String(key)];
+    this.#flush(next);
+    this.#values = next;
   }
 
   describe() {
     return Object.freeze({ kind: "atomic-json-file", filePath: this.#filePath, version: FILE_STORAGE_VERSION });
   }
 
-  #flush() {
-    const payload = JSON.stringify({ version: FILE_STORAGE_VERSION, values: this.#values });
+  #flush(values = this.#values) {
+    const payload = JSON.stringify({ version: FILE_STORAGE_VERSION, values });
     const tempPath = `${this.#filePath}.tmp`;
     let fd = null;
     try {

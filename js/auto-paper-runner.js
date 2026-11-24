@@ -121,6 +121,7 @@ export class AutoPaperRunner {
   #sessionClock;
   #canTrade;
   #state;
+  #strictPersistence;
 
   constructor({
     strategy,
@@ -134,6 +135,7 @@ export class AutoPaperRunner {
     clock = () => Date.now(),
     sessionClock = new MarketSessionClock(),
     canTrade = () => true,
+    strictPersistence = false,
   } = {}) {
     validateStrategy(strategy);
     if (typeof allocate !== "function") throw new Error("AutoPaperRunner 需要 Portfolio allocator");
@@ -155,6 +157,7 @@ export class AutoPaperRunner {
     this.#clock = clock;
     this.#sessionClock = sessionClock;
     this.#canTrade = canTrade;
+    this.#strictPersistence = strictPersistence;
     this.#state = this.#load();
   }
 
@@ -165,13 +168,17 @@ export class AutoPaperRunner {
   #loadAll() {
     try {
       const raw = this.#storage.getItem(AUTO_PAPER_STORAGE_KEY);
-      if (!raw) return { version: AUTO_PAPER_STATE_VERSION, entries: {} };
+      if (raw === null) return { version: AUTO_PAPER_STATE_VERSION, entries: {} };
       const parsed = JSON.parse(raw);
-      if (parsed?.version !== AUTO_PAPER_STATE_VERSION || !parsed.entries || typeof parsed.entries !== "object") {
-        return { version: AUTO_PAPER_STATE_VERSION, entries: {} };
+      if (parsed?.version !== AUTO_PAPER_STATE_VERSION || !parsed.entries || typeof parsed.entries !== "object" || Array.isArray(parsed.entries)) {
+        throw new Error("invalid Auto Paper state container");
       }
       return parsed;
-    } catch {
+    } catch (error) {
+      if (this.#strictPersistence) {
+        if (String(error?.code ?? "").startsWith("DURABLE_")) throw error;
+        throw Object.assign(new Error("Auto Paper durable state invalid", { cause: error }), { code: "DURABLE_STATE_INVALID" });
+      }
       return { version: AUTO_PAPER_STATE_VERSION, entries: {} };
     }
   }
@@ -179,14 +186,33 @@ export class AutoPaperRunner {
   #load() {
     const all = this.#loadAll();
     const entry = all.entries[this.#key()];
-    return validEntry(entry, this.#strategy) ? entry : defaultEntry(this.#strategy);
+    if (!Object.hasOwn(all.entries, this.#key())) return defaultEntry(this.#strategy);
+    if (validEntry(entry, this.#strategy)) {
+      if (!this.#strictPersistence || (
+        Array.isArray(entry.workingOrderIds)
+        && entry.workingOrderIds.every((id) => typeof id === "string")
+        && (entry.lastEvaluatedBar === null || Number.isFinite(entry.lastEvaluatedBar))
+        && (entry.pendingIntent === null || (typeof entry.pendingIntent === "object" && entry.pendingIntent !== null && !Array.isArray(entry.pendingIntent)))
+        && (entry.approval === null || entry.approval?.pass === true)
+        && (entry.lifecycle !== LIFECYCLE.PAPER_ENABLED || entry.approval?.pass === true)
+      )) return entry;
+    }
+    if (this.#strictPersistence) {
+      throw Object.assign(new Error("Auto Paper durable entry invalid"), { code: "DURABLE_STATE_INVALID" });
+    }
+    return defaultEntry(this.#strategy);
   }
 
   #save() {
     this.#state.updatedAt = new Date(this.#clock()).toISOString();
     const all = this.#loadAll();
     all.entries[this.#key()] = this.#state;
-    this.#storage.setItem(AUTO_PAPER_STORAGE_KEY, JSON.stringify(all));
+    try {
+      this.#storage.setItem(AUTO_PAPER_STORAGE_KEY, JSON.stringify(all));
+    } catch (error) {
+      if (!this.#strictPersistence || String(error?.code ?? "").startsWith("DURABLE_")) throw error;
+      throw Object.assign(new Error("Auto Paper durable write failed", { cause: error }), { code: "DURABLE_STORAGE_FAILED" });
+    }
   }
 
   status() {
