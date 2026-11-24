@@ -33,7 +33,7 @@ export async function readMarketSnapshot({market,now,symbols=SYMBOLS}){
     if(receivedAt===null)return failure("INVALID_CLOCK");
     if(!r||typeof r.ok!=="boolean")return failure("INVALID_RESPONSE");
     if(r.ok&&(!validTimestamp(r.fetchedAt)||r.fetchedAt<requestedAt||r.fetchedAt>receivedAt))return failure("INVALID_CLOCK");
-    results.push({symbol,...(r.ok?normalizeTrade(symbol,r.data,r.fetchedAt):failure(r.code,r.retryAfterMs))});
+    results.push({symbol,...(r.ok?normalizeTrade(symbol,r.data,r.fetchedAt,checked.uncertaintyMs):failure(r.code,r.retryAfterMs))});
     if(!r.ok&&["RATE_LIMITED","IP_BANNED"].includes(r.code)){
       for(const remaining of watchlist.slice(results.length))results.push({symbol:remaining,...failure(r.code,r.retryAfterMs)});
       break;

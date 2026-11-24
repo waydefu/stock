@@ -21,6 +21,8 @@
 
 - PR #77 程式大掃：公開行情 watchlist、時間區間、到期與 sequence 契約、限流清理及時鐘失效補強，新增反例測試；新提交 CI 待驗，不變更交易權限或封存。
 
+- 修正（Refs #85）：成交時間的未來判斷改用已量測的時鐘不確定度（與 checkClock 一致），避免本機時鐘略慢時全部誤判 FUTURE_TRADE；過期判斷不變。
+
 - 鎖檔：自 #77 拆出完整已核對 Cargo.lock（SHA-256 e063673d…，與 Cargo.lock.sha256 相同）、固定 LF、cargo metadata 與兩平台建置 --locked。起因是 2026-11-24 上游解析漂移使所有 PR 的 Native 失敗（PR #83 run 45424021983）。同提交原生 CI 待驗；glib 公告（#82）經維護者核准單項例外：cargo tree 確認只在 Linux 依賴樹，Windows/Android 無；新增 Linux 交付前須移除。
 
 ## Scope

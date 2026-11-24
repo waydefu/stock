@@ -6,12 +6,12 @@ export const validTimestamp=v=>Number.isSafeInteger(v)&&v>=0;
 const positiveDecimal=v=>typeof v==="string"&&v.length<=64&&/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(v)&&/[1-9]/.test(v);
 export function validSymbol(symbol){return SYMBOLS.includes(symbol)}
 export function failure(code,retryAfterMs=null){return {ok:false,code,retryAfterMs}}
-export function normalizeTrade(symbol,rows,fetchedAt){
+export function normalizeTrade(symbol,rows,fetchedAt,toleranceMs=0){
   if(!validSymbol(symbol))return failure("UNSUPPORTED_SYMBOL");
-  if(!validTimestamp(fetchedAt)||!Array.isArray(rows)||rows.length!==1)return failure("INVALID_RESPONSE");
+  if(!validTimestamp(fetchedAt)||!validTimestamp(toleranceMs)||!Array.isArray(rows)||rows.length!==1)return failure("INVALID_RESPONSE");
   const r=rows[0];
   if(!r||!validTimestamp(r.a)||!validTimestamp(r.f)||!validTimestamp(r.l)||r.f>r.l||!validTimestamp(r.T)||!validTimestamp(r.T+MAX_AGE_MS)||!positiveDecimal(r.p)||!positiveDecimal(r.q)||typeof r.m!=="boolean")return failure("INVALID_TRADE");
-  if(r.T>fetchedAt)return failure("FUTURE_TRADE");
+  if(r.T>fetchedAt+toleranceMs)return failure("FUTURE_TRADE");
   if(fetchedAt-r.T>=MAX_AGE_MS)return failure("STALE_TRADE");
   return {ok:true,evidence:{schemaVersion:1,venue:"BINANCE",marketType:"SPOT",source:SOURCE,kind:"LAST_AGG_TRADE",symbol,sequence:String(r.a),eventAt:r.T,observedAt:r.T,fetchedAt,expiresAt:r.T+MAX_AGE_MS,quality:"FRESH",price:r.p,quantity:r.q,buyerMaker:r.m}};
 }

@@ -87,3 +87,10 @@ test("rate limit survives cleanup failure and invalid clock latches closed",asyn
   time-=1;assert.equal((await market.latestTrade("BTCUSDT")).code,"INVALID_CLOCK");
   time=at+20000;assert.equal((await market.latestTrade("BTCUSDT")).code,"INVALID_CLOCK");assert.equal(calls,1);
 });
+test("trade time tolerates measured clock uncertainty (#85)",async()=>{
+  let local=at;const market=createBinanceRest({now:()=>local,transport:async(url)=>{local+=100;const server=local+300;const res=json(url.pathname.endsWith("/time")?{serverTime:server}:[{...row,T:server-5}]);local+=100;return res}});
+  assert.equal((await readMarketSnapshot({market,now:()=>local})).ok,true);
+  assert.equal(normalizeTrade("BTCUSDT",[{...row,T:at+401}],at,400).code,"FUTURE_TRADE");
+  assert.equal(normalizeTrade("BTCUSDT",[{...row,T:at+400}],at,400).ok,true);
+  assert.equal(normalizeTrade("BTCUSDT",[row],at,-1).code,"INVALID_RESPONSE");
+});
