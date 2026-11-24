@@ -39,4 +39,3 @@ jobs:
 
       - name: Run browser E2E
         run: node tests/e2e/run-e2e.js
-

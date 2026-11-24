@@ -9,7 +9,7 @@ try{
     const f=join(root,p);mkdirSync(dirname(f),{recursive:true});writeFileSync(f,p);
   }
   const out=stageWeb(root);
-  assert.deepEqual(readdirSync(out,{recursive:true}).map(String).filter(p=>WEB_ASSETS.includes(p)).sort(),[...WEB_ASSETS].sort());
+  assert.deepEqual(readdirSync(out,{recursive:true}).map(p=>String(p).replaceAll("\\","/")).filter(p=>WEB_ASSETS.includes(p)).sort(),[...WEB_ASSETS].sort());
   assert.deepEqual(readdirSync(out).sort(),["css","index.html","js"]);
   assert.deepEqual(readdirSync(join(out,"css")),["styles.css"]);
   assert.deepEqual(readdirSync(join(out,"js")).sort(),["app.js","paper.js"]);
