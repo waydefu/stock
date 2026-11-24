@@ -35,6 +35,7 @@ jobs:
           config: |
             paths:
               - js
+              - server
               - tests
               - scripts
             paths-ignore:

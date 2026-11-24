@@ -3,7 +3,7 @@
 | ID | 風險 | 狀態 | 晉升前必備證據 |
 |---|---|---|---|
 | C-01 | AI 幻覺/外部指令注入 | OPEN | schema、來源與隔離負面測試 |
-| C-02 | 過期或亂序行情 | OPEN | WebSocket gap/reconnect、freshness |
+| C-02 | 過期或亂序行情 | OPEN | REST freshness/clock/sequence、批次最後評估、每筆時間區間、時鐘回退與到期邊界；WebSocket gap/reconnect 與實際 smoke 待驗 |
 | C-03 | 重複訂單/未知成交 | OPEN | durable idempotency、查詢對帳 |
 | C-04 | 資金與成本/最小名義額 | OPEN | 官方版本化規則、精度、極端情境；fixture 分項向上捨入與邊界測試，不代表實際撮合 |
 | C-05 | 強平/跳空/止損失敗 | OPEN | 風險引擎與實際規則、壓力測試 |

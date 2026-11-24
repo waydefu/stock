@@ -5,7 +5,7 @@
 | 工具 | 目的 | 權限 | 狀態 |
 |---|---|---|---|
 | fixture.paper | 固定情境自動紙上示範 | 離線、無秘密 | 已建立 |
-| market.public | Binance 公開報價/歷史/串流 | 唯讀 | 未接線 |
+| market.public | Binance 公開行情 | 唯讀 | REST 首批 CLI，未接 UI；歷史/WS 待實作 |
 | intelligence.public | 官方公告/新聞/宏觀 | 唯讀 | 未接線 |
 | quant.replay | 回測、成本、樣本外 | 研究隔離 | 規劃 |
 | ai.propose | 提出意圖或 HOLD | 無執行權限 | 規劃 |
