@@ -16,3 +16,10 @@ src-tauri/icons/
 *.jks
 *.keystore
 keystore.properties
+*.pfx
+*.p12
+*.pkcs12
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.serena/

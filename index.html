@@ -27,47 +27,47 @@
   <div class="block"><div class="line"><h2>系統流程</h2><span>未接線</span></div><a href="#flow">查看節點與故障位置</a></div>
   <button class="wide" id="start-paper" disabled type="button" aria-describedby="start-note">啟動模擬交易</button><p class="small" id="start-note">模擬服務尚未建立。</p>
 </section>
-<section id="decision" data-page aria-labelledby="decision-title">
+<section id="decision" data-page hidden aria-labelledby="decision-title">
   <h1 id="decision-title" tabindex="-1">AI 決策</h1>
   <div class="hero"><p class="muted">最新判斷</p><h2 class="headline">尚無決策</h2><p>行情、時事與模型尚未接線，未產生交易訊號。</p></div>
   <div class="block"><h2>判斷依據</h2><p class="muted">目前無來源、時間戳或可驗證證據。</p></div>
   <details><summary>市場與時事情報</summary><div class="table-wrap"><table><thead><tr><th scope="col">觀察標的</th><th scope="col">價格</th><th scope="col">狀態</th></tr></thead><tbody><tr><td>BTC/USDT</td><td>—</td><td>未接線</td></tr><tr><td>ETH/USDT</td><td>—</td><td>未接線</td></tr><tr><td>SOL/USDT</td><td>—</td><td>未接線</td></tr></tbody></table></div><p class="muted">尚無新聞、公告或宏觀資料。</p></details>
   <details><summary>量化研究與驗收</summary><p class="muted">目前僅 M0 離線原型；真實資料與前向驗證待完成。研究不代表實盤收益。</p></details>
 </section>
-<section id="trade" data-page aria-labelledby="trade-title">
+<section id="trade" data-page hidden aria-labelledby="trade-title">
   <h1 id="trade-title" tabindex="-1">交易</h1>
   <div class="hero"><p class="muted">累計損益（USDT）</p><p class="balance">—</p><p class="muted">未接帳本，無法計算績效。</p></div>
   <div class="block"><div class="line"><h2>持倉</h2><span>—</span></div><p class="muted">帳本未接通，無可驗證持倉。</p></div>
   <div class="block"><div class="line"><h2>訂單</h2><span>—</span></div><p class="muted">尚未建立自動模擬撮合服務。</p></div>
   <details><summary>交易歷史與績效</summary><p class="muted">尚無可驗證的成交、費用及歷史績效。</p></details>
 </section>
-<section id="flow" data-page aria-labelledby="flow-title">
+<section id="flow" data-page hidden aria-labelledby="flow-title">
   <h1 id="flow-title" tabindex="-1">流程</h1>
   <div class="line"><h2 id="flow-mode">系統架構 · 未接線</h2><span id="flow-count">0 / 8 節點已驗證運行</span></div>
   <p id="flow-summary" class="muted" role="status" aria-live="polite">目前沒有實際執行紀錄。點選節點可查看職責與阻塞原因。</p>
-  <div class="flow-legend" aria-label="節點狀態"><span class="ok">✓ 通過</span><span class="wait">○ 待執行</span><span class="error">× 失敗</span><span class="blocked">⊘ 阻塞</span><span class="off">— 未接線</span></div>
+  <div class="flow-legend" aria-label="節點狀態"><span class="ok">✓ 通過</span><span class="wait">○ 待執行</span><span class="rejected">⊘ 風控拒絕</span><span class="error">× 系統故障</span><span class="blocked">⊘ 阻塞</span><span class="off">— 未接線</span></div>
   <div id="flow-canvas" class="canvas" aria-label="交易流程圖">
     <div class="source-grid">
-      <button class="node" data-node="market" type="button"><span class="node-name">市場行情</span><span class="node-state">— 未接線</span></button>
-      <button class="node" data-node="news" type="button"><span class="node-name">時事情報</span><span class="node-state">— 未接線</span></button>
+      <button class="node" data-node="market" type="button" aria-pressed="false"><span class="node-name">市場行情</span><span class="node-state">— 未接線</span></button>
+      <button class="node" data-node="news" type="button" aria-pressed="false"><span class="node-name">時事情報</span><span class="node-state">— 未接線</span></button>
     </div>
     <svg class="merge" viewBox="0 0 240 32" preserveAspectRatio="none" aria-hidden="true"><path d="M60 0V16H180V0M120 16V32"/></svg>
-    <button class="node" data-node="event" type="button"><span class="node-name">事件觸發</span><span class="node-state">— 未接線</span></button>
+    <button class="node" data-node="event" type="button" aria-pressed="false"><span class="node-name">事件觸發</span><span class="node-state">— 未接線</span></button>
     <div class="edge" aria-hidden="true">↓</div>
-    <button class="node" data-node="ai" type="button"><span class="node-name">AI 決策</span><span class="node-state">— 未接線</span></button>
+    <button class="node" data-node="ai" type="button" aria-pressed="false"><span class="node-name">AI 決策</span><span class="node-state">— 未接線</span></button>
     <div class="edge" aria-hidden="true">↓</div>
-    <button class="node" data-node="quant" type="button"><span class="node-name">量化驗證</span><span class="node-state">— 未接線</span></button>
+    <button class="node" data-node="quant" type="button" aria-pressed="false"><span class="node-name">量化驗證</span><span class="node-state">— 未接線</span></button>
     <div class="edge" aria-hidden="true">↓</div>
-    <button class="node" data-node="risk" type="button"><span class="node-name">獨立風控</span><span class="node-state">— 未接線</span></button>
+    <button class="node" data-node="risk" type="button" aria-pressed="false"><span class="node-name">獨立風控</span><span class="node-state">— 未接線</span></button>
     <div class="edge" aria-hidden="true">↓</div>
-    <button class="node" data-node="execution" type="button"><span class="node-name">紙上執行</span><span class="node-state">— 未接線</span></button>
+    <button class="node" data-node="execution" type="button" aria-pressed="false"><span class="node-name">紙上執行</span><span class="node-state">— 未接線</span></button>
     <div class="edge" aria-hidden="true">↓</div>
-    <button class="node" data-node="audit" type="button"><span class="node-name">帳務與稽核</span><span class="node-state">— 未接線</span></button>
+    <button class="node" data-node="audit" type="button" aria-pressed="false"><span class="node-name">帳務與稽核</span><span class="node-state">— 未接線</span></button>
   </div>
   <div class="block" id="node-detail" aria-live="polite"><h2 id="node-title">節點詳情</h2><p id="node-description">請選擇流程節點。</p><p id="node-reason" class="muted">無執行證據。</p><p class="small">最後執行：—　耗時：—</p></div>
   <details><summary>離線故障定位示範</summary><p class="muted">僅執行固定風控 fixture，其餘流程節點不是實際執行。通過不代表下單。</p><div class="controls"><label for="flow-scenario">情境</label><select id="flow-scenario"><option value="normal">正常意圖</option><option value="stale">行情過期</option><option value="risk">超出風險預算</option><option value="halt">系統停機</option></select><button id="flow-run" type="button">執行示範</button><button id="flow-reset" type="button">返回系統架構</button></div></details>
 </section>
-<section id="settings" data-page aria-labelledby="settings-title">
+<section id="settings" data-page hidden aria-labelledby="settings-title">
   <h1 id="settings-title" tabindex="-1">設定</h1>
   <div class="block"><div class="line"><h2>AI 模型</h2><span>未連接</span></div><div class="line"><h2>行情 API</h2><span>未連接</span></div><div class="line"><h2>風控</h2><span>僅離線測試</span></div><div class="line"><h2>交易模式</h2><span>紙上原型／停用</span></div></div>
   <div class="block"><h2>系統控制</h2><p class="muted">服務未建立，無遠端控制權限。</p><div class="controls"><button id="stop-system" disabled type="button">停止服務</button><button id="emergency-stop" disabled type="button">緊急停止</button></div><p class="small">未接線，不能用此介面停止外部服務。</p></div>

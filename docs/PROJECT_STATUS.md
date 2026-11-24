@@ -11,6 +11,8 @@
 
 - Android APK：新增原生沉浸式全螢幕及四邊 WindowInsets 安全區 overlay；已提交程式，Kotlin 編譯、APK 產物及實機遮擋驗收待新 CI/真機證據。
 
+- M0 稽核：8b9d93a 的 Quality、Browser E2E、CodeQL、Dependency Review 已通過；Native 檢查中。已修正原型風控資料形狀/分項向上捨入、流程拒絕語義、初始頁與重設、發布目錄 E2E、封存 hash 與狀態同步閘門、憑證忽略。新提交須重新驗證。未有 native 真機、鎖檔與舊 Render 轉移證據。
+
 ## Scope
 離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
 

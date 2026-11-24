@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {readFileSync,readdirSync,mkdtempSync,rmSync,mkdirSync,writeFileSync} from "node:fs";
+import {readFileSync,readdirSync,mkdtempSync,rmSync,mkdirSync,writeFileSync,symlinkSync} from "node:fs";
 import {join,dirname} from "node:path";
 import {tmpdir} from "node:os";
 import {stageWeb,WEB_ASSETS} from "./stage-web.js";
@@ -14,6 +14,11 @@ try{
   assert.deepEqual(readdirSync(join(out,"css")),["styles.css"]);
   assert.deepEqual(readdirSync(join(out,"js")).sort(),["app.js","paper.js"]);
   for(const p of WEB_ASSETS)assert.equal(readFileSync(join(out,p),"utf8"),p);
+  if(process.platform!=="win32"){
+    const css=join(root,"css");rmSync(css,{recursive:true});mkdirSync(join(root,"outside"));
+    writeFileSync(join(root,"outside","styles.css"),"untrusted");symlinkSync(join(root,"outside"),css,"dir");
+    assert.throws(()=>stageWeb(root),/Invalid web asset/);
+  }
   const config=JSON.parse(readFileSync("src-tauri/tauri.conf.json","utf8"));
   const pkg=JSON.parse(readFileSync("package.json","utf8"));
   assert.equal(config.version,pkg.version);

@@ -45,6 +45,11 @@ function renderFlow(){
 for(const b of nodeButtons)b.addEventListener("click",()=>selectNode(b.dataset.node));
 function resetFlow(){
   states={};
+  selected=null;
+  for(const b of nodeButtons)b.setAttribute("aria-pressed","false");
+  $("node-title").textContent="節點詳情";
+  $("node-description").textContent="請選擇流程節點。";
+  $("node-reason").textContent="無執行證據。";
   $("flow-mode").textContent="系統架構 · 未接線";
   $("flow-count").textContent="0 / 8 節點已驗證運行";
   $("flow-summary").textContent="目前沒有實際執行紀錄。點選節點可查看職責與阻塞原因。";
@@ -55,13 +60,13 @@ $("flow-run").addEventListener("click",()=>{
   const r=fixture($("flow-scenario").value);
   const passed=r.code==="GATE_PASS";
   states={
-    risk:{state:passed?"ok":"error",label:passed?"✓ fixture 通過":"× fixture 拒絕",reason:(labels[r.code]??r.code)+"｜"+r.code},
+    risk:{state:passed?"ok":"rejected",label:passed?"✓ fixture 通過":"⊘ fixture 風控拒絕",reason:(labels[r.code]??r.code)+"｜"+r.code},
     execution:{state:"blocked",label:"⊘ 未執行",reason:passed?"僅風控示範，無撮合服務。":"風控拒絕 "+r.code+"；未執行訂單。"},
     audit:{state:"blocked",label:"⊘ 未執行",reason:"沒有成交，且持久帳本未建立。"}
   };
   $("flow-mode").textContent="離線故障定位示範 · 非實際流程";
   $("flow-count").textContent="1 / 8 節點執行 fixture；實際運行 0";
-  $("flow-summary").textContent=(passed?"離線風控通過":"離線風控拒絕")+"："+r.code+"。沒有下單；其餘節點未接線或未執行。";
+  $("flow-summary").textContent=(passed?"離線風控通過":"離線風控拒絕（正常保護）")+"："+r.code+"。沒有下單；其餘節點未接線或未執行。";
   renderFlow();selectNode("risk");
 });
 resetFlow();
