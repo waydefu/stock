@@ -17,6 +17,8 @@
 
 - PR #62 已合併；main c50f09a 的 Quality、Browser E2E、CodeQL、Native packages、Pages 成功。已實際下載 deb4b77 兩端 artifact，三個二進位檔 SHA-256 皆相符。M0 後續 PR 固定 npm lock、Cargo 解析雜湊前後檢查、移除未充分保護的自動 tag 發布。完整 Cargo.lock/Gradle 驗證、簽章、實機與舊 Render 處置仍待完成。
 
+- 鎖檔：自 #77 拆出完整已核對 Cargo.lock（SHA-256 e063673d…，與 Cargo.lock.sha256 相同）、固定 LF、cargo metadata 與兩平台建置 --locked。起因是 2026-11-24 上游解析漂移使所有 PR 的 Native 失敗（PR #83 run 45424021983）。同提交原生 CI 待驗；Dependency Review 預期因 glib（#82）失敗。
+
 ## Scope
 離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
 
