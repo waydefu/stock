@@ -36,7 +36,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify Cargo resolution before build
         run: |
-          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+          node scripts/check-native-lock.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo metadata --locked --format-version 1 --manifest-path src-tauri/Cargo.toml | Out-Null
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/check-native-lock.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -46,7 +48,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run native:icons
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run native:windows -- --target x86_64-pc-windows-msvc
+          npm run native:windows -- --target x86_64-pc-windows-msvc -- --locked
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Collect portable binary and installer
         shell: pwsh
@@ -111,10 +113,11 @@ jobs:
           node scripts/apply-android-overlay.js
       - name: Verify Cargo resolution before build
         run: |
-          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+          node scripts/check-native-lock.js
+          cargo metadata --locked --format-version 1 --manifest-path src-tauri/Cargo.toml > /dev/null
           node scripts/check-native-lock.js
       - name: Build debug APK
-        run: npm run native:android
+        run: npm run native:android -- -- --locked
       - name: Collect and verify ARM64 APK
         shell: bash
         run: |

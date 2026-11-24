@@ -19,6 +19,8 @@
 
 - M1 #64 首批：新增獨立 server/market 公開 REST last aggregate trade 證據、時鐘/新鮮度/序列判斷、固定 GET、超時/限流拒絕、手動 smoke 與反例測試；UI 仍 offline，尚無實際 smoke、WS、歷史、交易規則或常駐服務證據。加入批次最終新鮮度／時鐘回退檢查、backend 架構測試及 CodeQL server 範圍；原提交 88c0c3a 五項 CI 通過；同步最新 main 後須重新驗證。
 
+- PR #77 原生 CI run 45400689430 在兩平台 Cargo 解析雜湊閘門失敗；從 PR #76 成功 run 45376975327 的 Windows artifact 14911981758 取回原始 Cargo.lock（111058 bytes，SHA-256 與 ADR 0003 相符），提交完整 lock、固定 LF、以 cargo metadata --locked 及建置 --locked 取代動態解析，保留建置前後雜湊。新提交的兩平台 CI、Gradle、簽章及實機仍待驗證。
+
 ## Scope
 前端離線單次固定情境示範；僅現貨多頭意圖風控模型；後端僅手動公開 REST CLI，未驗證實際連線。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
 
