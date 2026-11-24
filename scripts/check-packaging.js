@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {readFileSync,readdirSync,mkdtempSync,rmSync,mkdirSync,writeFileSync,symlinkSync} from "node:fs";
-import {join,dirname} from "node:path";
+import {join,dirname,relative} from "node:path";
 import {tmpdir} from "node:os";
 import {stageWeb,WEB_ASSETS} from "./stage-web.js";
 const root=mkdtempSync(join(tmpdir(),"crypto-lab-stage-"));
@@ -9,10 +9,10 @@ try{
     const f=join(root,p);mkdirSync(dirname(f),{recursive:true});writeFileSync(f,p);
   }
   const out=stageWeb(root);
-  assert.deepEqual(readdirSync(out,{recursive:true}).map(p=>String(p).replaceAll("\\","/")).filter(p=>WEB_ASSETS.includes(p)).sort(),[...WEB_ASSETS].sort());
+  assert.deepEqual(readdirSync(out,{recursive:true,withFileTypes:true}).filter(e=>e.isFile()).map(e=>relative(out,join(e.parentPath,e.name)).replaceAll("\\","/")).sort(),[...WEB_ASSETS].sort());
   assert.deepEqual(readdirSync(out).sort(),["css","index.html","js"]);
   assert.deepEqual(readdirSync(join(out,"css")),["styles.css"]);
-  assert.deepEqual(readdirSync(join(out,"js")).sort(),["app.js","paper.js"]);
+  assert.deepEqual(readdirSync(join(out,"js")).sort(),["app.js","application","domain","ui"]);
   for(const p of WEB_ASSETS)assert.equal(readFileSync(join(out,p),"utf8"),p);
   if(process.platform!=="win32"){
     const css=join(root,"css");rmSync(css,{recursive:true});mkdirSync(join(root,"outside"));

@@ -15,3 +15,6 @@
 
 ## 代理分工
 Research agent：事件假說、反證、成本、樣本外；Data agent：來源、時間、品質；Decision agent：結構化意圖或 HOLD；Risk agent：獨立審核與否決；Execution agent：僅紙上模擬、冪等及對帳；UI agent：呈現真實狀態；Review agent：獨立測試與證據。角色不是 runtime 權限，現階段只是工作流程。
+
+## 模組化與 SoC
+先讀 docs/ARCHITECTURE.md 與 ADR 0002。domain 純規則；application 協調用例；ui 呈現；app.js composition root；native 僅平台殼。新增模組要更新 scripts/module-contract.js、單向依賴、測試及交付白名單，不可把業務邏輯塞回 UI 或跨越風控。執行 npm run check:architecture（亦包含於 check:static）。禁止以新架構名義擴充實盤權限。

@@ -1,4 +1,4 @@
-// Offline fixture only. Amounts are integer micro-USDT; no order API.
+// Pure offline risk policy. Integer micro-USDT; no DOM, I/O or execution.
 const safe = n => Number.isSafeInteger(n) && n >= 0;
 const reject = code => ({ status: "REJECTED", code });
 // Accept only data records, not inherited fields, arrays or executable getters.
@@ -32,13 +32,4 @@ export function assess(intent, ctx) {
   if(n+cost>c) return reject("CASH_LIMIT");
   if(loss*100n>e) return reject("RISK_BUDGET");
   return {status:"PAPER_ELIGIBLE",code:"GATE_PASS",loss:Number(loss),cost:Number(cost)};
-}
-export function fixture(scenario="normal") {
-  const now=100000, intent={action:"OPEN_LONG",symbol:"BTCUSDT",notional:6000000,stopBps:200,createdAt:now,expiresAt:now+30000,evidenceId:"fixture-v1"};
-  const context={mode:"PAPER",source:"FIXTURE",halted:false,reconciled:true,now,quoteAt:now,equity:30000000,cash:30000000,positions:0};
-  if(scenario==="stale") context.quoteAt=0;
-  else if(scenario==="risk") intent.stopBps=900;
-  else if(scenario==="halt") context.halted=true;
-  else if(scenario!=="normal") return reject("UNKNOWN_FIXTURE");
-  return assess(intent,context);
 }

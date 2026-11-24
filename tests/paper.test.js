@@ -1,4 +1,4 @@
-import test from "node:test";import assert from "node:assert/strict";import {assess,fixture} from "../js/paper.js";
+import test from "node:test";import assert from "node:assert/strict";import {assess} from "../js/domain/risk.js";import {fixture} from "../js/application/fixture.js";
 const base={action:"OPEN_LONG",symbol:"BTCUSDT",notional:6000000,stopBps:200,createdAt:1000,expiresAt:2000,evidenceId:"fixture"};
 const ctx={mode:"PAPER",source:"FIXTURE",halted:false,reconciled:true,now:1000,quoteAt:1000,equity:30000000,cash:30000000,positions:0};
 test("fixture pass and adverse cases",()=>{assert.equal(fixture().status,"PAPER_ELIGIBLE");assert.equal(fixture().loss,156000);assert.equal(fixture("stale").code,"STALE_QUOTE");assert.equal(fixture("risk").code,"RISK_BUDGET");assert.equal(fixture("halt").code,"HALTED")});

@@ -2,7 +2,9 @@ import {copyFileSync,lstatSync,mkdirSync,rmSync,realpathSync} from "node:fs";
 import {dirname,join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
-export const WEB_ASSETS=Object.freeze(["index.html","css/styles.css","js/app.js","js/paper.js"]);
+import {MODULES} from "./module-contract.js";
+
+export const WEB_ASSETS=Object.freeze(["index.html","css/styles.css",...MODULES]);
 export function stageWeb(root){
   root=realpathSync(root);
   const output=join(root,"dist");
@@ -20,5 +22,5 @@ export function stageWeb(root){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   stageWeb(fileURLToPath(new URL("..",import.meta.url)));
-  console.log("Web distribution staged: 4 allowlisted assets");
+  console.log("Web distribution staged: "+WEB_ASSETS.length+" allowlisted assets");
 }
