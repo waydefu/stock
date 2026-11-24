@@ -108,7 +108,6 @@ jobs:
           npm run native:icons
           npm run native:android:init
           npm run native:icons
-          node scripts/apply-android-overlay.js
       - name: Verify Cargo resolution before build
         run: |
           cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
