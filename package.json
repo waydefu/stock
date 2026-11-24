@@ -20,7 +20,8 @@
     "native:android:init": "tauri android init --ci && node scripts/apply-android-overlay.js",
     "native:android": "node scripts/apply-android-overlay.js && tauri android build --ci --debug --apk --target aarch64",
     "check:packaging": "node scripts/check-packaging.js",
-    "check:architecture": "node scripts/check-architecture.js"
+    "check:architecture": "node scripts/check-architecture.js",
+    "market:smoke": "node scripts/market-smoke.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6"

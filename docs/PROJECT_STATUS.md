@@ -15,8 +15,10 @@
 
 - SoC：拆分風控 domain、fixture 與流程 projection application、DOM/router/settings/flow UI、composition root；新增模組契約閘門及純流程單元測試；保持離線，不增加網路、執行、帳本或實盤權限。初次 SoC 提交 Quality 與 Dependency Review 已通過；新增獨立層級方向與反例測試，最新提交須重新驗證。
 
+- M1 #64 首批：新增獨立 server/market 公開 REST last aggregate trade 證據、時鐘/新鮮度/序列判斷、固定 GET、超時/限流拒絕、手動 smoke 與反例測試；UI 仍 offline，尚無實際 smoke、WS、歷史、交易規則或常駐服務證據。CI 待驗證。
+
 ## Scope
-離線單次固定情境示範；僅現貨多頭意圖風控模型。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
+離線單次固定情境示範；僅現貨多頭意圖風控模型。前端無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
 
 ## Known gaps
 M1 公開行情與事件資料、M2 AI 決策與量化驗證、M3 durable paper ledger/撮合、M4 安全/風控/故障驗收、M5 未來全自動實盤的另案審批。未完成時不得顯示運作中或可交易。舊 Render 服務合併前需處置。Native 正式簽章、可重現依賴鎖與實機驗收未完成，見 DEPLOYMENT.md。
