@@ -1,24 +1,25 @@
-# Node
 node_modules/
-npm-debug.log*
-
-# Secrets and local credentials
 .env
 .env.*
-!.env.example
 *.pem
-*.pfx
 *.key
-
-# OS / editor
+*.sqlite*
+coverage/
+playwright-report/
+test-results/
+public/
+dist/
+native-artifacts/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/
+*.jks
+*.keystore
+keystore.properties
+*.pfx
+*.p12
+*.pkcs12
+npm-debug.log*
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
-
-# Test / coverage output
-coverage/
-.nyc_output/
-
-# Local MCP tool caches
 .serena/

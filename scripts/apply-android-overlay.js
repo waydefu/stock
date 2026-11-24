@@ -1,0 +1,17 @@
+import {copyFileSync,readFileSync,existsSync} from "node:fs";
+import assert from "node:assert/strict";
+import {join} from "node:path";
+import {fileURLToPath} from "node:url";
+const root=fileURLToPath(new URL("..",import.meta.url));
+const config=JSON.parse(readFileSync(join(root,"src-tauri/tauri.conf.json"),"utf8"));
+assert.equal(config.identifier,"io.github.waydefu.cryptolab");
+const target=join(root,"src-tauri/gen/android/app/src/main/java",...config.identifier.split("."),"MainActivity.kt");
+const source=join(root,"src-tauri/android-overlay/MainActivity.kt");
+assert.ok(existsSync(target),"Android project missing; run native:android:init first");
+const existing=readFileSync(target,"utf8");
+assert.match(existing,/class MainActivity\s*:\s*TauriActivity\s*\(\s*\)/);
+const overlay=readFileSync(source,"utf8");
+assert.ok(overlay.startsWith("package "+config.identifier+"\n"));
+copyFileSync(source,target);
+assert.equal(readFileSync(target,"utf8"),overlay);
+console.log("Android immersive activity overlay applied");

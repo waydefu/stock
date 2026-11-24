@@ -1,119 +1,32 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { MemoryStorage, PaperBroker } from "../js/paper.js";
-import { AuditLog } from "../js/risk.js";
-
-test("paper broker records a buy and updates cash and position", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
-  const result = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100, clientOrderId: "paper-test-1" });
-  assert.equal(result.status, "FILLED");
-  assert.deepEqual(result.events.map((event) => event.type), ["VALIDATE", "FILL"]);
-  const account = broker.snapshot("TW");
-  assert.equal(account.positions["2330"].qty, 10);
-  assert.equal(account.cash, 999000);
-  assert.equal(account.orders.length, 1);
+import test from "node:test";import assert from "node:assert/strict";import {assess} from "../js/domain/risk.js";import {fixture} from "../js/application/fixture.js";
+const base={action:"OPEN_LONG",symbol:"BTCUSDT",notional:6000000,stopBps:200,createdAt:1000,expiresAt:2000,evidenceId:"fixture"};
+const ctx={mode:"PAPER",source:"FIXTURE",halted:false,reconciled:true,now:1000,quoteAt:1000,equity:30000000,cash:30000000,positions:0};
+test("fixture pass and adverse cases",()=>{assert.equal(fixture().status,"PAPER_ELIGIBLE");assert.equal(fixture().loss,156000);assert.equal(fixture("stale").code,"STALE_QUOTE");assert.equal(fixture("risk").code,"RISK_BUDGET");assert.equal(fixture("halt").code,"HALTED")});
+for(const [name,intent,context,code] of [
+["live",{}, {mode:"LIVE"},"MODE_DENIED"],["feed",{}, {source:"LIVE"},"MODE_DENIED"],["unknown account",{}, {reconciled:false},"ACCOUNT_UNVERIFIED"],["future quote",{}, {quoteAt:1001},"STALE_QUOTE"],["expired",{expiresAt:1000},{},"INTENT_EXPIRED"],["no evidence",{evidenceId:""},{},"MISSING_EVIDENCE"],["fraction",{notional:6000000.1},{},"INVALID_AMOUNTS"],["dust",{notional:5000000},{},"MIN_NOTIONAL_BUFFER"],["over exposure",{notional:19000000},{},"EXPOSURE_LIMIT"],["insufficient cash",{}, {cash:6000000},"CASH_LIMIT"],["existing position",{}, {positions:1},"POSITION_LIMIT"],["short not supported",{action:"OPEN_SHORT"},{},"UNSUPPORTED_INTENT"],["hold",{action:"HOLD"},{},"HOLD"]])test(name,()=>assert.equal(assess({...base,...intent},{...ctx,...context}).code,code));
+test("deterministic/no state mutation",()=>{const i=Object.freeze({...base}),c=Object.freeze({...ctx});assert.deepEqual(assess(i,c),assess(i,c));assert.equal(c.cash,30000000)});
+test("reject malformed and inherited input without invoking getters",()=>{
+  const inherited=Object.create(base);
+  const accessor={...base,get notional(){throw new Error("getter executed")}};
+  for(const value of [null,[],inherited,accessor])assert.equal(assess(value,ctx).code,"INVALID_INPUT");
+  const missing={...base};delete missing.notional;
+  assert.equal(assess(missing,ctx).code,"INVALID_INPUT");
+  const missingCtx={...ctx};delete missingCtx.positions;
+  assert.equal(assess(base,missingCtx).code,"INVALID_INPUT");
 });
-
-test("paper broker rejects a cash overdraft and does not mutate state", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage() });
-  assert.throws(() => broker.placeOrder({ market: "US", symbol: "NVDA", side: "buy", qty: 1000, price: 200, clientOrderId: "paper-overdraft" }), /現金不足/);
-  assert.equal(broker.snapshot("US").orders.length, 0);
+test("freshness and intent expiry boundaries",()=>{
+  assert.equal(assess({...base,createdAt:16000,expiresAt:76000},{...ctx,now:16000,quoteAt:1000}).code,"GATE_PASS");
+  assert.equal(assess({...base,createdAt:16001,expiresAt:76001},{...ctx,now:16001,quoteAt:1000}).code,"STALE_QUOTE");
+  assert.equal(assess({...base,expiresAt:61001},ctx).code,"INTENT_EXPIRED");
+  assert.equal(assess({...base,createdAt:1001},ctx).code,"INTENT_EXPIRED");
 });
-
-test("paper broker can reset one isolated market account", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage() });
-  broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1, price: 100, clientOrderId: "paper-reset" });
-  broker.reset("TW");
-  assert.equal(broker.snapshot("TW").cash, 1_000_000);
-  assert.deepEqual(broker.snapshot("TW").positions, {});
+test("minimum notional buffer boundary and independent conservative rounding",()=>{
+  assert.equal(assess({...base,notional:5882352},ctx).code,"MIN_NOTIONAL_BUFFER");
+  assert.equal(assess({...base,notional:5882353},ctx).code,"GATE_PASS");
+  const r=assess({...base,notional:6000001},ctx);
+  assert.equal(r.code,"GATE_PASS");assert.equal(r.cost,18001);assert.equal(r.loss,156003);
 });
-
-test("paper broker discards malformed persisted account state", () => {
-  const storage = new MemoryStorage();
-  storage.setItem("tw-us-stock-paper-v1", JSON.stringify({
-    schemaVersion: 1,
-    TW: { cash: "not-a-number", positions: { "2330": { qty: -10, avgCost: "bad" } }, orders: "bad" },
-  }));
-  const broker = new PaperBroker({ storage });
-  const account = broker.snapshot("TW");
-  assert.equal(account.cash, 1_000_000);
-  assert.deepEqual(account.positions, {});
-  assert.deepEqual(account.orders, []);
+test("unknown fixture and HOLD in denied mode",()=>{
+  assert.equal(fixture("unknown").code,"UNKNOWN_FIXTURE");
+  assert.equal(assess({action:"HOLD"},{...ctx,mode:"LIVE"}).code,"MODE_DENIED");
 });
-
-test("paper broker discards malformed persisted orders and duplicate ids", () => {
-  const storage = new MemoryStorage();
-  storage.setItem("tw-us-stock-paper-v1", JSON.stringify({
-    schemaVersion: 1,
-    TW: {
-      cash: 999_000,
-      realizedPnl: 0,
-      totalFees: 0,
-      feeModel: "zero-fee-paper",
-      positions: {},
-      orders: [{ id: "same", clientOrderId: "same-client", status: "FILLED", symbol: "2330", side: "buy", qty: -1, price: 100 }, { id: "same", clientOrderId: "same-client", status: "FILLED", symbol: "2330", side: "buy", qty: 1, price: 100 }],
-    },
-  }));
-  const account = new PaperBroker({ storage }).snapshot("TW");
-  assert.equal(account.cash, 1_000_000);
-  assert.deepEqual(account.orders, []);
-});
-
-test("paper broker applies the shared TW lot policy", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage() });
-  assert.throws(() => broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1000, price: 100, clientOrderId: "wrong-default-lot" }), (error) => error.code === "ODD_LOT_RANGE");
-  const regular = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 1000, price: 100, lot: "regular", clientOrderId: "regular-lot" });
-  assert.equal(regular.status, "FILLED");
-  assert.equal(regular.lot, "regular");
-});
-
-test("paper account invariants survive deterministic buy and full sell sequence", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
-  broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 10, price: 100, clientOrderId: "invariant-buy" });
-  broker.placeOrder({ market: "TW", symbol: "2330", side: "sell", qty: 10, price: 110, clientOrderId: "invariant-sell" });
-  const snapshot = broker.snapshot("TW", { "2330": { price: 110 } });
-  assert.equal(snapshot.positions["2330"], undefined);
-  assert.ok(Number.isFinite(snapshot.cash));
-  assert.ok(Number.isFinite(snapshot.equity));
-  assert.ok(snapshot.cash >= 0);
-});
-
-test("paper broker returns the original fill for a duplicate client order id", () => {
-  const broker = new PaperBroker({ storage: new MemoryStorage(), now: () => "2025-01-01T00:00:00.000Z" });
-  const first = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 2, price: 100, clientOrderId: "duplicate-1" });
-  const duplicate = broker.placeOrder({ market: "TW", symbol: "2330", side: "buy", qty: 99, price: 1, clientOrderId: "duplicate-1" });
-  assert.deepEqual(duplicate, first);
-  assert.equal(broker.snapshot("TW").positions["2330"].qty, 2);
-  assert.equal(broker.snapshot("TW").orders.length, 1);
-});
-
-test("paper broker emits PERSISTENCE_RESET audit event on schema version mismatch", () => {
-  const storage = new MemoryStorage();
-  // First, create a valid audit log with some events
-  const audit = new AuditLog({ storage, now: () => "2025-01-01T00:00:00.000Z" });
-  audit.record("SESSION_OPEN", { mode: "paper" });
-  audit.record("ORDER_ACCEPTED", { symbol: "2330" });
-
-  // Now write paper data with wrong schema version
-  storage.setItem("tw-us-stock-paper-v1", JSON.stringify({
-    schemaVersion: 999,
-    TW: { cash: 500000, positions: { "2330": { qty: 100, avgCost: 100 } }, orders: [] },
-  }));
-
-  // Create new PaperBroker - should trigger reset and emit PERSISTENCE_RESET
-  const broker = new PaperBroker({ storage });
-  const account = broker.snapshot("TW");
-
-  // Account should be reset to defaults
-  assert.equal(account.cash, 1_000_000);
-  assert.deepEqual(account.positions, {});
-
-  // Audit log should have PERSISTENCE_RESET event
-  const audit2 = new AuditLog({ storage, now: () => "2025-01-01T00:00:01.000Z" });
-  const events = audit2.list();
-  const resetEvent = events.find(e => e.event === "PERSISTENCE_RESET");
-  assert.ok(resetEvent, "PERSISTENCE_RESET event should exist");
-  assert.equal(resetEvent.details.reason, "schema_version_mismatch");
-  assert.equal(resetEvent.details.expected, 1);
-  assert.equal(resetEvent.details.found, 999);
-  });

@@ -23,7 +23,8 @@ jobs:
       - name: Checkout exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -49,24 +50,26 @@ jobs:
           set -o pipefail
           npm test 2>&1 | tee "$RUNNER_TEMP/test-output.txt"
 
-      - name: Check required static files and module paths
+      - name: Check active crypto workspace
         run: npm run check:static
 
       - name: Check UI quality gate
         run: npm run check:ui
 
       - name: Check status sync gate
+        env:
+          STATUS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run check:status
 
-      - name: Publish CI summary
-        if: always()
-        env:
-          TEST_OUTPUT_FILE: ${{ runner.temp }}/test-output.txt
-        run: node scripts/ci-summary.js
+      - name: Check packaging isolation
+        run: npm run check:packaging
+
+      - name: Stage shared UI
+        run: npm run stage:web
 
       - name: Smoke-test static server
         run: |
-          python3 -m http.server 4173 --directory . > /tmp/stock-http.log 2>&1 &
+          python3 -m http.server 4173 --directory dist > /tmp/stock-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
           for attempt in 1 2 3 4 5; do

@@ -1,0 +1,171 @@
+name: Native packages
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['preview-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows x64 preview
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install preview build dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Validate shared UI
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run check:packaging
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Prepare native icons and build
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run native:icons
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run native:windows -- --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Collect portable binary and installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = 'src-tauri/target/x86_64-pc-windows-msvc/release'
+          New-Item -ItemType Directory -Force native-artifacts | Out-Null
+          Copy-Item "$base/crypto-lab.exe" native-artifacts/CryptoLab-Windows-x64-preview.exe
+          $installer = @(Get-ChildItem "$base/bundle/nsis" -File -Filter '*.exe')
+          if ($installer.Count -ne 1) { throw "Expected one NSIS installer, found $($installer.Count)" }
+          Copy-Item $installer[0].FullName native-artifacts/CryptoLab-Windows-x64-setup-preview.exe
+          node scripts/hash-artifacts.js native-artifacts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item package-lock.json native-artifacts/npm-resolved-lock.json
+          Copy-Item src-tauri/Cargo.lock native-artifacts/Cargo-resolved.lock
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-x64-preview
+          path: native-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    name: Android ARM64 debug preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NDK_VERSION: '27.2.12479018'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Prepare Android SDK and Rust target
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "ndk;$NDK_VERSION"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          rustup target add aarch64-linux-android
+      - name: Validate and initialize Android
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run check:packaging
+          npm run native:icons
+          npm run native:android:init
+          npm run native:icons
+          node scripts/apply-android-overlay.js
+      - name: Build debug APK
+        run: npm run native:android
+      - name: Collect and verify ARM64 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' ! -name '*androidTest*')
+          test "${#apks[@]}" -eq 1
+          mkdir -p native-artifacts
+          cp "${apks[0]}" native-artifacts/CryptoLab-Android-arm64-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs native-artifacts/CryptoLab-Android-arm64-debug.apk
+          python3 -c 'import zipfile; z=zipfile.ZipFile("native-artifacts/CryptoLab-Android-arm64-debug.apk"); libs=[n for n in z.namelist() if n.startswith("lib/") and n.endswith(".so")]; assert libs and all(n.startswith("lib/arm64-v8a/") for n in libs), libs'
+          node scripts/hash-artifacts.js native-artifacts
+          cp package-lock.json native-artifacts/npm-resolved-lock.json
+          cp src-tauri/Cargo.lock native-artifacts/Cargo-resolved.lock
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-arm64-debug
+          path: native-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-preview:
+    name: Publish explicitly tagged preview
+    if: startsWith(github.ref, 'refs/tags/preview-v') && github.event_name == 'push'
+    needs: [windows, android]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify tag and main ancestry
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          expected="preview-v$(node -p 'require("./package.json").version')"
+          test "$TAG" = "$expected"
+          git fetch origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          path: incoming
+      - name: Validate and prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd incoming/windows-x64-preview && sha256sum -c SHA256SUMS.txt)
+          (cd incoming/android-arm64-debug && sha256sum -c SHA256SUMS.txt)
+          mkdir -p release-assets
+          cp incoming/windows-x64-preview/*.exe release-assets/
+          cp incoming/android-arm64-debug/*.apk release-assets/
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 3
+          node scripts/hash-artifacts.js release-assets
+      - name: Publish preview only (no production signing)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" --verify-tag --prerelease --title "Crypto Lab $TAG" --notes "Offline research preview. Windows unsigned; Android debug-signed, not production signing or a stable update channel. No live trading. Verify checksums before testing." release-assets/*

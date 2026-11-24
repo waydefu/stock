@@ -1,157 +1,39 @@
-# 架構研究矩陣
+# Crypto Lab v2｜架構與里程碑
 
-## 模組職責邊界
+目標：事件驅動、AI 主導研究、確定性風控與自動執行的交易研究系統。長期淨收益是研究目標，不是承諾。初始虛擬本金 30 USDT，優先低營運成本。
 
 ```text
-[UI: Monitor / Explore / Operate]
-              │
-              ▼
-[MarketDataAdapter] ──> [SimulatedAdapter | FugleProxyAdapter]
-              │
-              ├──> [Indicators + Screener]
-              ├──> [Backtest: signal at close → fill next open]（legacy 相容路徑）
-              ├──> [Research: Strategy → Signal → Portfolio → next-bar-open]
-              │         ├──> [IS / OOS + walk-forward + cost stress + parameter surface]
-              │         └──> [Promotion gate → lifecycle（不自動進 paper）]
-              └──> [PaperBroker]
-                         ▲
-                         │ only after
-                  [RiskEngine + RBAC + confirmation]
-                         │
-                         ▼
-                       [AuditLog]
-
-[Browser 端即時串流] ──SSE──> [trusted proxy (server/)] ──WebSocket──> [Fugle]
-                                ▲ holds FUGLE_API_KEY（頁面永遠不持金鑰）
+public market feeds + news + macro → immutable evidence/event store
+→ trigger scheduler → AI research/decision (structured intent or HOLD)
+→ quant verification → independent risk policy → paper execution authority
+→ reconciliation + durable ledger + observability → dashboard / research replay
 ```
 
-### 邊界
+資料模型：source, observedAt, eventAt, fetchedAt, sequence, quality, expiresAt；symbol/venue/market_type 分離，spot 不套 futures；金額以 decimal/fixed point，規則版本化。AI 只能接公開唯讀資料及隔離研究工具，輸出有證據 ID、版本、期限的意圖，不能執行任意程式或指令。風控拒絕由程式決定。交易權限預設 OFF；現有 fixture 模擬無 network。
 
-- `js/data.js`：固定模擬資料與純技術指標（模擬窗固定 2025 終點）；不是整個系統唯一行情來源。
-- `js/market-data.js`：本機 `SimulatedAdapter`；`js/fugle-proxy-adapter.js` 是真實 Fugle REST adapter。UI／研究透過 provider-neutral 契約取得資料；capability／envelope／provenance／freshness 定義在 `js/market-data-contract.js`。
-- `js/market-data-contract.js`：provider-neutral envelope／freshness／retry／transport 契約與 bar 缺棒分類（`classifyBars`）。
-- `js/accounting.js`：AccountSnapshot、realized／unrealized／daily PnL、FeeModel 契約與 invariants、每期利率換算（`perPeriodRate`）。**backtest slippage（`slippageBps`）是歷史模擬假設；paper fees（`FeeModel`）是執行模型。兩者名稱相似但實作分開、互不干涉。**
-- `js/market-rules.js`：TW／US market rules contract；TW sourced tick／limit／session 由 RiskEngine 在 commit boundary 強制驗證；商品別 tick 表（股票／ETF／ETN／REIT／封閉型基金／權證）可選傳入 `instrumentType`；漲跌停以整數最小單位計算。US 維持 simplified，不套 TW 規則。
-- `js/session-clock.js`：market-local timezone session key；calendar policy 由 `js/trading-calendar.js` 提供。
-- `js/trading-calendar.js`：`SimplifiedWeekdayCalendar`（只看星期幾，供 deterministic data layer）與 `MarketHolidayCalendar`（台股用 TWSE 官方休市日快照，涵蓋範圍外退回 weekday 規則並在 policy 明講）。
-- `js/tw-market-holidays.js`：TWSE「市場開休市日期」官方快照（2026 年度），含來源與查閱日期。
-- `js/corporate-actions.js`：SPLIT／DIVIDEND／CAPITAL_REDUCTION／SYMBOL_CHANGE／DELISTING schema contract；尚未取得或套用調整資料。
-- `js/execution-model.js`：`IMMEDIATE` 保留手動相容路徑；`MATCHING` v1 為 deterministic DAY limit：last-trade touch 才成交、fill at submitted limit，不虛構 price improvement／L2 queue／部分成交。
-- `js/order-errors.js`：stable order／risk／broker error codes。
-- `js/order-candidate.js`：純函式下單候選組裝（UI 與測試共用；帶 `referencePrice` 與商品別），避免 preview／confirm 組單不一致。
-- `js/classic-strategies.js`：MA／RSI／Breakout 的唯一訊號語義；legacy oracle 與分層 Strategy adapter 共用，避免兩套規則漂移。
-- `js/classic-backtest-runner.js`：經典策略的正式 UI composition；固定走 Strategy → Portfolio → `runResearchBacktest()` → `summarizeResearch()`，產品路徑不再依賴 legacy execution。
-- `js/backtest.js`：legacy sizing／execution／metrics 相容路徑，只保留 compatibility／golden tests／parity oracle；`scripts/check-static.js` 禁止 `app.js` 再呼叫 `runBacktest()`。
-- `js/strategy.js`：Strategy／Signal 契約、long-only 映射、註冊表、生命週期門（新策略不得自動進 paper）。
-- `js/alpha.js`：研究基準庫（cash／buyHold／multi-horizon trend，皆有 hypothesis＋warmup）。
-- `js/portfolio.js`：Allocator、capped 波動目標覆蓋、組合硬上限（reason coded）。
-- `js/research.js`：分層研究引擎——Signal→target exposure→next-bar-open；IS/OOS、walk-forward、cost stress、parameter surface、promotion gate；target 依實際成交更新。
-- `js/risk.js`：拒絕條件與稽核；拒絕是 fail-closed（失敗時停，不改用較寬鬆路徑）；斷路器狀態寫入 versioned localStorage。
-- `js/paper.js`：本機紙上帳本；constructor 的 FeeModel 可注入。MATCHING OPEN order 會保留 cash／position，未成交不改帳；支援 fill／cancel／DAY expire。
-- `js/paper-fee-model.js`：正式 forward-test 成本政策；TW dispatch 到 sourced FeeModel，US 在尚無來源化非佣金成本前明示 zero-fee；不猜當沖資格。
-- `js/paper-runtime.js`：App composition boundary，負責把 runtime fee policy 注入 PaperBroker。
-- `js/paper-reconciliation.js`：所有 Paper fill 後的 cash／position／fee／order-ledger 對帳；不符即視為安全事件。
-- `js/auto-paper-promotion.js`：browser／server 共用 Promotion evaluator；同一組 IS/OOS、3-fold walk-forward、cost stress、parameter surface 與 Gate，避免兩套 promotion 語義漂移。早期 walk-forward train 不足 warmup 時由 evaluation 自然保持 flat，不再整個刪窗。
-- `js/auto-paper-runner.js`：Automated Paper orchestration；Promotion Gate→completed daily bar→Signal→Portfolio sizing→Risk→MATCHING OPEN order→fresh quote touch→fill-time Risk→PaperBroker→reconciliation。pending intent／working order id 均持久化。
-- `js/app-auto-paper-controller.js`：瀏覽器端 Fugle data／timer／UI composition；不擁有策略公式、不直接下單。現階段 runner 只在頁面開啟期間運作，24/7 server authority 尚未建立。
-- `js/order-state.js`：deterministic order status 與 transition event。
-- `js/order-service.js`：submit／match commit boundary；掛單提交與真正 fill 都重新讀帳戶並跑風控，matching fill 完成後立即 reconciliation。
-- `js/favorites.js`：自選清單本機持久化；寫入失敗不影響交易主流程。
-- `js/view.js`：純顯示 helper（含 advisory-only `orderEstimate` 試算，不具決策權）；XSS 關鍵路徑由單測鎖住。
-- `js/app.js`：UI composition root；Live stream lifecycle 已移到 `js/app-stream-controller.js`。仍需續拆交易／研究／導覽 controller，重構不得改變交易語義。
-- `js/app-stream-controller.js`：Live SSE UI/controller；只碰 `#stream-*` DOM 與 `SseStreamClient`，gate 明確禁止接觸 PaperBroker／order-service／RiskEngine。
-- `js/app-risk-audit-controller.js`：Risk/Audit presentation；只讀 `risk.status()`／`audit.list()` 與 CSV export，gate 禁止 `approveOrder`、下單、`trip/reset`。
-- `js/stream-contract.js`：provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽、stale 政策）。
-- `js/sse-stream-client.js`：browser 端 SSE client；傳輸／上游／市場新鮮度三種 liveness 分離，generation guard 防 symbol 污染。
-- `js/fugle-proxy-adapter.js`／`js/fixture-provider.js`／`js/providers/fugle-mapper.js`：真實行情 adapter 與 Fugle schema 映射（唯一懂 Fugle 格式的地方）。
-- `js/proxy-config.js`：公開 runtime config（proxy URL，非秘密）注入點。
-- `server/market-proxy.js`：trusted proxy HTTP routing／CORS／Fugle REST orchestration；日誌只留雜湊 client id。
-- `server/proxy-anti-abuse.js`：純 anti-abuse state——per-client token bucket、quote 短 TTL 快取、每日上游預算與 bounded maps；無 HTTP／provider schema／秘密。
-- `server/fugle-stream-manager.js`：Fugle WebSocket 管理器——單一上游多訂閱、per-client SSE 上限、per-key 狀態、upstream 錯誤路由與名額釋放。
-- `server/stream-sse.js`：瀏覽器端 SSE 序列化（只送 normalized envelope）。
-- `server/forward-test-journal.js`：server Auto Paper 每輪 append semantic evidence，保存 pre-cycle equity、mark-to-market account、market price、fills、Gate/lifecycle/cycle code；corruption 或容量耗盡 fail-closed。
-- `server/forward-test-metrics.js`：純 evidence analytics；每日最後 equity → Sharpe／Sortino，long-only fill sequence → closed round-trip 勝率／Profit Factor／Expectancy／holding time，同 evidence window 市價 → Buy&Hold 對照；不回饋策略。
-- `scripts/report-auto-paper.js`：只讀同一 durable state file，輸出 forward-test 摘要與最新 evidence；不連網、不寫帳本。
-- `server/file-kv-storage.js`：server authority 的同步 key-value storage；temp write＋fsync＋atomic rename，格式或 IO 損壞直接錯誤，不靜默重置。
-- `server/auto-paper-service.js`：server scheduler；預設 disabled。啟用需 durable-storage／always-on 雙確認、絕對 state path、固定 TW symbol；無公開 mutation route。Paper／Risk／Audit 全開 strict persistence。Scheduler 直接復用 `getCurrentSession()`：僅 TW 有效交易日 08:30–13:30 跑完整 cycle，休市時不打行情 API、不寫 Journal；同一 completed bar 的 deterministic Promotion PASS/FAIL 皆快取。
-- `server/start-market-proxy.js`：正式 entrypoint——fail-fast 設定、STALE 探測、可選 server Auto Paper lifecycle、graceful shutdown。
+| 階段 | 交付 | 驗收 |
+|---|---|---|
+| M0 | 新 UI、治理、離線 fixture | 來源/模式清楚，拒絕測試、archive 隔離 |
+| M1 | Binance 公開 REST/WS、公告與事件 | 時序、重連、過期、限流、缺口、來源驗證 |
+| M2 | AI 事件推理與量化佐證 | 結構化 schema、反證、模型成本、prompt injection 測試、HOLD |
+| M3 | 自動紙上交易 | 冪等、partial fill、拒單、數量/費率、SQLite transaction、對帳、重啟 |
+| M4 | 故障與安全驗收 | 停機、未知訂單、斷線、資金/曝險、逐筆回放、盲樣本與前向驗證 |
+| M5 | 實盤可行性評估 | 另案使用者授權、完整法遵與安全審查；未過不得實盤 |
+| M6 | 多策略與改進 | 獨立研究、固定版本、成本與樣本外、重新晉升 |
 
-## 架構取捨
+排程方向：行情以事件串流，1/5 分鐘品質與異動，新聞按來源可用性與限流，AI 僅重大事件喚醒，全天服務需持久主機與監控；以上尚未實作。優先沿用 Node.js 24 零依賴基礎；Rust/Python/資料庫等依需求與 ADR 另評，不一次大改。
 
-1. **原生 JavaScript 而非大型框架**：這個原型要能直接開啟與 GitHub Pages 部署，先降低依賴與供應鏈爆炸半徑；若未來進入多人服務，再以需求決定框架，不預先引入 runtime 依賴。
-2. **Canvas 而非第三方圖表套件**：目前只需可重現 K 線／權益曲線，避免把授權、版本與包體積帶進最小原型；若要做 tick／order-book，應另提架構決策。
-3. **前端角色只是 UX 狀態**：browser Paper 仍是本機 prototype。server Auto Paper 使用獨立 durable authority，沒有公開交易 mutation API；但未配置 always-on compute＋durable storage 時必須維持 disabled，不能把 ephemeral runtime 冒充 production authority。
-4. **研究證據與交易動作分離**：選股與回測可以產生研究結果，但不能直接呼叫 paper broker，更不能繞過風控。
+## 模組化與關注點分離（SoC）
+採 modular monolith + ports/adapters 思路，先保持單一部署、低依賴與單一交易權威，不為拆分而引入微服務。依賴單向，composition root 負責組裝，UI 不直接依賴 domain 或執行端。
+| 現行模組 | 職責 | 依賴 |
+|---|---|---|
+| js/domain/risk.js | 純風控與金額政策 | 無 |
+| js/application/fixture.js | 離線情境與調用 | domain |
+| js/application/flow.js | 純流程狀態投影 | 無 |
+| js/ui/ | DOM、路由、設定、流程呈現 | 同層；以注入函式調用 application |
+| js/app.js | composition root | application、ui |
+| src-tauri/ | 平台生命週期與顯示 | 僅交付 dist，無交易權限 |
+後續按業務能力新增 market、intelligence、events、decision、quant、risk、paper-execution、ledger/reconciliation、observability 模組；外部 REST/WS、LLM、SQLite、通知為 adapters，domain 不讀 DOM、HTTP、DB、環境變數或系統時鐘；時間、資料及政策以明確輸入傳入。應用層協調用例；持久化與交易執行有單一權威。事件稽核獨立於成交，HOLD、拒絕、錯誤均須留存。所有跨模組契約版本化，禁止循環、隱含全域狀態及跨層直接寫入；未實作模組只列規劃，不建立假 adapter。
+Module contract 以顯式 inventory/allowed import graph + CI 驗證；現行檢查是受限 ESM 形式的架構回歸閘門，非 JS sandbox 或完整安全分析。新增模組需同步白名單、測試、架構文件及 ADR。
 
-## 研究來源索引（按模組）
-
-- 市場／儀表板：[1][2][4][5][6][9][16][18][20][54][55][56][57][58][59]
-- 選股／基本面／台股資料：[3][18][19][26][27][28][29][30][31][32][33][34][35]
-- 回測／策略／自動化：[7][8][10][12][13][14][15][17][21][22][23][24][47][48][49][60]
-- 下單／紙上交易／API：[25][30][36][37][38][39][40][41][42][43][45][46][50][51][52][53]
-- 投資研究與風險教育：[44][55][56][57][58][59][60][61]
-
-來源 URL 由引用工具依本文實際引用的編號自動產生，避免手工重打造成錯鏈。
-
-## Sources
-
-[1] https://www.koyfin.com/features
-[2] https://www.koyfin.com/for-investors/equity-research
-[3] https://www.koyfin.com/features/stock-screener
-[4] https://finviz.com/blog/the-finviz-matrix-market-breadth-visualized
-[5] https://finviz.com/elite
-[6] https://www.tradingview.com/features
-[7] https://www.tradingview.com/support/solutions/43000628599-strategy-properties
-[8] https://www.tradingview.com/pine-script-docs/concepts/strategies
-[9] https://www.tradingview.com/desktop
-[10] https://trendspider.com/product/strategy-development-and-backtesting-tools
-[12] https://quantconnect.com/docs/v2
-[13] https://vectorbt.dev
-[14] https://github.com/Backtrader/Backtrader
-[15] https://www.quantrocket.com
-[16] https://www.tc2000.com/features/overview
-[17] https://www.tc2000.com/features/version20
-[18] https://www.stockrover.com/stock-charting
-[19] https://www.stockrover.com/stock-rovers-top-5-features-transcript
-[20] https://simplywall.st
-[21] https://github.com/Freqtrade/freqtrade
-[22] https://docs.freqtrade.io/en/stable
-[23] https://hummingbot.org/strategies/v2-strategies
-[24] https://hummingbot.org
-[25] https://github.com/sinotrade/shioaji
-[26] https://www.xq.com.tw
-[27] https://www.xq.com.tw/xsat
-[28] https://www.xq.com.tw/xstrader/xslearnmap
-[29] http://app.cmoney.tw
-[30] https://developer.fugle.tw/docs/trading/intro
-[31] https://developer.fugle.tw/docs/data/http-api/getting-started
-[32] https://developer.fugle.tw/docs/data/websocket-api/market-data-channels/candles
-[33] https://developer.fugle.tw/docs/data/http-api/corporate-actions/capital-changes
-[34] https://developer.fugle.tw/blog/2022-11-18-week7-ma-increase-position-strategy
-[35] https://developer.fugle.tw/blog/2022-12-30-week10-multiple-investment-strategy
-[36] https://docs.alpaca.markets/us/docs/paper-trading
-[37] https://docs.alpaca.markets/us/docs/alpaca-api-platform
-[38] https://alpaca.markets/learn/start-paper-trading
-[39] https://www.interactivebrokers.com/en/trading/tws.php
-[40] https://www.interactivebrokers.com/en/trading/ib-api.php
-[41] https://interactivebrokers.github.io/tws-api/third_party.html
-[42] https://interactivebrokers.github.io/tws-api/basic_orders.html
-[43] https://www.interactivebrokers.com/campus/trading-lessons/python-placing-orders
-[44] https://welcome.schwab.com/content/introduction-to-thinkorswim-desktop-platform
-[45] https://developer.tradestation.com
-[46] https://www.tradestation.com/platforms-and-tools
-[47] https://www.metatrader5.com/en/automated-trading
-[48] https://docs.ninjatrader.com/ninjascript.md
-[49] https://www.ninjatrader.com/trading-platform
-[50] https://help.ctrader.com/ctrader-algo/documentation/plugins
-[51] https://developer.oanda.com
-[52] https://www.developer.saxo/openapi/learn/order-placement
-[53] https://www.sierrachart.com
-[54] https://moomoo.com/us/invest/trading-platform
-[55] https://finance.yahoo.com/research/?fr=sycsrp_catchall
-[56] https://seekingalpha.com
-[57] https://www.google.com/finance
-[58] https://www.investing.com
-[59] https://www.morningstar.com
-[60] https://www.aaii.com/journal/article/536490-using-portfolio-visualizer-to-test-allocation-strategies
-[61] https://www.portfolioglance.com/investing-apps/simply-wall-st-vs-stock-rover
+獨立層級方向矩陣（root → application/ui；application → domain/application；domain → domain；ui → ui），即使修改 import inventory 也不能繞過方向規則；新增禁止依賴、循環、未登記模組和 host API 的反例測試。未來 adapters 需 ADR 擴充矩陣。
