@@ -31,3 +31,6 @@ npm run native:android
 4. 交易/AI/常駐服務仍是獨立後續開發，不能因 native bundle 通過視為交易服務可用。
 
 官方資料： https://v2.tauri.app/start/prerequisites/ ; https://v2.tauri.app/reference/cli/ ; https://v2.tauri.app/develop/icons/ ; https://v2.tauri.app/distribute/sign/android/ ; https://v2.tauri.app/release/
+
+## Native 版本相容性
+Tauri Core 2.12.7、CLI 2.12.6、Build 2.7.6 依上游同一版本樹對齊（https://github.com/tauri-apps/tauri/tree/tauri-v2.12.7）；原 Core 2.11.5 與解析出的 Runtime 2.12.4 / Wry 2.12.5 型別不相容，兩平台 CI 已證實。新版需重新建置驗證，仍未提交完整傳遞依賴鎖。
