@@ -23,14 +23,17 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - name: Inject public market-data proxy URL
+      - name: Stage active public UI only
         run: |
-          printf "%s\n" "globalThis.__MARKET_DATA_PROXY_URL__ = \"https://stock-fugle-proxy.onrender.com\";" > runtime-config.js
+          mkdir -p public/css public/js
+          cp index.html public/
+          cp css/styles.css public/css/
+          cp js/app.js js/paper.js public/js/
 
       - name: Upload static site
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: "."
+          path: "public"
 
   deploy:
     needs: build

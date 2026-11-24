@@ -32,6 +32,13 @@ jobs:
         uses: github/codeql-action/init@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
         with:
           languages: javascript-typescript
+          config: |
+            paths:
+              - js
+              - tests
+              - scripts
+            paths-ignore:
+              - archive
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3

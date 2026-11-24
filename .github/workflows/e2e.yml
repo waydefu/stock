@@ -40,5 +40,3 @@ jobs:
       - name: Run browser E2E
         run: node tests/e2e/run-e2e.js
 
-      - name: Replay R-023 mutation (E2E must turn red)
-        run: node tests/e2e/mutation-check.js

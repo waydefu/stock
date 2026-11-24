@@ -1,156 +1,19 @@
-# 台美股自動交易網頁（TW/US Auto Trading Web）
+# Crypto Lab｜自主交易研究工作台
 
-繁體中文的台股＋美股分析與模擬自動交易單頁應用（SPA）。
-純靜態、零依賴、免建置：直接用瀏覽器開 `index.html` 或走 GitHub Pages 即可跑。
+本倉庫由台美股原型轉向加密貨幣事件驅動 AI 決策與全自動交易研究。現在是 **離線紙上原型**：沒有即時行情、真實交易 API、AI 模型接線或可執行實盤權限。最終方向是由 AI 提出結構化意圖、獨立程式風控及自動執行；不要求逐筆人工批准，但實盤啟用、權限及風險政策仍需所有者明確批准與驗收。
 
-> **定位**：研究／教育用原型（prototype）。預設行情是本機種子生成的**模擬資料**；
-> 可切換到 **Fugle 真實行情**（經部署端的 trusted proxy，僅供研究）。
-> 下單全部走紙上交易（paper trading），**不連真實券商、不給投資建議**。
-> 詳見 `DISCLAIMER.md`。
-
-## 功能（對應 50 家專家產品的綜合）
-
-| 頁籤 | 學誰 | 做什麼 |
-|---|---|---|
-| 儀表板 | Koyfin／Finviz Matrix | 市場熱圖（市值加權方塊、漲跌著色）、大盤重點、自選報價 |
-| 看盤 | TradingView／XQ／富果 | K 線圖＋MA20/50＋成交量＋last-price 線、自選清單（本機持久化）、盤勢資訊 |
-| 選股 | Finviz／XQ／Stock Rover | 漲跌幅、量比、本益比、殖利率等多條件篩選 |
-| 回測 | TradingView 策略測試器／TrendSpider | MA 交叉、RSI、突破三策略；手續費＋滑價預設非零；樣本數過少警告（學 TradingView 的坑）；研究策略走分層引擎：Cash／Buy&Hold 基準、多 horizon 趨勢、IS／OOS、walk-forward、cost stress、promotion gate |
-| 策略中心 | QuantConnect 研究框架精神 | 基準永遠同場比較、OOS 分段顯示、參數平面、provenance；gate FAIL 明示、不自動晉升 paper |
-| 交易 | Alpaca／Shioaji 模擬單 | 手動單維持 IMMEDIATE 相容模式；Automated Paper 改走 MATCHING DAY 限價掛單：OPEN→FILLED／CANCELED／EXPIRED，fresh quote 觸價才改帳，成交前保留資金／部位，fill boundary 重跑 Risk＋Reconciliation。TW forward test 計交易成本；目前僅 TW 單標的、頁面開啟期間運作 |
-| 風控 | IB TWS／QuantConnect | 單筆上限、日損斷路器（kill switch）、下單二次確認、稽核日誌（audit log）可匯出 CSV |
-| 治理 | Linear／Stripe 設計治理 | 角色（RBAC：觀察者／交易員／風控官／管理員）、深色 fintech 設計代幣（design tokens）、專業快速鍵（/ 搜尋、1–6 頁籤、B／S 開單、? 說明） |
-
-## 架構
-
-```
-index.html          單頁殼＋六頁籤
-css/styles.css      設計代幣＋元件（深色數據密度風）
-js/data.js          種子隨機行情產生器（mulberry32，確定性、可重現）
-js/accounting.js    AccountSnapshot、invariants、zero-fee paper FeeModel
-js/execution-model.js Immediate／MATCHING execution；last-trade touch、full-fill-at-limit、無假 L2 queue
-js/order-errors.js  stable risk／validation／broker error codes
-js/dom.js           safe DOM text escaping helper
-js/market-data.js   本機 SimulatedAdapter；真實 Fugle 走 fugle-proxy-adapter.js
-js/favorites.js     自選清單本機持久化（不影響帳本）
-js/view.js          純顯示 helper（金額／狀態塊／標籤，無 DOM）
-js/market-rules.js  TW／US 市場規則 contract（TW partial sourced、US simplified）
-js/session-clock.js market-local timezone session key；calendar policy 明確是 simplified-weekday
-js/trading-calendar.js TWSE 2026 休市日＋市場時區；US 仍 simplified weekday
-js/corporate-actions.js corporate-action schema contract；不自動調整價格
-js/charts.js        Canvas K 線／權益曲線（無圖表庫依賴）
-js/classic-strategies.js MA／RSI／Breakout 唯一純訊號語義
-js/classic-backtest-runner.js 經典策略 UI composition（Strategy→Portfolio→Research Engine）
-js/backtest.js      legacy 相容／golden-test execution；正式 UI 不再呼叫
-js/strategy.js     Strategy／Signal 契約、long-only 映射、註冊表、生命週期門
-js/alpha.js        研究基準庫（cash／buyHold／multi-horizon trend，皆有假說）
-js/portfolio.js    Allocator、capped 波動目標覆蓋、組合硬上限
-js/research.js     分層研究引擎（IS/OOS、walk-forward、cost stress、parameter surface、promotion gate）
-js/paper.js         紙上交易帳本（localStorage 持久化；FeeModel 可注入）
-js/paper-fee-model.js forward-test 市場成本政策（TW sourced／US explicit zero）
-js/paper-runtime.js  App PaperBroker composition＋fee policy injection
-js/paper-reconciliation.js Paper fill 後帳務／部位／訂單對帳
-js/auto-paper-runner.js Promotion Gate→數學 Signal→Portfolio→Risk→Paper→Reconciliation
-js/auto-paper-promotion.js browser/server 共用 Promotion Gate 證據計算
-js/app-auto-paper-controller.js Fugle data＋Auto Paper UI/timer orchestration
-js/order-state.js   訂單狀態機與 transition event
-js/order-service.js 執行邊界（confirm 時重新讀帳戶與風控）
-js/risk.js          風控＋稽核日誌
-js/app.js           UI composition root；交易／研究／導覽仍待續拆
-js/app-stream-controller.js Live SSE UI/controller（與 PaperBroker／風控隔離）
-js/app-risk-audit-controller.js Risk/Audit presentation（無下單／風控決策副作用）
-js/order-candidate.js  純函式下單候選組裝（UI 與測試共用，帶參考價與商品別）
-js/stream-contract.js  provider-neutral 串流契約（狀態機、序號、錯誤碼、遮蔽）
-js/sse-stream-client.js browser 端 SSE client（三種 liveness 分離、generation guard）
-js/fugle-proxy-adapter.js 經 proxy 取真實行情的 adapter（頁面不持金鑰）
-server/proxy-anti-abuse.js proxy 限流／每日 budget／quote cache 純 state 模組
-server/file-kv-storage.js server durable state 原子 JSON adapter（只允許 confirmed persistent mount）
-server/forward-test-journal.js 每輪 forward-test durable 證據＋績效摘要
-server/auto-paper-service.js server-side Auto Paper scheduler（預設 disabled、無公開交易 API）
-server/             trusted proxy（REST＋SSE）、Fugle WebSocket 管理器、Docker
-tests/              node --test（零依賴）：回測數學、風控邊界、策略契約、研究框架、proxy／串流整合
-docs/               ARCHITECTURE.md（模組研究矩陣）、GOVERNANCE.md、UI_UX.md
-scripts/            check-static.js、check-ui.js（35 閘門）、ui-score.js（/100 評分）、
-                    check-syntax.js（跨平台語法檢查）、check-status.js（狀態同步閘）、
-                    ci-summary.js（CI job summary）、smoke-*.js（真實資料煙霧測試）
-tests/e2e/          Playwright 瀏覽器 E2E（只在 CI 安裝工具，不進 runtime）
-```
-
-> 測試數量與各閘門結果不寫在文件裡：由 CI job summary 自動產生（見 `docs/PROJECT_STATUS.md`）。
-
-## 本機執行
-
-### 搜尋其他台股代號
-
-頂部搜尋可輸入 `0050`、`006208` 等代號，非內建標的會明確向 Fugle
-查詢並開啟看盤，不需先切換資料模式。需使用已設定行情 proxy 的部署版本；
-本機預設 `runtime-config.js` 未設定 proxy，會顯示 `PROXY_NOT_CONFIGURED`。
-遠端標的只供看盤，不加入紙上下單清單；非內建股票名稱搜尋尚未支援。
-
-```bash
-# 1) 直接開檔（部分瀏覽器擋 file:// 的 ES module，建議用 2）
-xdg-open index.html
-
-# 2) 靜態伺服（推薦）
-python3 -m http.server 8080
-# 瀏覽 http://localhost:8080/
-
-# 3) 跑測試（Node.js 24，零依賴）
-npm test
-
-# 4) 跑瀏覽器 E2E（需另外安裝 Playwright，只在 CI 會自動做）
-npm install --no-save playwright@1.64.1 && npx playwright install chromium
-npm run e2e
-```
-
-## Server Auto Paper（預設停用）
-
-程式已具備 server-side Paper scheduler，但**目前部署不會自動啟用**。啟用時四項環境設定缺一不可：
-
-```text
-AUTO_PAPER_SERVER_ENABLED=1
-AUTO_PAPER_SYMBOL=2330
-AUTO_PAPER_STATE_FILE=/persistent-mount/stock-auto-paper.json
-AUTO_PAPER_DURABLE_STORAGE_CONFIRMED=1
-AUTO_PAPER_ALWAYS_ON_CONFIRMED=1
-```
-
-其中後兩項是部署者的明確安全確認，不是自動偵測。Render 官方文件指出：Free Web Service 閒置約 15 分鐘會 spin down，且本機 filesystem 為 ephemeral；Free Web Service 不能掛 Persistent Disk。因此目前免費 Render proxy **不符合** server Auto Paper 的啟用條件，維持 disabled 是預期行為。
-
-官方依據：
-- https://render.com/docs/free
-- https://render.com/docs/disks
-
-server scheduler 沒有新增任何公開下單 route；交易狀態只寫 confirmed durable storage，持久化錯誤或子狀態損壞即 fail-closed。啟用時還會建立 `${AUTO_PAPER_STATE_FILE}.lock` exclusive lease；同一 state file 第二個 instance 會拒絕啟動。若 process 非正常終止留下 stale lock，必須先確認沒有其他 authority 在跑，再由部署者人工移除 lock，系統不會自動猜測並搶鎖。
-
-Server scheduler 以既有 TWSE calendar/session 規則決定是否進入完整 cycle：只有有效交易日的 08:30–13:30（preMarket／regular／preClose）才抓 bars／quote／跑 Promotion 與 Auto Paper；夜間、週末與休市日直接 `MARKET_CLOSED_SKIP`，不耗 Fugle 請求、不追加 Journal evidence。\n\n每個有效市場 server cycle 都會追加 Forward Test Journal（equity／PnL／fees／session／fills／Gate／cycle code）。月底或任何時間可用只讀 CLI 產生摘要：
-
-```bash
-AUTO_PAPER_STATE_FILE=/persistent-mount/stock-auto-paper.json npm run report:auto
-# 或
-npm run report:auto -- /persistent-mount/stock-auto-paper.json
-```
-
-報告會輸出 session days、起訖 equity、window return、max drawdown、每日 Sharpe／Sortino（樣本不足為 null）、勝率、Profit Factor、Expectancy、平均持有時間、fill fees／turnover／cost-to-gross-profit、同區間 Buy&Hold 對照，以及 stale quote／Gate fail／kill switch／reconciliation 等阻擋統計；不連外、不寫入帳本。
-
-## 券商接線（留白，不實作真單）
-
-- 台股：永豐 Shioaji（`simulation=True` 紙上模式，API Key／憑證走使用者本機 `shioaji server`，本專案不碰金鑰）
-- 美股：Alpaca Paper（`https://paper-api.alpaca.markets`，paper key 只放使用者自己的 `.env`，不進 repo）
-
-`js/paper.js` 的 `PaperBroker` 保持未來 broker adapter 的邊界（interface），切換時只換 adapter，不動 UI 與風控。
+## 執行
+Node.js 24、零 runtime 依賴。
+- `npm test`：新系統測試。
+- `npm run check:syntax && npm run check:static && npm run check:ui && npm run check:status`：新系統閘門。
+- `python3 -m http.server 8080`：開啟 http://localhost:8080/。
+- `npm run e2e`：需另裝 Playwright 與 Chromium，CI 安裝。
 
 ## 文件
+- [專案狀態](docs/PROJECT_STATUS.md)｜唯一現況來源
+- [架構與路線圖](docs/ARCHITECTURE.md)
+- [治理](GOVERNANCE.md)｜[代理規則](AGENTS.md)｜[技能目錄](skills/README.md)｜[工具契約](docs/TOOLS.md)
+- [風險登錄](docs/RISK_REGISTER.md)｜[UI/UX](docs/UI_UX.md)
 
-- `docs/ARCHITECTURE.md` — 模組研究矩陣、架構邊界與取捨
-- `docs/GOVERNANCE.md` — repo 治理、角色權限、風控規則、免責邊界
-- `docs/UI_UX.md` — 設計代幣與頁面規格
-- `docs/UI_UX_BENCHMARK.md` — 全球網頁設計／股票產品 benchmark、目前評分與 P0/P1/P2 改造路線
-- `docs/DELIVERY_REPORT.md` — 交付、驗證、工時、成本與來源
-- `docs/PROJECT_STATUS.md` — 唯一 current truth（scope／缺口／enforcement；HEAD／tests／gates 由 CI summary 產生）
-- `docs/PROJECT_AUDIT.md` — baseline＋歷史快照 audit
-- `docs/PROJECT_ROADMAP.md` — correctness-first 長程路線
-- `docs/RISK_REGISTER.md` — P0/P1/P2 風險、證據與修復驗證
-- `docs/RESEARCH_LEDGER.md` — 外部規則／設計／API claim 的來源索引
-- `docs/FUTURE_PLAN.md` — 可照跑的收斂計劃書（Phase 步驟、驗收、證據、決策點）
-- `DISCLAIMER.md` — 最高優先：教育用途、非投資建議、自負盈虧
+## 舊版封存
+[archive/stock-v1](archive/stock-v1/README.md) 是原 main 的完整目錄樹（含全部測試、舊 CI、server、文件），另有 `archive/stock-v1` 分支。舊版不參與新系統執行、測試或 Pages 打包；不刪除歷史。舊 Render 服務若仍自動部署 main，合併前須由維護者停用或改指向封存分支，避免錯誤部署。舊資料不得自動遷移。詳見 [封存政策](docs/ARCHIVE.md)。
