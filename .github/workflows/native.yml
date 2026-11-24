@@ -4,7 +4,6 @@ on:
     branches: [main]
   push:
     branches: [main]
-    tags: ['preview-v*']
   workflow_dispatch:
 
 permissions:
@@ -28,12 +27,18 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Install preview build dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Validate shared UI
         run: |
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run check:packaging
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Cargo resolution before build
+        run: |
+          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-native-lock.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Prepare native icons and build
         run: |
@@ -47,6 +52,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          node scripts/check-native-lock.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $base = 'src-tauri/target/x86_64-pc-windows-msvc/release'
           New-Item -ItemType Directory -Force native-artifacts | Out-Null
           Copy-Item "$base/crypto-lab.exe" native-artifacts/CryptoLab-Windows-x64-preview.exe
@@ -95,19 +102,24 @@ jobs:
           rustup target add aarch64-linux-android
       - name: Validate and initialize Android
         run: |
-          npm install --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
           npm test
           npm run check:packaging
           npm run native:icons
           npm run native:android:init
           npm run native:icons
           node scripts/apply-android-overlay.js
+      - name: Verify Cargo resolution before build
+        run: |
+          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+          node scripts/check-native-lock.js
       - name: Build debug APK
         run: npm run native:android
       - name: Collect and verify ARM64 APK
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/check-native-lock.js
           mapfile -t apks < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' ! -name '*androidTest*')
           test "${#apks[@]}" -eq 1
           mkdir -p native-artifacts
@@ -123,49 +135,3 @@ jobs:
           path: native-artifacts/
           if-no-files-found: error
           retention-days: 14
-
-  publish-preview:
-    name: Publish explicitly tagged preview
-    if: startsWith(github.ref, 'refs/tags/preview-v') && github.event_name == 'push'
-    needs: [windows, android]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-      - name: Verify tag and main ancestry
-        shell: bash
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          expected="preview-v$(node -p 'require("./package.json").version')"
-          test "$TAG" = "$expected"
-          git fetch origin main:refs/remotes/origin/main
-          git merge-base --is-ancestor HEAD origin/main
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          path: incoming
-      - name: Validate and prepare release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          (cd incoming/windows-x64-preview && sha256sum -c SHA256SUMS.txt)
-          (cd incoming/android-arm64-debug && sha256sum -c SHA256SUMS.txt)
-          mkdir -p release-assets
-          cp incoming/windows-x64-preview/*.exe release-assets/
-          cp incoming/android-arm64-debug/*.apk release-assets/
-          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 3
-          node scripts/hash-artifacts.js release-assets
-      - name: Publish preview only (no production signing)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          gh release create "$TAG" --verify-tag --prerelease --title "Crypto Lab $TAG" --notes "Offline research preview. Windows unsigned; Android debug-signed, not production signing or a stable update channel. No live trading. Verify checksums before testing." release-assets/*
