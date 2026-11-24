@@ -19,9 +19,9 @@
 
 - M1 #64 首批：新增獨立 server/market 公開 REST last aggregate trade 證據、時鐘/新鮮度/序列判斷、固定 GET、超時/限流拒絕、手動 smoke 與反例測試；UI 仍 offline，尚無實際 smoke、WS、歷史、交易規則或常駐服務證據。加入批次最終新鮮度／時鐘回退檢查、backend 架構測試及 CodeQL server 範圍；原提交 88c0c3a 五項 CI 通過；同步最新 main 後須重新驗證。
 
-- PR #77 原生 CI run 45400689430 在兩平台 Cargo 解析雜湊閘門失敗；從 PR #76 成功 run 45376975327 的 Windows artifact 14911981758 取回原始 Cargo.lock（111058 bytes，SHA-256 與 ADR 0003 相符），提交完整 lock、固定 LF、以 cargo metadata --locked 及建置 --locked 取代動態解析，保留建置前後雜湊。c200289 的兩平台 native CI（45402439357）、Quality、CodeQL、Browser E2E 已通過；Dependency Review 45402439396 因 glib 0.18.5 GHSA-wrw7-89jp-8q8g 中風險告警失敗。保留門檻，待上游或另案依賴修復；Gradle、簽章及實機仍待驗證。
-
 - PR #77 程式大掃：公開行情 watchlist、時間區間、到期與 sequence 契約、限流清理及時鐘失效補強，新增反例測試；新提交 CI 待驗，不變更交易權限或封存。
+
+- 鎖檔：自 #77 拆出完整已核對 Cargo.lock（SHA-256 e063673d…，與 Cargo.lock.sha256 相同）、固定 LF、cargo metadata 與兩平台建置 --locked。起因是 2026-11-24 上游解析漂移使所有 PR 的 Native 失敗（PR #83 run 45424021983）。同提交原生 CI 待驗；glib 公告（#82）經維護者核准單項例外：cargo tree 確認只在 Linux 依賴樹，Windows/Android 無；新增 Linux 交付前須移除。
 
 ## Scope
 前端離線單次固定情境示範；僅現貨多頭意圖風控模型；後端僅手動公開 REST CLI，未驗證實際連線。無持續服務、實際撮合、持久帳本、私有交易 API、合約或槓桿、實盤。
