@@ -39,3 +39,5 @@ Module contract 以顯式 inventory/allowed import graph + CI 驗證；現行檢
 獨立層級方向矩陣（root → application/ui；application → domain/application；domain → domain；ui → ui），即使修改 import inventory 也不能繞過方向規則；新增禁止依賴、循環、未登記模組和 host API 的反例測試。未來 adapters 需 ADR 擴充矩陣。
 
 M1 首批 server/market/ 採獨立 backend boundary，contract 純規則；application 注入 market/clock port；binance-rest 外部 adapter；scripts/market-smoke.js 組裝。僅手動唯讀，不進 dist，不與 UI fixture 或風控執行接線。詳見 MARKET_DATA.md。
+
+M1 backend 暫以 tests/market-architecture.test.js 檢查明確模組 inventory、純契約與 adapter 依賴、UI 打包隔離；CodeQL server/ 納入掃描。後續新業務模組以 ADR 擴充統一架構矩陣。

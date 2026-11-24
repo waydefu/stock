@@ -8,7 +8,7 @@ const base=process.env.STATUS_BASE_SHA;
 if(base && !/^0+$/.test(base)){
   assert.match(base,/^[a-f0-9]{40}$/);
   const changed=execFileSync("git",["diff","--name-only",base,"HEAD","--"],{encoding:"utf8"}).trim().split("\n");
-  const runtime=changed.some(p=>/^(index\.html$|css\/|js\/|src-tauri\/|package(?:-lock)?\.json$|\.github\/workflows\/|scripts\/)/.test(p));
+  const runtime=changed.some(p=>/^(index\.html$|css\/|js\/|server\/|src-tauri\/|package(?:-lock)?\.json$|\.github\/workflows\/|scripts\/)/.test(p));
   if(runtime){
     assert.ok(changed.includes("docs/PROJECT_STATUS.md"),"Runtime/CI change requires status update");
     assert.ok(changed.includes("docs/RISK_REGISTER.md"),"Runtime/CI change requires risk review");

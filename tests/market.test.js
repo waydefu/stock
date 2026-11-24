@@ -46,3 +46,19 @@ test("untrusted clock stops before market reads",async()=>{
   let trade=0;const result=await readMarketSnapshot({now:()=>at,market:{serverTime:async()=>({ok:true,data:{serverTime:at+5000},fetchedAt:at}),latestTrade:async()=>{trade++}}});
   assert.equal(result.code,"CLOCK_UNCERTAIN");assert.equal(trade,0);
 });
+test("snapshot does not publish early observations that expire during the batch",async()=>{
+  let clock=at;const market={
+    serverTime:async()=>({ok:true,data:{serverTime:at},fetchedAt:at}),
+    latestTrade:async symbol=>{
+      if(symbol!=="BTCUSDT")clock=at+16000;
+      return {ok:true,data:[{...row,T:clock}],fetchedAt:clock};
+    }
+  };
+  const result=await readMarketSnapshot({now:()=>clock,market});
+  assert.equal(result.ok,false);assert.equal(result.results[0].code,"STALE_AT_SNAPSHOT");
+  assert.ok(result.results[1].ok&&result.results[2].ok);
+});
+test("backward clock changes abort the snapshot",async()=>{
+  const result=await readMarketSnapshot({now:()=>at,market:{serverTime:async()=>({ok:true,data:{serverTime:at},fetchedAt:at}),latestTrade:async()=>({ok:true,data:[row],fetchedAt:at-1})}});
+  assert.equal(result.code,"INVALID_CLOCK");
+});

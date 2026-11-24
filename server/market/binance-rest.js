@@ -13,7 +13,7 @@ async function boundedJson(response){
       text+=decoder.decode(value,{stream:true});
     }
     text+=decoder.decode();return {ok:true,data:JSON.parse(text)};
-  }catch{return failure("INVALID_RESPONSE")}
+  }catch(e){return failure(e?.name==="TimeoutError"||e?.name==="AbortError"?"TIMEOUT":"INVALID_RESPONSE")}
   finally{reader.releaseLock()}
 }
 export function createBinanceRest({transport,now,timeoutMs=8000}){
