@@ -447,3 +447,20 @@ test("restart after cached promotion approval but before arm resumes without re-
   assert.equal(outcome.promotion.cached, true);
   await next.stop();
 });
+
+test("server authority refuses uncovered trading-calendar dates without consuming data", async () => {
+  const now = () => Date.parse("2027-01-04T01:10:00.000Z");
+  const counter = { bars: 0, quotes: 0 };
+  const service = createServerAutoPaperService({
+    config: config(), proxyBaseUrl: "http://127.0.0.1:8787",
+    storage: new MemoryStorage(), clock: now, adapter: adapterFixture(now, counter),
+  });
+  try {
+    assert.deepEqual(await service.runOnce(), {
+      ok: false, code: "MARKET_CALENDAR_UNVERIFIED", skipped: true, session: null,
+    });
+    assert.deepEqual(counter, { bars: 0, quotes: 0 });
+  } finally {
+    await service.stop();
+  }
+});

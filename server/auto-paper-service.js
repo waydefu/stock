@@ -20,6 +20,7 @@ import { getCurrentSession } from "../js/market-rules.js";
 import { AuditLog, DEFAULT_RISK, RiskEngine } from "../js/risk.js";
 import { fugleResearchRange } from "../js/research-range.js";
 import { MarketSessionClock } from "../js/session-clock.js";
+import { isCoveredDate } from "../js/tw-market-holidays.js";
 import { TW_INSTRUMENT, createTwFeeModel } from "../js/tw-fee-model.js";
 import { FileKeyValueStorage, acquireExclusiveFileLease } from "./file-kv-storage.js";
 import { ForwardTestJournal } from "./forward-test-journal.js";
@@ -95,6 +96,10 @@ function saveMeta(storage, meta) {
 }
 
 export function serverAutoScheduleDecision(now = Date.now()) {
+  // Browser research can fall back to weekday assumptions; unattended authority cannot.
+  if (!isCoveredDate(taipeiYMD(now))) {
+    return Object.freeze({ run: false, code: "MARKET_CALENDAR_UNVERIFIED", session: null });
+  }
   const session = getCurrentSession("TW", now);
   if (!session) return Object.freeze({ run: false, code: "MARKET_CLOSED_SKIP", session: null });
   return Object.freeze({ run: true, code: "MARKET_SESSION", session: session.name });
@@ -298,7 +303,7 @@ export function createServerAutoPaperService({
       if (previousSchedule?.code !== schedule.code || previousSchedule?.session !== schedule.session) {
         log("SCHEDULE_SKIP", { code: schedule.code });
       }
-      return { ok: true, code: schedule.code, skipped: true, session: null };
+      return { ok: schedule.code === "MARKET_CLOSED_SKIP", code: schedule.code, skipped: true, session: null };
     }
     running = true;
     let promotion = null;

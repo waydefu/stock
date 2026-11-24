@@ -16,6 +16,8 @@
 - **當前優先序**：技術債／模組化／治理收斂 → 純數學策略 Automated Paper Trading v1（真實行情 forward test）；第一階段不使用真錢、不接 live broker。
 - 30-Day 部署設計已定案於 `docs/AUTO_PAPER_DEPLOYMENT_DESIGN.md`：首選 Render Starter + 1 GB Persistent Disk；正式 enable 前先補 crash-safe lease recovery、read-only authority status、restart recovery integration test。
 - Server Auto Paper 安全加固：stop 先封鎖新 cycle、等待進行中 cycle 結束才釋放 lease；停止後不可重用 instance；runner 持久化錯誤 fail-closed；已核准但未 arm 的 checkpoint 可恢復；file KV 寫入失敗不改已提交的記憶體狀態。回歸測試納入 CI，尚未完成 SIGKILL stale lease／跨子狀態原子交易／正式部署驗收。
+- Server scheduler 對 TWSE 日曆未涵蓋日期 fail-closed（MARKET_CALENDAR_UNVERIFIED），不得以 weekday 猜測開市；瀏覽器研究模式維持原有 fallback。2027 官方快照仍須來源核實後更新。
+- STATUS CI 閘門：git 參數陣列與顯式 refspec；PR 無法驗證 base／diff 時 fail-closed，非 PR 仍檢查內容；Dependabot 豁免同時核對 actor 與分支。
 - Forward Test Journal 已接 server authority：不只保存交易帳本，也保存每輪 equity／PnL／fees／fills／Gate／阻擋原因，月底可直接產生 evidence report（R-035）。
 
 ## 收斂進度（Track A–D；計畫與驗收見 `docs/FUTURE_PLAN.md`）
