@@ -6,9 +6,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      codeql:
+      github-actions:
         patterns:
-          - "github/codeql-action*"
+          - "*"
   - package-ecosystem: npm
     directory: /
     schedule:
